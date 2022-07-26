@@ -46,12 +46,12 @@ def corr(y_true, y_pred):
 
 def rmse(y_true, y_pred):
     """Root mean squared error"""
-    return mean_squared_error(y_true, y_pred, squared=False)
+    return np.sqrt(np.nanmean(bias(y_true, y_pred)**2))
 
 
 def mae(y_true, y_pred):
     """Mean absolute error"""
-    return mean_absolute_error(y_true, y_pred)
+    return np.nanmean(ae(y_true, y_pred))
 
 
 def get_metric(metric_name):

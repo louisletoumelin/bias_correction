@@ -130,7 +130,7 @@ def load_loss(name_loss, *args, **kwargs):
 
     elif name_loss == "pinball_proportional":
 
-        tho = kwargs["pinball_proportional"].get("tho", 0.75)
+        tho = kwargs["pinball_proportional"].get("tho")
         assert tho is not None, "Penalty keyword argument (int) must be provided for penalized loss"
 
         return PinballProportional(tho)

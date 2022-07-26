@@ -150,13 +150,14 @@ class ExperienceManager(AllExperiences):
         return self.path_experiences + self.name_current_experience
 
     @staticmethod
-    def create_folder_if_doesnt_exist(path, _raise=True):
+    def create_folder_if_doesnt_exist(path, _raise=True, verbose=False):
         if not os.path.exists(path):
             os.makedirs(path)
         elif _raise:
             raise FolderShouldNotExistError(path)
         else:
-            print(f"{path} already exists")
+            if verbose:
+                print(f"{path} already exists")
             pass
 
     def _create_folder_current_experience(self):

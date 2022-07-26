@@ -46,6 +46,13 @@ if config["network"] == "local":
 else:
     config["path_root"] = "//scratch/mrmn/letoumelinl/bias_correction/"
 
+# Path downscale
+if config["network"] == "local":
+    config["path_module_downscale"] = "/home/letoumelinl/wind_downscaling_cnn/src/downscale_/"
+else:
+    config["path_module_downscale"] = "//home/mrmn/letoumelinl/downscale_/"
+
+
 # Path to CNN
 config["cnn_name"] = "date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
 config["path_experience"] = config["path_root"] + "Data/1_Raw/CNN/"
@@ -57,6 +64,8 @@ config["path_stations_pre_processed"] = config["path_root"] + f"Data/2_Pre_proce
 config["path_time_series_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/time_series/{config['folder_obs']}/"
 config["path_topos_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/topos/{config['folder_obs']}/"
 config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experiences/"
+config["path_to_devine_test"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
+
 
 # Filename inputs and labels data
 config["time_series"] = config["path_time_series_pre_processed"] + "time_series_bc.pkl"
@@ -67,13 +76,13 @@ config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
 
 # Architecture
-config["details"] = "new_test"                                          # Str. Some details about the experiment
+config["details"] = "pp_50_20"                                            # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 
 # ann_v0
 config["disable_training_cnn"] = True                                   # Bool. Default=True
 config["type_of_output"] = "output_speed"                               # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]                                           # List. Each member is a unit [40, 20, 10, 5]
+config["nb_units"] = [25, 10]       #25, 10                                    # List. Each member is a unit [40, 20, 10, 5]
 config["use_bias"] = True
 
 # General
@@ -90,7 +99,7 @@ config["nb_layers_skip_connection"] = 3
 
 # Hyperparameters
 config["batch_size"] = 128                                                # Int.
-config["epochs"] = 5                                                      # Int.
+config["epochs"] = 1                                                      # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
@@ -111,11 +120,12 @@ config["standardize"] = True                                            # Bool. 
 config["shuffle"] = True                                                # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
-config["quick_test_stations"] = ["ALPE-D'HUEZ", 'LES ECRINS-NIVOSE', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
+config["quick_test"] = True                                             # Bool. Quicktest case (fast training)
+config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair", "LWnet", "SWnet", 'CC_cumul', 'BLH']
+config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -212,13 +222,12 @@ config["kwargs_loss"] = {"penalized_mse": {"penalty": 10,
                          "mse_power": {"penalty": 1,
                                        "power": 2},
                          "pinball": {"tho": 0.85},
-                         "pinball_proportional": {"tho": 0.95},
+                         "pinball_proportional": {"tho": 0.6},
                          "pinball_weight": {"tho": 0.95}}
 
 # todo assert station validation not in station test
 # todo assert kwargs split strategy are defined
 # todo assert a seed is given for any random input
-# todo extract DEVINE predictions
 
 
 # Do not modify: assert inputs are correct
@@ -230,7 +239,7 @@ config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
 
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
-                  'winddir(deg)', 'HTN(cm)','Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
+                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
                   'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',
                   'LWdown', 'LWnet', 'DIR_SWdown', 'SCA_SWdown', 'SWnet', 'SWD', 'SWU',
                   'LHF', 'SHF', 'CC_cumul', 'CC_cumul_low', 'CC_cumul_middle',

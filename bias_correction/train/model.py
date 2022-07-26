@@ -533,7 +533,16 @@ class CustomModel(Initializer):
         self.model_is_built = True
         self.model_is_compiled = True
 
-    def predict_with_batch(self, inputs_test):
+    def select_model(self, model_str):
+        if model_str == "last":
+            pass
+        elif "best":
+            self.model.load_weights(self.path_to_best_model)
+
+    def predict_with_batch(self, inputs_test, model_str="last"):
+
+        self.select_model(model_str)
+
         if not self.model_is_built:
             self.build_model()
 

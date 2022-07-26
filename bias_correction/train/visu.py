@@ -63,11 +63,7 @@ class StaticPlots:
 
         subfolder_in_filename = self.check_if_subfolder_in_filename(name_figure)
         if subfolder_in_filename:
-            print("debug")
-            print(save_path)
-            print(subfolder_in_filename)
             save_path, name_figure = self.create_subfolder_if_necessary(name_figure, save_path)
-            print(save_path, name_figure)
         self._save_figure(name_figure, save_path, format_=format_, svg=svg)
 
     @pass_if_doesnt_has_module()
@@ -146,7 +142,6 @@ class ModelVersusObsPlots(StaticPlots):
     def _plot_1_1_model_vs_arome(self, df, keys=["UV_nn", "UV_AROME"], figsize=(20, 10), s=1):
         nb_columns = len(keys)
         for idx, key in enumerate(keys):
-            print(key)
             self.plot_1_1_subplot(df, key, nb_columns, idx+1, s=s)
 
     def plot_1_1_subplot(self, df, key_model, nb_columns, id_plot, s=1):
@@ -210,7 +205,6 @@ class ModelVersusObsPlots(StaticPlots):
 
     def plot_1_1_by_station(self, df, key_model, figsize=(20, 10), s=1):
         for station in df["name"].unique():
-            print(station)
             plt.figure(figsize=figsize)
             self._plot_1_1_model_vs_arome(df[df["name"] == station], key_model, figsize=figsize, s=s)
             plt.title(station)

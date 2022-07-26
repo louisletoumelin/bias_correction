@@ -16,7 +16,7 @@ from bias_correction.train.metrics import get_metric
 
 class CustomEvaluation(VizualizationResults):
 
-    def __init__(self, exp, data, mode="test", keys=["_AROME", "_nn"], quick=False):
+    def __init__(self, exp, data, mode="test", keys=["_AROME", "_nn"], stations_to_remove=[], other_models=[], quick=False):
         super().__init__(exp)
 
         self.exp = exp
@@ -29,6 +29,16 @@ class CustomEvaluation(VizualizationResults):
         self._set_key_attributes(keys)
         self._set_key_list(keys)
         self.df_results = self.create_df_results()
+
+        if other_models:
+            self.add_other_models(other_models)
+            keys = keys + other_models
+            self._set_key_attributes(keys)
+            self._set_key_list(keys)
+
+        if stations_to_remove:
+            self.df_results = self.df_results[~self.df_results["name"].isin(stations_to_remove)]
+
         if not quick:
             self._add_metric_to_df_results()
             self._add_topo_carac_to_df_results()
@@ -65,8 +75,8 @@ class CustomEvaluation(VizualizationResults):
         """
         labels = self.data.get_labels(self.mode)
         inputs = self.data.get_inputs(self.mode)
-        df["T2m_obs"] = labels.values
-        df["T2m_AROME"] = inputs["Tair"].values
+        df.loc[:, "T2m_obs"] = labels.values
+        df.loc[:, "T2m_AROME"] = inputs["Tair"].values
         columns = ["name"] + self.keys
         return df[columns]
 
@@ -77,16 +87,45 @@ class CustomEvaluation(VizualizationResults):
 
         if "component" in self.data.config["type_of_output"]:
 
-            df["UV_obs"] = np.sqrt(labels["U_obs"] ** 2 + labels["V_obs"] ** 2)
-            df["UV_AROME"] = inputs["Wind"].values
+            df.loc[:, "UV_obs"] = np.sqrt(labels["U_obs"] ** 2 + labels["V_obs"] ** 2)
+            df.loc[:, "UV_AROME"] = inputs["Wind"].values
 
         elif "speed" in self.data.config["type_of_output"]:
 
-            df["UV_obs"] = labels.values
-            df["UV_AROME"] = inputs["Wind"].values
+            df.loc[:, "UV_obs"] = labels.values
+            df.loc[:, "UV_AROME"] = inputs["Wind"].values
 
         columns = ["name", f"{self.current_variable}_obs"] + self.keys
         return df[columns]
+
+    def add_other_models(self, models):
+
+        for model_str in models:
+
+            assert hasattr(self.data, f"predicted{model_str}")
+            self.data.get_predictions(model_str)
+            results = []
+
+            self.df_results[self.current_variable+model_str] = np.nan
+
+            for station in self.df_results["name"].unique():
+
+                filter_df_results = self.df_results["name"] == station
+                df_station = self.df_results.loc[filter_df_results, :]
+
+                model = getattr(self.data, f"predicted{model_str}")
+                filter_df_model = model["name"] == station
+                model_station = model.loc[filter_df_model, :]
+
+                filter_time = df_station.index.intersection(model_station.index)
+                df_station.loc[filter_time, self.current_variable+model_str] = model_station.loc[filter_time, self.current_variable+model_str]
+                print("debug0")
+                print(df_station.head())
+                results.append(df_station)
+
+            self.df_results = pd.concat(results)
+            print("debug1")
+            print(self.df_results)
 
     def _add_metric_to_df_results(self, metrics=["bias", "n_bias", "ae", "n_ae"]):
         for metric in metrics:
@@ -136,7 +175,7 @@ class CustomEvaluation(VizualizationResults):
             print(f"Quantiles {carac}: ", q25, q50, q75)
 
     def classify_alti(self):
-        self.df_results["class_alti0"] = np.nan
+        self.df_results.loc[:, "class_alti0"] = np.nan
 
         filter_1 = (self.df_results["alti"] <= 500)
         filter_2 = (500 < self.df_results["alti"]) & (self.df_results["alti"] <= 1000)
@@ -158,7 +197,7 @@ class CustomEvaluation(VizualizationResults):
         def compute_lead_time(hour):
             return (hour - 6) % 24 + 6
 
-        self.df_results["lead_time"] = compute_lead_time(self.df_results.index.hour.values)
+        self.df_results.loc[:, "lead_time"] = compute_lead_time(self.df_results.index.hour.values)
 
     @staticmethod
     def _df2metric(df, metric_name, current_variable, key_obs, keys):
@@ -210,6 +249,12 @@ class CustomEvaluation(VizualizationResults):
             self.df_results.loc[filter_station, :] = self.df_results.loc[filter_station, :].sort_index()
 
         return self.df2metric("corr")
+
+    def print_stats_model(self):
+        self.df2mae()
+        self.df2rmse()
+        self.df2mbe()
+        self.df2correlation()
 
 
 class StaticEval(VizualizationResults):
