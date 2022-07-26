@@ -99,7 +99,7 @@ config["nb_layers_skip_connection"] = 3
 
 # Hyperparameters
 config["batch_size"] = 128                                                # Int.
-config["epochs"] = 1                                                      # Int.
+config["epochs"] = 20                                                      # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
@@ -120,7 +120,7 @@ config["standardize"] = True                                            # Bool. 
 config["shuffle"] = True                                                # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = True                                             # Bool. Quicktest case (fast training)
+config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables

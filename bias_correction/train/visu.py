@@ -199,6 +199,7 @@ class ModelVersusObsPlots(StaticPlots):
         plt.xlim(min_value, max_value)
         plt.ylim(min_value, max_value)
 
+
     def plot_1_1_all(self, df, key_model, figsize=(20, 10), s=1):
         self._plot_1_1_model_vs_arome(df, key_model, figsize=figsize, s=s)
         self.save_figure("Model_vs_obs/1_1_all")

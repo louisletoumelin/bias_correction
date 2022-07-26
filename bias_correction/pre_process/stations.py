@@ -16,6 +16,7 @@ class Stations(TopoCaracteristics):
                  dem=None,
                  dem_pyr_corse=None,
                  config={}):
+
         super().__init__(stations=stations, dem=dem, dem_pyr_corse=dem_pyr_corse, config=config)
         self.stations = stations
         self.nwp_france = nwp_france
@@ -109,6 +110,7 @@ class Stations(TopoCaracteristics):
         nwps = [self.nwp_france, self.nwp_swiss, self.nwp_pyr, self.nwp_corse]
         countries = ["france", "swiss", "pyr", "corse"]
         for nwp, country in zip(nwps, countries):
+            print(country)
             stations_i = self.stations[self.stations["country"] == country]
 
             # Check that nwp have space coordinates
@@ -143,11 +145,14 @@ class Stations(TopoCaracteristics):
                 name_str_x = f'X_index_{self.name_nwp}_NN_{neighbor}{interp_str}_ref_{self.name_nwp}{interp_str}'
                 name_str_y = f'Y_index_{self.name_nwp}_NN_{neighbor}{interp_str}_ref_{self.name_nwp}{interp_str}'
 
+                if np.ndim(list_nearest) <= 3:
+                    list_nearest = np.expand_dims(list_nearest, axis=-1)
                 stations_i.loc[:, str_delta_x] = list_nearest[:, 0, neighbor]
                 stations_i.loc[:, str_x_l93] = [grid_flat[int(index)][0] for index in list_nearest[:, 1, neighbor]]
                 stations_i.loc[:, str_y_l93] = [grid_flat[int(index)][1] for index in list_nearest[:, 1, neighbor]]
                 stations_i.loc[:, name_str_x] = [list_index[int(index)][1] for index in list_nearest[:, 1, neighbor]]
                 stations_i.loc[:, name_str_y] = [list_index[int(index)][0] for index in list_nearest[:, 1, neighbor]]
+
 
                 distances = []
                 for i in range(len(stations_i)):
@@ -167,8 +172,9 @@ class Stations(TopoCaracteristics):
         """
         for idx, country in enumerate(["france", "swiss", "pyr", "corse"]):
             filter_country = self.stations["country"] == country
-            x_country = self.stations.loc[filter_country, ['X']]
-            y_country = self.stations.loc[filter_country, ['Y']]
+            x_country = self.stations.loc[filter_country, 'X']
+            y_country = self.stations.loc[filter_country, 'Y']
+
             nn_l93, nn_index, nn_delta_x = self.search_neighbors_in_dem_using_ckdtree(x_country,
                                                                                       y_country,
                                                                                       country=country)
@@ -200,21 +206,25 @@ class Stations(TopoCaracteristics):
 
         interp_str = "_interpolated" if interpolated else ""
         for idx, country in enumerate(["france", "swiss", "pyr", "corse"]):
+            print("idx")
+            print(idx)
             filter_country = self.stations["country"] == country
 
             for neighbor in range(self.number_of_neighbors):
-                x_str = self.stations[f"X_{self.name_nwp}_NN_{neighbor}{interp_str}"]
-                y_str = self.stations[f"Y_{self.name_nwp}_NN_{neighbor}{interp_str}"]
+                x_str = self.stations.loc[filter_country, f"X_{self.name_nwp}_NN_{neighbor}{interp_str}"]
+                y_str = self.stations.loc[filter_country, f"Y_{self.name_nwp}_NN_{neighbor}{interp_str}"]
                 name_str_x = f'X_index_{self.name_nwp}_NN_{neighbor}{interp_str}_ref_{self.name_dem}'
                 name_str_y = f'Y_index_{self.name_nwp}_NN_{neighbor}{interp_str}_ref_{self.name_dem}'
 
                 # Initialization
                 if idx == 0:
-                    self.stations[x_str] = np.nan
-                    self.stations[y_str] = np.nan
                     self.stations[name_str_x] = np.nan
                     self.stations[name_str_y] = np.nan
-
+                print("debug update_stations_with_knn_of_nwp_in_mnt_using_ckdtree")
+                print("x_str")
+                print(x_str)
+                print("y_str")
+                print(y_str)
                 _, nn_index, _ = self.search_neighbors_in_dem_using_ckdtree(x_str,
                                                                             y_str,
                                                                             country=country)
@@ -297,8 +307,16 @@ class Stations(TopoCaracteristics):
         :param arrays_nearest_neighbors_delta_x:
         :return: arrays_nearest_neighbors_l93, arrays_nearest_neighbors_index, arrays_nearest_neighbors_delta_x
         """
+
         tree = cKDTree(list_nearest_neighbors)
         distance, all_idx = tree.query((x_l93_station, y_l93_station), k=self.number_of_neighbors)
+
+        if np.ndim(distance) == 0:
+            distance = [distance]
+
+        if np.ndim(all_idx) == 0:
+            all_idx = [all_idx]
+
         for index, idx_neighbor in enumerate(all_idx):
             l93_nearest_neighbor = list_nearest_neighbors[idx_neighbor]
             index_mnt_nearest_neighbor = list_index_neighbors[idx_neighbor]
@@ -320,6 +338,7 @@ class Stations(TopoCaracteristics):
                                                                    resolution_x=30,
                                                                    resolution_y=30,
                                                                    country=country)
+
         nb_stations = len(mnt_indexes_x)
 
         arrays_nearest_neighbors_l93 = np.zeros((self.number_of_neighbors, nb_stations, 2))
@@ -329,7 +348,6 @@ class Stations(TopoCaracteristics):
         for idx_station in range(nb_stations):
             x_l93_station, y_l93_station = list_x_l93.values[idx_station], list_y_l93.values[idx_station]
             approximate_x, approximate_y = np.intp(mnt_indexes_x[idx_station]), np.intp(mnt_indexes_y[idx_station])
-
             list_nearest_neighbors, list_index_neighbors = self._create_grid_approximate_nn_in_dem(approximate_x,
                                                                                                    approximate_y,
                                                                                                    country=country)
@@ -422,126 +440,161 @@ class Stations(TopoCaracteristics):
                                                                verbose=self.config["verbose"])
             print("Interpolation not computed on nwp_corse (nwp_corse is None)")
 
-    def change_dtype_stations(self):
+    def change_dtype_stations(self, analysis=False):
         """
         Change the dtype for each column of the DataFrame.
         :return: pandas DataFrame
         """
-        self.stations = self.stations.astype({"name": str,
-                                              "X": np.float32,
-                                              "Y": np.float32,
-                                              "lon": np.float32,
-                                              "lat": np.float32,
-                                              "alti": np.float32,
-                                              "country": str,
-                                              "X_index_DEM_NN_0_ref_DEM": np.intp,
-                                              "Y_index_DEM_NN_0_ref_DEM": np.intp,
-                                              "X_L93_DEM_NN_0": np.float32,
-                                              "Y_L93_DEM_NN_0": np.float32,
-                                              "delta_x_DEM_NN_0": np.float32,
-                                              "X_index_DEM_NN_1_ref_DEM": np.intp,
-                                              "Y_index_DEM_NN_1_ref_DEM": np.intp,
-                                              "X_L93_DEM_NN_1": np.float32,
-                                              "Y_L93_DEM_NN_1": np.float32,
-                                              "delta_x_DEM_NN_1": np.float32,
-                                              "X_index_DEM_NN_2_ref_DEM": np.intp,
-                                              "Y_index_DEM_NN_2_ref_DEM": np.intp,
-                                              "X_L93_DEM_NN_2": np.float32,
-                                              "Y_L93_DEM_NN_2": np.float32,
-                                              "delta_x_DEM_NN_2": np.float32,
-                                              "X_index_DEM_NN_3_ref_DEM": np.intp,
-                                              "Y_index_DEM_NN_3_ref_DEM": np.intp,
-                                              "X_L93_DEM_NN_3": np.float32,
-                                              "Y_L93_DEM_NN_3": np.float32,
-                                              "delta_x_DEM_NN_3": np.float32,
-                                              "delta_x_AROME_NN_0": np.float32,
-                                              "X_AROME_NN_0": np.float32,
-                                              "Y_AROME_NN_0": np.float32,
-                                              "X_index_AROME_NN_0_ref_AROME": np.intp,
-                                              "Y_index_AROME_NN_0_ref_AROME": np.intp,
-                                              "ZS_AROME_NN_0": np.float32,
-                                              "delta_x_AROME_NN_1": np.float32,
-                                              "X_AROME_NN_1": np.float32,
-                                              "Y_AROME_NN_1": np.float32,
-                                              "X_index_AROME_NN_1_ref_AROME": np.intp,
-                                              "Y_index_AROME_NN_1_ref_AROME": np.intp,
-                                              "ZS_AROME_NN_1": np.float32,
-                                              "delta_x_AROME_NN_2": np.float32,
-                                              "X_AROME_NN_2": np.float32,
-                                              "Y_AROME_NN_2": np.float32,
-                                              "X_index_AROME_NN_2_ref_AROME": np.intp,
-                                              "Y_index_AROME_NN_2_ref_AROME": np.intp,
-                                              "ZS_AROME_NN_2": np.float32,
-                                              "delta_x_AROME_NN_3": np.float32,
-                                              "X_AROME_NN_3": np.float32,
-                                              "Y_AROME_NN_3": np.float32,
-                                              "X_index_AROME_NN_3_ref_AROME": np.intp,
-                                              "Y_index_AROME_NN_3_ref_AROME": np.intp,
-                                              "ZS_AROME_NN_3": np.float32,
-                                              "X_index_AROME_NN_0_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_0_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_1_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_1_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_2_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_2_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_3_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_3_ref_DEM": np.intp,
-                                              "delta_x_AROME_NN_0_interpolated": np.float32,
-                                              "X_AROME_NN_0_interpolated": np.float32,
-                                              "Y_AROME_NN_0_interpolated": np.float32,
-                                              "X_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
-                                              "Y_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
-                                              "ZS_AROME_NN_0_interpolated": np.float32,
-                                              "delta_x_AROME_NN_1_interpolated": np.float32,
-                                              "X_AROME_NN_1_interpolated": np.float32,
-                                              "Y_AROME_NN_1_interpolated": np.float32,
-                                              "X_index_AROME_NN_1_interpolated_ref_AROME_interpolated": np.intp,
-                                              "Y_index_AROME_NN_1_interpolated_ref_AROME_interpolated": np.intp,
-                                              "ZS_AROME_NN_1_interpolated": np.float32,
-                                              "delta_x_AROME_NN_2_interpolated": np.float32,
-                                              "X_AROME_NN_2_interpolated": np.float32,
-                                              "Y_AROME_NN_2_interpolated": np.float32,
-                                              "X_index_AROME_NN_2_interpolated_ref_AROME_interpolated": np.intp,
-                                              "Y_index_AROME_NN_2_interpolated_ref_AROME_interpolated": np.intp,
-                                              "ZS_AROME_NN_2_interpolated": np.float32,
-                                              "delta_x_AROME_NN_3_interpolated": np.float32,
-                                              "X_AROME_NN_3_interpolated": np.float32,
-                                              "Y_AROME_NN_3_interpolated": np.float32,
-                                              "X_index_AROME_NN_3_interpolated_ref_AROME_interpolated": np.intp,
-                                              "Y_index_AROME_NN_3_interpolated_ref_AROME_interpolated": np.intp,
-                                              "ZS_AROME_NN_3_interpolated": np.float32,
-                                              "X_index_AROME_NN_0_interpolated_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_0_interpolated_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_1_interpolated_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_1_interpolated_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_2_interpolated_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_2_interpolated_ref_DEM": np.intp,
-                                              "X_index_AROME_NN_3_interpolated_ref_DEM": np.intp,
-                                              "Y_index_AROME_NN_3_interpolated_ref_DEM": np.intp,
-                                              "laplacian_NN_0": np.float32,
-                                              "tpi_2000_NN_0": np.float32,
-                                              "tpi_500_NN_0": np.float32,
-                                              "mu_NN_0": np.float32,
-                                              "curvature_NN_0": np.float32,
-                                              "laplacian_NN_1": np.float32,
-                                              "tpi_2000_NN_1": np.float32,
-                                              "tpi_500_NN_1": np.float32,
-                                              "mu_NN_1": np.float32,
-                                              "curvature_NN_1": np.float32,
-                                              "laplacian_NN_2": np.float32,
-                                              "tpi_2000_NN_2": np.float32,
-                                              "tpi_500_NN_2": np.float32,
-                                              "mu_NN_2": np.float32,
-                                              "curvature_NN_2": np.float32,
-                                              "laplacian_NN_3": np.float32,
-                                              "tpi_2000_NN_3": np.float32,
-                                              "tpi_500_NN_3": np.float32,
-                                              "mu_NN_3": np.float32,
-                                              "curvature_NN_3": np.float32
-                                              }, errors="ignore")
+        if analysis:
+            self.stations = self.stations.astype({"name": str,
+                                                  "X": np.float32,
+                                                  "Y": np.float32,
+                                                  "lon": np.float32,
+                                                  "lat": np.float32,
+                                                  "alti": np.float32,
+                                                  "country": str,
+                                                  "X_index_DEM_NN_0_ref_DEM": np.intp,
+                                                  "Y_index_DEM_NN_0_ref_DEM": np.intp,
+                                                  "X_L93_DEM_NN_0": np.float32,
+                                                  "Y_L93_DEM_NN_0": np.float32,
+                                                  "delta_x_DEM_NN_0": np.float32,
+                                                  "delta_x_AROME_NN_0": np.float32,
+                                                  "X_AROME_NN_0": np.float32,
+                                                  "Y_AROME_NN_0": np.float32,
+                                                  "X_index_AROME_NN_0_ref_AROME": np.intp,
+                                                  "Y_index_AROME_NN_0_ref_AROME": np.intp,
+                                                  "ZS_AROME_NN_0": np.float32,
+                                                  "X_index_AROME_NN_0_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_0_ref_DEM": np.intp,
+                                                  "delta_x_AROME_NN_0_interpolated": np.float32,
+                                                  "X_AROME_NN_0_interpolated": np.float32,
+                                                  "Y_AROME_NN_0_interpolated": np.float32,
+                                                  "X_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "Y_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "ZS_AROME_NN_0_interpolated": np.float32,
+                                                  "X_index_AROME_NN_0_interpolated_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_0_interpolated_ref_DEM": np.intp
+                                                  }, errors="ignore")
+        else:
+            self.stations = self.stations.astype({"name": str,
+                                                  "X": np.float32,
+                                                  "Y": np.float32,
+                                                  "lon": np.float32,
+                                                  "lat": np.float32,
+                                                  "alti": np.float32,
+                                                  "country": str,
+                                                  "X_index_DEM_NN_0_ref_DEM": np.intp,
+                                                  "Y_index_DEM_NN_0_ref_DEM": np.intp,
+                                                  "X_L93_DEM_NN_0": np.float32,
+                                                  "Y_L93_DEM_NN_0": np.float32,
+                                                  "delta_x_DEM_NN_0": np.float32,
+                                                  "X_index_DEM_NN_1_ref_DEM": np.intp,
+                                                  "Y_index_DEM_NN_1_ref_DEM": np.intp,
+                                                  "X_L93_DEM_NN_1": np.float32,
+                                                  "Y_L93_DEM_NN_1": np.float32,
+                                                  "delta_x_DEM_NN_1": np.float32,
+                                                  "X_index_DEM_NN_2_ref_DEM": np.intp,
+                                                  "Y_index_DEM_NN_2_ref_DEM": np.intp,
+                                                  "X_L93_DEM_NN_2": np.float32,
+                                                  "Y_L93_DEM_NN_2": np.float32,
+                                                  "delta_x_DEM_NN_2": np.float32,
+                                                  "X_index_DEM_NN_3_ref_DEM": np.intp,
+                                                  "Y_index_DEM_NN_3_ref_DEM": np.intp,
+                                                  "X_L93_DEM_NN_3": np.float32,
+                                                  "Y_L93_DEM_NN_3": np.float32,
+                                                  "delta_x_DEM_NN_3": np.float32,
+                                                  "delta_x_AROME_NN_0": np.float32,
+                                                  "X_AROME_NN_0": np.float32,
+                                                  "Y_AROME_NN_0": np.float32,
+                                                  "X_index_AROME_NN_0_ref_AROME": np.intp,
+                                                  "Y_index_AROME_NN_0_ref_AROME": np.intp,
+                                                  "ZS_AROME_NN_0": np.float32,
+                                                  "delta_x_AROME_NN_1": np.float32,
+                                                  "X_AROME_NN_1": np.float32,
+                                                  "Y_AROME_NN_1": np.float32,
+                                                  "X_index_AROME_NN_1_ref_AROME": np.intp,
+                                                  "Y_index_AROME_NN_1_ref_AROME": np.intp,
+                                                  "ZS_AROME_NN_1": np.float32,
+                                                  "delta_x_AROME_NN_2": np.float32,
+                                                  "X_AROME_NN_2": np.float32,
+                                                  "Y_AROME_NN_2": np.float32,
+                                                  "X_index_AROME_NN_2_ref_AROME": np.intp,
+                                                  "Y_index_AROME_NN_2_ref_AROME": np.intp,
+                                                  "ZS_AROME_NN_2": np.float32,
+                                                  "delta_x_AROME_NN_3": np.float32,
+                                                  "X_AROME_NN_3": np.float32,
+                                                  "Y_AROME_NN_3": np.float32,
+                                                  "X_index_AROME_NN_3_ref_AROME": np.intp,
+                                                  "Y_index_AROME_NN_3_ref_AROME": np.intp,
+                                                  "ZS_AROME_NN_3": np.float32,
+                                                  "X_index_AROME_NN_0_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_0_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_1_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_1_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_2_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_2_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_3_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_3_ref_DEM": np.intp,
+                                                  "delta_x_AROME_NN_0_interpolated": np.float32,
+                                                  "X_AROME_NN_0_interpolated": np.float32,
+                                                  "Y_AROME_NN_0_interpolated": np.float32,
+                                                  "X_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "Y_index_AROME_NN_0_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "ZS_AROME_NN_0_interpolated": np.float32,
+                                                  "delta_x_AROME_NN_1_interpolated": np.float32,
+                                                  "X_AROME_NN_1_interpolated": np.float32,
+                                                  "Y_AROME_NN_1_interpolated": np.float32,
+                                                  "X_index_AROME_NN_1_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "Y_index_AROME_NN_1_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "ZS_AROME_NN_1_interpolated": np.float32,
+                                                  "delta_x_AROME_NN_2_interpolated": np.float32,
+                                                  "X_AROME_NN_2_interpolated": np.float32,
+                                                  "Y_AROME_NN_2_interpolated": np.float32,
+                                                  "X_index_AROME_NN_2_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "Y_index_AROME_NN_2_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "ZS_AROME_NN_2_interpolated": np.float32,
+                                                  "delta_x_AROME_NN_3_interpolated": np.float32,
+                                                  "X_AROME_NN_3_interpolated": np.float32,
+                                                  "Y_AROME_NN_3_interpolated": np.float32,
+                                                  "X_index_AROME_NN_3_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "Y_index_AROME_NN_3_interpolated_ref_AROME_interpolated": np.intp,
+                                                  "ZS_AROME_NN_3_interpolated": np.float32,
+                                                  "X_index_AROME_NN_0_interpolated_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_0_interpolated_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_1_interpolated_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_1_interpolated_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_2_interpolated_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_2_interpolated_ref_DEM": np.intp,
+                                                  "X_index_AROME_NN_3_interpolated_ref_DEM": np.intp,
+                                                  "Y_index_AROME_NN_3_interpolated_ref_DEM": np.intp,
+                                                  "laplacian_NN_0": np.float32,
+                                                  "tpi_2000_NN_0": np.float32,
+                                                  "tpi_500_NN_0": np.float32,
+                                                  "mu_NN_0": np.float32,
+                                                  "curvature_NN_0": np.float32,
+                                                  "laplacian_NN_1": np.float32,
+                                                  "tpi_2000_NN_1": np.float32,
+                                                  "tpi_500_NN_1": np.float32,
+                                                  "mu_NN_1": np.float32,
+                                                  "curvature_NN_1": np.float32,
+                                                  "laplacian_NN_2": np.float32,
+                                                  "tpi_2000_NN_2": np.float32,
+                                                  "tpi_500_NN_2": np.float32,
+                                                  "mu_NN_2": np.float32,
+                                                  "curvature_NN_2": np.float32,
+                                                  "laplacian_NN_3": np.float32,
+                                                  "tpi_2000_NN_3": np.float32,
+                                                  "tpi_500_NN_3": np.float32,
+                                                  "mu_NN_3": np.float32,
+                                                  "curvature_NN_3": np.float32
+                                                  }, errors="ignore")
 
-    def save_to_pickle(self):
-        self.stations.to_pickle(self.config["path_stations_pre_processed"] + "stations_bc.pkl")
+    def save_to_pickle(self, name=None):
+        if name is None:
+            name = ""
+        self.stations.to_pickle(self.config["path_stations_pre_processed"] + f"stations_bc{name}.pkl")
 
-    def save_to_csv(self):
-        self.stations.to_csv(self.config["path_stations_pre_processed"] + "stations_bc.csv")
+    def save_to_csv(self, name=None):
+        if name is None:
+            name = ""
+        self.stations.to_csv(self.config["path_stations_pre_processed"] + f"stations_bc{name}.csv")

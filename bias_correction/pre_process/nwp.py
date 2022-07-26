@@ -110,6 +110,7 @@ class Nwp:
                 dims_y = []
                 longitudes = []
                 latitudes = []
+                path = path.split("month/")[0]+"without_L93/"
                 for file in os.listdir(path):
                     print(f"Check lat/lon in {file})")
                     nwp = xr.open_dataset(path + file)
@@ -136,7 +137,6 @@ class Nwp:
                             print("didnt selected isel")
                             print(nwp.longitude)
                             print(nwp.latitude)
-                    """
                     elif "LON" in nwp:
                         print("selected LON/LAT")
                         try:
@@ -145,9 +145,8 @@ class Nwp:
                         except:
                             longitudes.append(nwp.LON.values)
                             latitudes.append(nwp.LAT.values)
-                    """
-                assert len(set(dims_x)) == 1
-                assert len(set(dims_y)) == 1
+                assert len(set(dims_x)) == 1, print(dims_x)
+                assert len(set(dims_y)) == 1, print(dims_y)
 
                 print(set(dims_x))
                 print(set(dims_y))
@@ -159,14 +158,13 @@ class Nwp:
     def compute_l93(self, nwp, country="france"):
         try:
             X_Y_L93 = self.gps_to_l93(nwp, lon='longitude', lat='latitude')
-        except ValueError:
+        except (ValueError, KeyError):
             X_Y_L93 = self.gps_to_l93(nwp, lon='LON', lat='LAT')
-
         np.save(self.config[f"path_X_Y_L93_{country}"] + "X_L93.npy", X_Y_L93["X_L93"].values)
         np.save(self.config[f"path_X_Y_L93_{country}"] + "Y_L93.npy", X_Y_L93["Y_L93"].values)
 
     def _check_L93_in_folder(self):
-        for country in ["alp", "swiss" "pyr", "corse"]:
+        for country in ["alp", "swiss", "pyr", "corse"]:
             assert "X_L93.npy" in os.listdir(self.config[f"path_X_Y_L93_{country}"])
             assert "Y_L93.npy" in os.listdir(self.config[f"path_X_Y_L93_{country}"])
             print(f"X_L93.npy and Y_L93.npy exist in {country}")
@@ -187,7 +185,10 @@ class Nwp:
             path_nwp = path_nwp.split("month/")[0] + "with_L93_64bits/"
             for file_name in os.listdir(path_nwp):
                 print(file_name)
-                file_name_short = file_name.split("_new_")[1]
+                try:
+                    file_name_short = file_name.split("_new_")[1]
+                except IndexError:
+                    file_name_short = file_name
                 path_to_file = self.config[f"path_nwp_{country}"]+file_name_short
                 xr.open_dataset(path_nwp+file_name).astype(np.float32).to_netcdf(path_to_file)
 

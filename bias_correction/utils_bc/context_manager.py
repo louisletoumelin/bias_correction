@@ -7,6 +7,7 @@ from time import time as t
 def timer_context(argument, level="", unit="minute", verbose=True):
     if verbose:
         t0 = t()
+        print(f"Begin {argument} ...")
         yield
         t1 = t()
         if unit == "hour":

@@ -35,6 +35,7 @@ with open(path + "dict_/dict_all.pickle", 'rb') as handle:
 # Figure 1
 #
 #
+plt.figure()
 list_df = []
 for i in range(5):
     #plt.figure()
@@ -72,6 +73,7 @@ plt.tight_layout()
 # Figure 2
 #
 #
+plt.figure()
 list_df = []
 for i in range(5):
     i = str(i)
@@ -103,12 +105,13 @@ plt.tight_layout()
 
 
 
-"""
+
 #
 #
 # Figure 3
 #
 #
+plt.figure()
 list_df = []
 for i in ['10', '5', '1', '0.1']:
     # plt.figure()
@@ -144,7 +147,7 @@ plt.tight_layout()
 # Figure 4 High variability
 #
 #
-
+plt.figure()
 with open(path + "dict_/dict_high_variability_small.pickle", 'rb') as handle:
     results = pickle.load(handle)
 
@@ -183,7 +186,7 @@ plt.tight_layout()
 # Figure 5 High variability
 #
 #
-
+plt.figure()
 list_df = []
 for time_step in [1, 2, 5, 10, 15, 20, 23]:
     values = []
@@ -212,4 +215,3 @@ ax.set_yscale('log')
 plt.ylabel("Magnitude of wind speed decreases [$m\:s^{-1}$]")
 plt.xlabel("$\Delta_{t}$ [hour]")
 plt.tight_layout()
-"""
