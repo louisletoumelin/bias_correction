@@ -39,23 +39,23 @@ with tf.device('/GPU:0'):
                                              validation_data=inputs_and_labels_val,
                                              dataloader=data_loader,
                                              mode="test")
-"""
+
 for model in ["last", "best"]:
 
     with tf.device('/GPU:0'):
-
+        """
         # Predict
         with timer_context("Predict train set"):
             inputs_train = data_loader.get_tf_zipped_inputs(mode="train").batch(data_loader.length_train)
             results_train = cm.predict_with_batch(inputs_train, model_str=model)
             del inputs_train
-
+        """
         # Predict
         with timer_context("Predict test set"):
             inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
             results_test = cm.predict_with_batch(inputs_test, model_str=model)
             del inputs_test
-
+        """
         # Predict
         with timer_context("Predict Pyrénées and Corsica"):
             inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries")\

@@ -187,11 +187,12 @@ class CustomDataHandler(SplitTrainTestVal):
             if topo_carac in self.config["input_variables"]:
                 time_series.loc[:, topo_carac] = np.nan
                 for station in time_series["name"].unique():
-                    value_topo_carac = stations[topo_carac+"_NN_0"][stations["name"] == station].values[0]
+                    value_topo_carac = stations.loc[stations["name"] == station, topo_carac+"_NN_0"].values[0]
                     time_series.loc[time_series["name"] == station, topo_carac] = value_topo_carac
         return time_series
 
     def reject_stations(self, time_series, stations):
+        """Reject stations from inputs files as defined by the user"""
         time_series = time_series[~time_series["name"].isin(self.config["stations_to_reject"])]
         stations = stations[~stations["name"].isin(self.config["stations_to_reject"])]
 
@@ -502,9 +503,10 @@ class CustomDataHandler(SplitTrainTestVal):
     def get_std(self):
         return self.std_standardize
 
-    def get_tf_topos(self, mode):
+    def get_tf_topos(self, mode, names=None):
 
-        names = self.get_names(mode)
+        if names is None:
+            names = self.get_names(mode)
 
         try:
             topos_generator = TopoGenerator(self.dict_topos, names.values)
@@ -528,7 +530,7 @@ class CustomDataHandler(SplitTrainTestVal):
                                              output_shapes=(self.config["nb_input_variables"],))
         return mean, std
 
-    def get_tf_zipped_inputs(self, mode="test", inputs=None):
+    def get_tf_zipped_inputs(self, mode="test", inputs=None, names=None):
 
         if inputs is None:
             inputs = self.get_inputs(mode)
@@ -540,9 +542,9 @@ class CustomDataHandler(SplitTrainTestVal):
 
         if self.config["standardize"]:
             mean, std = self.get_tf_mean_std(mode)
-            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode), inputs, mean, std))
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names), inputs, mean, std))
         else:
-            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode), inputs))
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names), inputs))
 
     def get_tf_zipped_inputs_labels(self, mode):
         labels = self.get_labels(mode)
@@ -652,6 +654,10 @@ class CustomDataHandler(SplitTrainTestVal):
         if model == "_D":
             path_to_file = self.config["path_to_devine_test"] + "devine_test.pkl"
             predictions = pd.read_pickle(path_to_file)
+        if model == "_A":
+            path_to_file = self.config["path_to_devine_test"] + "time_series_bc_a.pkl"
+            predictions = pd.read_pickle(path_to_file)
+            predictions = predictions.rename({"Wind": "UV_A"})
         setattr(self, f"predicted{model}", predictions)
 
 

@@ -109,13 +109,9 @@ class Initializer:
         os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
 
 
-class CustomModel(Initializer):
-    _horovod = _horovod
-
-    def __init__(self, experience, config):
+class CNNDevine(Initializer):
+    def __init__(self, config):
         super().__init__(config)
-        self.__dict__ = experience.__dict__
-        del self.is_finished
 
         # Load cnn
         self.cnn_devine = self.load_cnn(self.config["model_path"])
@@ -124,19 +120,11 @@ class CustomModel(Initializer):
         if config["disable_training_cnn"]:
             self.cnn_devine = self.disable_training(self.cnn_devine)
 
-        # Get initializer
-        self.initializer = self.get_initializer()
-
         # Get norm
         self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
 
-        self.exp = experience
-        self.model_is_built = None
-        self.model_is_compiled = None
-
     @staticmethod
     def load_cnn(model_path):
-
         def root_mse(y_true, y_pred):
             return K.sqrt(K.mean(K.square(y_true - y_pred)))
 
@@ -162,6 +150,62 @@ class CustomModel(Initializer):
         model.trainable = False
         return model
 
+    def devine(self, topos, x, inputs):
+        #  x[:, 0] is nwp wind speed.
+        #  x[:, 1] is wind direction.
+        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-1)(topos, x[:, 1])
+        y = CropTopography(initial_length=140, y_offset=79 // 2, x_offset=69 // 2)(y)
+        y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
+        y = self.cnn_devine(y)
+
+        if self.config["type_of_output"] in ["output_components", "map", "map_components"]:
+            # Direction
+            alpha_or_direction = Components2Alpha()(y)
+            alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
+            alpha_or_direction = RotationLayer(clockwise=True,
+                                               unit_input="degree",
+                                               fill_value=-1)(alpha_or_direction, x[:, 1])
+
+        # Speed
+        y = Components2Speed()(y)
+        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=-1)(y, x[:, 1])
+        y = ActivationArctan(alpha=38.2)(y, x[:, 0])
+
+        if self.config["type_of_output"] == "output_components":
+            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
+            x = SelectCenter(79, 69)(x)
+            y = SelectCenter(79, 69)(y)
+            bc_model = Model(inputs=inputs, outputs=(x, y), name="bias_correction")
+
+        elif self.config["type_of_output"] == "output_speed":
+            y = SelectCenter(79, 69)(y)
+            bc_model = Model(inputs=inputs, outputs=(y), name="bias_correction")
+
+        elif self.config["type_of_output"] == "map_components":
+            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
+            bc_model = Model(inputs=inputs, outputs=(x, y), name="bias_correction")
+
+        elif self.config["type_of_output"] == "map":
+            bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
+
+        return bc_model
+
+
+class CustomModel(CNNDevine):
+    _horovod = _horovod
+
+    def __init__(self, experience, config):
+        super().__init__(config)
+        self.__dict__ = experience.__dict__
+        del self.is_finished
+
+        # Get initializer
+        self.initializer = self.get_initializer()
+
+        self.exp = experience
+        self.model_is_built = None
+        self.model_is_compiled = None
+
     def get_optimizer(self):
         optimizer = load_optimizer(self.config["optimizer"],
                                    self.config["learning_rate"],
@@ -184,6 +228,25 @@ class CustomModel(Initializer):
         return load_initializer(self.config["initializer"],
                                 *self.config["args_initializer"],
                                 **self.config["kwargs_initializer"])
+
+    def get_callbacks(self, data_loader=None, mode=None):
+        callbacks = []
+
+        if self.config["distribution_strategy"] == "Horovod" and _horovod:
+            callbacks = self._append_hvd_callbacks(callbacks)
+
+            if hvd.rank() == 0:
+                callbacks = self._append_regular_callbacks(callbacks)
+        else:
+            callbacks = self._append_regular_callbacks(callbacks, data_loader=data_loader, mode=mode)
+
+        return callbacks
+
+    def get_prefetch(self):
+        if self.config["prefetch"] == "auto":
+            return tf.data.AUTOTUNE
+        else:
+            return self.config["prefetch"]
 
     @staticmethod
     def _append_hvd_callbacks(callbacks):
@@ -229,19 +292,6 @@ class CustomModel(Initializer):
 
         if "FeatureImportanceCallback" in self.config["callbacks"]:
             callbacks.append(FeatureImportanceCallback(data_loader, self, self.exp, mode))
-
-        return callbacks
-
-    def get_callbacks(self, data_loader=None, mode=None):
-        callbacks = []
-
-        if self.config["distribution_strategy"] == "Horovod" and _horovod:
-            callbacks = self._append_hvd_callbacks(callbacks)
-
-            if hvd.rank() == 0:
-                callbacks = self._append_regular_callbacks(callbacks)
-        else:
-            callbacks = self._append_regular_callbacks(callbacks, data_loader=data_loader, mode=mode)
 
         return callbacks
 
@@ -325,46 +375,6 @@ class CustomModel(Initializer):
 
         return y
 
-    def devine(self, topos, x, inputs):
-        #  x[:, 0] is nwp wind speed.
-        #  x[:, 1] is wind direction.
-        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-1)(topos, x[:, 1])
-        y = CropTopography(initial_length=140, y_offset=79 // 2, x_offset=69 // 2)(y)
-        y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
-        y = self.cnn_devine(y)
-
-        if self.config["type_of_output"] in ["output_components", "map", "map_components"]:
-            # Direction
-            alpha_or_direction = Components2Alpha()(y)
-            alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
-            alpha_or_direction = RotationLayer(clockwise=True,
-                                               unit_input="degree",
-                                               fill_value=-1)(alpha_or_direction, x[:, 1])
-
-        # Speed
-        y = Components2Speed()(y)
-        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=-1)(y, x[:, 1])
-        y = ActivationArctan(alpha=38.2)(y, x[:, 0])
-
-        if self.config["type_of_output"] == "output_components":
-            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
-            x = SelectCenter(79, 69)(x)
-            y = SelectCenter(79, 69)(y)
-            bc_model = Model(inputs=inputs, outputs=(x, y), name="bias_correction")
-
-        elif self.config["type_of_output"] == "output_speed":
-            y = SelectCenter(79, 69)(y)
-            bc_model = Model(inputs=inputs, outputs=(y), name="bias_correction")
-
-        elif self.config["type_of_output"] == "map_components":
-            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
-            bc_model = Model(inputs=inputs, outputs=(x, y), name="bias_correction")
-
-        elif self.config["type_of_output"] == "map":
-            bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
-
-        return bc_model
-
     def select_dense_network(self):
         if self.config["dense_with_skip_connection"]:
             return self.dense_network_with_skip_connections
@@ -377,6 +387,11 @@ class CustomModel(Initializer):
         if self.config["standardize"]:
             # inputs_cnn must be after y to be sure speed and direction are latest in the list
             return tf.keras.layers.Concatenate(axis=1)([y, inputs_nwp])
+
+    def add_intermediate_output(self):
+        XX = self.model.input
+        YY = self.model.get_layer("Add_dense_output").output
+        self.model = Model(inputs=XX, outputs=(self.model.outputs, YY))
 
     def _build_dense_temperature(self):
 
@@ -509,22 +524,11 @@ class CustomModel(Initializer):
         print(bc_model.summary())
         self.model = bc_model
 
-    def add_intermediate_output(self):
-        XX = self.model.input
-        YY = self.model.get_layer("Add_dense_output").output
-        self.model = Model(inputs=XX, outputs=(self.model.outputs, YY))
-
     def build_model(self):
-        if self.config["global_architecture"] == "ann_v0":
-            self._build_ann_v0()
-        elif self.config["global_architecture"] == "dense_only":
-            self._build_dense_only()
-        elif self.config["global_architecture"] == "dense_temperature":
-            self._build_dense_temperature()
-        elif self.config["global_architecture"] == "devine_only":
-            self._build_devine_only()
-        else:
-            raise NotImplementedError("Supported architectures: 'ann_v0' and 'dense_only'")
+        """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
+        model_architecture = self.config["global_architecture"]
+        method_build = getattr(self, f"_build_{model_architecture}")
+        method_build()
         self.model_is_built = True
 
     def build_compiled_model(self):
@@ -532,40 +536,6 @@ class CustomModel(Initializer):
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
         self.model_is_built = True
         self.model_is_compiled = True
-
-    def select_model(self, model_str):
-        if model_str == "last":
-            pass
-        elif "best":
-            self.model.load_weights(self.path_to_best_model)
-
-    def predict_with_batch(self, inputs_test, model_str="last"):
-
-        self.select_model(model_str)
-
-        if not self.model_is_built:
-            self.build_model()
-
-        for index, i in enumerate(inputs_test):
-            results_test = self.model.predict(i)
-
-        return results_test
-
-    def get_prefetch(self):
-        if self.config["prefetch"] == "auto":
-            return tf.data.AUTOTUNE
-        else:
-            return self.config["prefetch"]
-
-    def prepare_train_dataset(self, dataset):
-        dataset = dataset.batch(batch_size=self.config["global_batch_size"]) \
-            .cache() \
-            .prefetch(self.get_prefetch())
-        return dataset
-
-    def prepare_val_dataset(self, dataset):
-        dataset = dataset.batch(batch_size=self.config["global_batch_size"])
-        return dataset
 
     def _build_mirrored_strategy(self):
 
@@ -601,11 +571,43 @@ class CustomModel(Initializer):
         else:
             self._build_classic_strategy()
 
+    def select_model_version(self, model_str):
+        if model_str == "last":
+            pass
+        elif "best":
+            self.model.load_weights(self.path_to_best_model)
+
+    def predict_with_batch(self, inputs_test, model_str="last"):
+
+        self.select_model_version(model_str)
+
+        if not self.model_is_built:
+            self.build_model()
+
+        for index, i in enumerate(inputs_test):
+            results_test = self.model.predict(i)
+
+        return results_test
+
+    def prepare_train_dataset(self, dataset):
+        dataset = dataset.batch(batch_size=self.config["global_batch_size"]) \
+            .cache() \
+            .prefetch(self.get_prefetch())
+        return dataset
+
+    def prepare_val_dataset(self, dataset):
+        dataset = dataset.batch(batch_size=self.config["global_batch_size"])
+        return dataset
+
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode=None):
+
         if not self.model_is_built and not self.model_is_compiled:
             self.build_model_with_strategy()
+
         dataset = self.prepare_train_dataset(dataset)
+
         validation_data = self.prepare_val_dataset(validation_data)
+
         results = self.model.fit(dataset,
                                  validation_data=validation_data,
                                  epochs=self.config["epochs"],
