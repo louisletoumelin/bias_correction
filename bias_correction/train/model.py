@@ -110,18 +110,9 @@ class Initializer:
 
 
 class CNNDevine(Initializer):
+
     def __init__(self, config):
         super().__init__(config)
-
-        # Load cnn
-        self.cnn_devine = self.load_cnn(self.config["model_path"])
-
-        # Freeze CNN weights
-        if config["disable_training_cnn"]:
-            self.cnn_devine = self.disable_training(self.cnn_devine)
-
-        # Get norm
-        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
 
     @staticmethod
     def load_cnn(model_path):
@@ -197,7 +188,9 @@ class CustomModel(CNNDevine):
     def __init__(self, experience, config):
         super().__init__(config)
         self.__dict__ = experience.__dict__
-        del self.is_finished
+
+        if hasattr(self, "is_finished"):
+            del self.is_finished
 
         # Get initializer
         self.initializer = self.get_initializer()
@@ -205,6 +198,16 @@ class CustomModel(CNNDevine):
         self.exp = experience
         self.model_is_built = None
         self.model_is_compiled = None
+
+        # Load cnn
+        self.cnn_devine = self.load_cnn(config["model_path"])
+
+        # Freeze CNN weights
+        if config["disable_training_cnn"]:
+            self.cnn_devine = self.disable_training(self.cnn_devine)
+
+        # Get norm
+        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
 
     def get_optimizer(self):
         optimizer = load_optimizer(self.config["optimizer"],
@@ -229,7 +232,7 @@ class CustomModel(CNNDevine):
                                 *self.config["args_initializer"],
                                 **self.config["kwargs_initializer"])
 
-    def get_callbacks(self, data_loader=None, mode=None):
+    def get_callbacks(self, data_loader=None, mode_callback=None):
         callbacks = []
 
         if self.config["distribution_strategy"] == "Horovod" and _horovod:
@@ -238,7 +241,7 @@ class CustomModel(CNNDevine):
             if hvd.rank() == 0:
                 callbacks = self._append_regular_callbacks(callbacks)
         else:
-            callbacks = self._append_regular_callbacks(callbacks, data_loader=data_loader, mode=mode)
+            callbacks = self._append_regular_callbacks(callbacks, data_loader=data_loader, mode_callback=mode_callback)
 
         return callbacks
 
@@ -271,7 +274,7 @@ class CustomModel(CNNDevine):
 
         return callbacks
 
-    def _append_regular_callbacks(self, callbacks, data_loader=None, mode=None):
+    def _append_regular_callbacks(self, callbacks, data_loader=None, mode_callback=None):
 
         if "TensorBoard" in self.config["callbacks"]:
             callbacks.append(TensorBoard(log_dir=self.path_to_tensorboard_logs,
@@ -291,7 +294,7 @@ class CustomModel(CNNDevine):
                                              **self.config["kwargs_callbacks"]["ModelCheckpoint"]))
 
         if "FeatureImportanceCallback" in self.config["callbacks"]:
-            callbacks.append(FeatureImportanceCallback(data_loader, self, self.exp, mode))
+            callbacks.append(FeatureImportanceCallback(data_loader, self, self.exp, mode_callback))
 
         return callbacks
 
@@ -571,15 +574,23 @@ class CustomModel(CNNDevine):
         else:
             self._build_classic_strategy()
 
-    def select_model_version(self, model_str):
+    def select_model_version(self, model_str, build=False):
+
+        if build:
+            self.build_model_with_strategy()
+
         if model_str == "last":
+            if build:
+                self.model.load_weights(self.path_to_last_model)
             pass
+
         elif "best":
             self.model.load_weights(self.path_to_best_model)
 
     def predict_with_batch(self, inputs_test, model_str="last"):
 
-        self.select_model_version(model_str)
+        if model_str:
+            self.select_model_version(model_str)
 
         if not self.model_is_built:
             self.build_model()
@@ -599,7 +610,7 @@ class CustomModel(CNNDevine):
         dataset = dataset.batch(batch_size=self.config["global_batch_size"])
         return dataset
 
-    def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode=None):
+    def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
 
         if not self.model_is_built and not self.model_is_compiled:
             self.build_model_with_strategy()
@@ -611,6 +622,15 @@ class CustomModel(CNNDevine):
         results = self.model.fit(dataset,
                                  validation_data=validation_data,
                                  epochs=self.config["epochs"],
-                                 callbacks=self.get_callbacks(dataloader, mode))
+                                 callbacks=self.get_callbacks(dataloader, mode_callback))
 
         return results
+
+    @classmethod
+    def from_previous_experience(cls, exp, config, model_str):
+
+        inst = cls(exp, config)
+
+        inst.select_model_version(model_str, build=True)
+
+        return inst

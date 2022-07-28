@@ -24,7 +24,7 @@ def _get_path_with_root(path_to_previous_exp, network):
     if network == "local":
         return "/home/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp
     elif network == "labia":
-        return "//scratch/mrmn/letoumelinl/bias_correction/3_Predictions/Experiences/" + path_to_previous_exp
+        return "//scratch/mrmn/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp
     else:
         raise NotImplementedError("Network supported: local and labia")
 
@@ -43,19 +43,20 @@ class FolderShouldNotExistError(Exception):
 
 class AllExperiences:
 
-    def __init__(self, config, override=False):
+    def __init__(self, config, override=False, create=True):
         self.config = config
         self.path_experiences = config["path_experiences"]
-        self.create_csv_file_if_doesnt_exists("experiences",
-                                              ["exp", "finished", "details"],
-                                              override=override)
-        self.create_csv_file_if_doesnt_exists("metrics",
-                                              ["exp", "finished", "details", "MAE_nn",
-                                               "MAE_a", "RMSE_nn", "RMSE_a", "MB_n", "MB_a"],
-                                              override=override)
-        self.create_csv_file_if_doesnt_exists("hyperparameters",
-                                              ["exp", "finished", "hyperparameter1", "hyperparameter2", "details"],
-                                              override=override)
+        if create:
+            self.create_csv_file_if_doesnt_exists("experiences",
+                                                  ["exp", "finished", "details"],
+                                                  override=override)
+            self.create_csv_file_if_doesnt_exists("metrics",
+                                                  ["exp", "finished", "details", "MAE_nn",
+                                                   "MAE_a", "RMSE_nn", "RMSE_a", "MB_n", "MB_a"],
+                                                  override=override)
+            self.create_csv_file_if_doesnt_exists("hyperparameters",
+                                                  ["exp", "finished", "hyperparameter1", "hyperparameter2", "details"],
+                                                  override=override)
 
     def check_csv_file_exists(self, name):
         return f"{name}.csv" in os.listdir(self.path_experiences)
@@ -70,8 +71,8 @@ class AllExperiences:
 
 class ExperienceManager(AllExperiences):
 
-    def __init__(self, config, override=False, restore_old_experience=False):
-        super().__init__(config, override=override)
+    def __init__(self, config, override=False, restore_old_experience=False, create=True):
+        super().__init__(config, override=override, create=create)
         self.list_physical_devices()
 
         if not restore_old_experience:
@@ -249,8 +250,12 @@ class ExperienceManager(AllExperiences):
                     "path_to_best_model": self.path_to_best_model,
                     "path_to_last_model": self.path_to_last_model,
                     "path_to_tensorboard_logs": self.path_to_tensorboard_logs,
+                    "path_to_figures": self.path_to_figures,
+                    "path_to_feature_importance": self.path_to_feature_importance,
+                    "path_to_predictions": self.path_to_predictions,
+                    "path_experiences": self.path_experiences
                     }
-
+        # Paths
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
 
@@ -270,15 +275,37 @@ class ExperienceManager(AllExperiences):
 
         path_to_previous_exp = _get_full_path_to_previous_exp(path_to_previous_exp)
 
-        with open(path_to_previous_exp + "config.json", 'w') as fp:
-            config = json.loads(fp)
+        with open(path_to_previous_exp + "/config.json", 'r') as fp:
+            config = json.load(fp)
 
-        inst = cls(config, override=False, restore_old_experience=True)
+        config["network"] = detect_network()
+        if config["network"] == "local":
+            for key in config:
+                if isinstance(config[key], str):
+                    if "//scratch/mrmn" in config[key]:
+                        config[key] = config[key].replace("//scratch/mrmn", "//home")
+                    if "//home/mrmn" in config[key]:
+                        config[key] = config[key].replace("//home/mrmn", "//home")
 
-        with open(path_to_previous_exp + "exp.json", 'w') as fp:
-            dict_exp = json.loads(fp)
+        inst = cls(config, override=False, restore_old_experience=True, create=False)
+
+        with open(path_to_previous_exp + "/exp.json", 'r') as fp:
+            dict_exp = json.load(fp)
+
+        if config["network"] == "local":
+            for key in dict_exp:
+                if isinstance(dict_exp[key], str):
+                    if "//scratch/mrmn" in dict_exp[key]:
+                        dict_exp[key] = dict_exp[key].replace("//scratch/mrmn", "//home")
+                    if "//home/mrmn" in dict_exp[key]:
+                        dict_exp[key] = dict_exp[key].replace("//home/mrmn", "//home")
+
+        print("debug")
+        print(dict_exp)
 
         for key in dict_exp:
             setattr(inst, key, dict_exp[key])
 
-        return inst
+        config["restore_experience"] = True
+
+        return inst, config

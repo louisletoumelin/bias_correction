@@ -69,6 +69,7 @@ config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_n
 # Architecture
 config["details"] = "new_test"                                          # Str. Some details about the experiment
 config["global_architecture"] = "devine_only"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = "n/a"                                   # Bool. Default=True

@@ -199,18 +199,17 @@ class ModelVersusObsPlots(StaticPlots):
         plt.xlim(min_value, max_value)
         plt.ylim(min_value, max_value)
 
-
-    def plot_1_1_all(self, df, key_model, figsize=(20, 10), s=1):
+    def plot_1_1_all(self, df, key_model, figsize=(20, 10), s=1, name="1_1_all"):
         self._plot_1_1_model_vs_arome(df, key_model, figsize=figsize, s=s)
-        self.save_figure("Model_vs_obs/1_1_all")
+        self.save_figure(f"Model_vs_obs/{name}")
 
-    def plot_1_1_by_station(self, df, key_model, figsize=(20, 10), s=1):
+    def plot_1_1_by_station(self, df, key_model, figsize=(20, 10), s=1, name=""):
         for station in df["name"].unique():
             plt.figure(figsize=figsize)
             self._plot_1_1_model_vs_arome(df[df["name"] == station], key_model, figsize=figsize, s=s)
             plt.title(station)
             var_i = self.exp.config['current_variable']
-            self.save_figure(f"Model_vs_obs_by_station/1_1_{station}_{var_i}_models_vs_{var_i}_obs")
+            self.save_figure(f"Model_vs_obs_by_station/1_1_{station}_{var_i}_models_vs_{var_i}_obs_{name}")
 
 
 class SeasonalEvolution(ModelVersusObsPlots):
@@ -236,7 +235,8 @@ class SeasonalEvolution(ModelVersusObsPlots):
                                 keys=["UV_nn", "UV_AROME"],
                                 groupby="month",
                                 fontsize=15,
-                                figsize=(20, 15)):
+                                figsize=(20, 15),
+                                name="Seasonal_evolution"):
         for metric in metrics:
             self._plot_seasonal_evolution(df,
                                           metric,
@@ -244,7 +244,7 @@ class SeasonalEvolution(ModelVersusObsPlots):
                                           fontsize=fontsize,
                                           figsize=figsize,
                                           groupby=groupby)
-            self.save_figure("Seasonal_evolution/Seasonal_evolution")
+            self.save_figure(f"Seasonal_evolution/{name}")
 
     def plot_seasonal_evolution_by_station(self,
                                            df,
@@ -252,7 +252,8 @@ class SeasonalEvolution(ModelVersusObsPlots):
                                            keys=["UV_nn", "UV_AROME"],
                                            groupby="month",
                                            fontsize=15,
-                                           figsize=(20, 15)):
+                                           figsize=(20, 15),
+                                           name=""):
         for station in df["name"].unique():
             for metric in metrics:
                 self._plot_seasonal_evolution(df[df["name"] == station],
@@ -262,7 +263,7 @@ class SeasonalEvolution(ModelVersusObsPlots):
                                               figsize=figsize,
                                               groupby=groupby)
                 plt.title(station)
-                self.save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}")
+                self.save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}_{name}")
 
 
 class Leadtime(SeasonalEvolution):
@@ -276,7 +277,8 @@ class Leadtime(SeasonalEvolution):
                        keys=["UV_nn", "UV_AROME"],
                        groupby="lead_time",
                        fontsize=15,
-                       figsize=(20, 15)):
+                       figsize=(20, 15),
+                       name="Lead_time"):
         for metric in metrics:
             self._plot_seasonal_evolution(df,
                                           metric,
@@ -284,7 +286,7 @@ class Leadtime(SeasonalEvolution):
                                           fontsize=fontsize,
                                           figsize=figsize,
                                           groupby=groupby)
-            self.save_figure("Lead_time/Lead_time")
+            self.save_figure(f"Lead_time/{name}")
 
     def plot_lead_time_by_station(self,
                                   df,
@@ -345,7 +347,8 @@ class VizualizationResults(Leadtime):
                                 topo_carac=['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti'],
                                 dict_keys={"_nn": "Neural Network", "_AROME": "AROME"},
                                 showfliers=False,
-                                figsize=(15, 10)):
+                                figsize=(15, 10),
+                                name="Boxplot_topo_carac"):
         for metric in metrics:
             for carac in topo_carac:
                 self._plot_boxplot_topo_carac(df,
@@ -354,4 +357,4 @@ class VizualizationResults(Leadtime):
                                               dict_keys=dict_keys,
                                               figsize=figsize,
                                               showfliers=showfliers)
-                self.save_figure(f"Boxplots/Boxplot_topo_carac")
+                self.save_figure(f"Boxplots/{name}")
