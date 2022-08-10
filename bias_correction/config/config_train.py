@@ -52,7 +52,6 @@ if config["network"] == "local":
 else:
     config["path_module_downscale"] = "//home/mrmn/letoumelinl/downscale_/"
 
-
 # Path to CNN
 config["cnn_name"] = "date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
 config["path_experience"] = config["path_root"] + "Data/1_Raw/CNN/"
@@ -61,7 +60,8 @@ config["model_path"] = config["path_experience"] + config["cnn_name"]
 # Path to inputs and labels data
 config["folder_obs"] = "2022_06_10"
 config["path_stations_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/stations/{config['folder_obs']}/"
-config["path_time_series_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/time_series/{config['folder_obs']}/"
+config["path_time_series_pre_processed"] = config[
+                                               "path_root"] + f"Data/2_Pre_processed/time_series/{config['folder_obs']}/"
 config["path_topos_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/topos/{config['folder_obs']}/"
 config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experiences/"
 config["path_to_devine"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
@@ -76,64 +76,63 @@ config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
 
 # Architecture
-config["details"] = "test_station"                                            # Str. Some details about the experiment
-config["global_architecture"] = "ann_v0"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False  #"2022_7_27_labia_v4"
+config["details"] = "test_station"  # Str. Some details about the experiment
+config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
+config["restore_experience"] = False  # "2022_7_27_labia_v4"
 
 # ann_v0
-config["disable_training_cnn"] = True                                   # Bool. Default=True
-config["type_of_output"] = "output_speed"                               # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]       #25, 10                                    # List. Each member is a unit [40, 20, 10, 5]
+config["disable_training_cnn"] = True  # Bool. Default=True
+config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
+config["nb_units"] = [25, 10]  # 25, 10                                    # List. Each member is a unit [40, 20, 10, 5]
 config["use_bias"] = True
 
 # General
-config["batch_normalization"] = False                                   # Bool. Apply batch_norm or not
-config["activation_dense"] = "selu"                                     # Bool. Activation in dense network
-config["dropout_rate"] = 0.25                                            # Int. or False. Dropout rate or no dropout
-config["final_skip_connection"] = True                                        # Use skip connection with speed/direction
-config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None
-config["prefetch"] = "auto"                                                # Default="auto", else = Int
+config["batch_normalization"] = False  # Bool. Apply batch_norm or not
+config["activation_dense"] = "selu"  # Bool. Activation in dense network
+config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout
+config["final_skip_connection"] = True  # Use skip connection with speed/direction
+config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
+config["prefetch"] = "auto"  # Default="auto", else = Int
 
 # Skip connections in dense network
 config["dense_with_skip_connection"] = False
-config["nb_layers_skip_connection"] = 3
 
 # Hyperparameters
-config["batch_size"] = 128                                                # Int.
-config["epochs"] = 3                                                      # Int.
+config["batch_size"] = 128  # Int.
+config["epochs"] = 3  # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
-config["optimizer"] = "Adam"                                            # Str.
-config["args_optimizer"] = [config["learning_rate"]]                    # List.
-config["kwargs_optimizer"] = {}                                         # Dict.
+config["optimizer"] = "Adam"  # Str.
+config["args_optimizer"] = [config["learning_rate"]]  # List.
+config["kwargs_optimizer"] = {}  # Dict.
 
 # Initializer
-config["initializer"] = "GlorotUniform"                                 # Str. Default = "GlorotUniform"
-config["args_initializer"] = []                                         # List.
-config["kwargs_initializer"] = {"seed": 42}                             # Dict.
+config["initializer"] = "GlorotUniform"  # Str. Default = "GlorotUniform"
+config["args_initializer"] = []  # List.
+config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
 # Input CNN
 config["input_cnn"] = False
 
 # Inputs pre-processing
-config["standardize"] = True                                            # Bool. Apply standardization
-config["shuffle"] = True                                                # Bool. Shuffle inputs
+config["standardize"] = True  # Bool. Apply standardization
+config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
+config["quick_test"] = False  # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
 # Labels
-config["labels"] = ['vw10m(m/s)']                                       # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)']
-config["wind_nwp_variables"] = ["Wind", "Wind_DIR"]                     # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
-config["wind_temp_variables"] = ['Tair']                     # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
+config["labels"] = ['vw10m(m/s)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)']
+config["wind_nwp_variables"] = ["Wind", "Wind_DIR"]  # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
+config["wind_temp_variables"] = ['Tair']  # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
 
 # Dataset
 config["unbalanced_dataset"] = False
@@ -147,7 +146,7 @@ config["callbacks"] = ["TensorBoard",
                        "ModelCheckpoint"]  # "FeatureImportanceCallback"
 
 config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
-                                                    "factor": 0.5,      # new_lr = lr * factor
+                                                    "factor": 0.5,  # new_lr = lr * factor
                                                     "patience": 3,
                                                     "min_lr": 0.0001},
 
@@ -167,22 +166,22 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "TensorBoard": {"profile_batch": '20, 50',
                                               "histogram_freq": 1},
 
-                              "HVDLearningRateWarmupCallback": {"warmup_epochs": 5,
-                                                                "verbose": 1},
+                              "LearningRateWarmupCallback": {"warmup_epochs": 5,
+                                                             "verbose": 1},
 
                               "FeatureImportanceCallback": {}
                               }
 
 # Split
-config["split_strategy_test"] = "time_and_space"                         # "time", "space", "time_and_space", "random"
+config["split_strategy_test"] = "time_and_space"  # "time", "space", "time_and_space", "random"
 config["split_strategy_val"] = "time_and_space"
 
 # Random split
-config["random_split_state_test"] = 50                                  # Float. Default = 50
-config["random_split_state_val"] = 55                                   # Float. Default = 55
+config["random_split_state_test"] = 50  # Float. Default = 50
+config["random_split_state_val"] = 55  # Float. Default = 55
 
 # Time split
-config["date_split_train_test"] = "2019-10-01"                          # Str. Split train/test around this date
+config["date_split_train_test"] = "2019-10-01"  # Str. Split train/test around this date
 #                                                                         e.g. "2018-11-01"
 config["date_split_train_val"] = "2019-10-01"
 
@@ -194,8 +193,13 @@ config["metric_split"] = "rmse"
 
 # Space split
 # 2022_08_04 v4
-config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
-config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
+config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
+                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
+                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
+                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
+                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU',
+                          'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
 
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 
@@ -203,9 +207,16 @@ config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 config["get_intermediate_output"] = False
 
 # Custom loss
-config["loss"] = "pinball_proportional"                                                  # Str. Default=mse. Used for gradient descent
-config["args_loss"] = []
-config["kwargs_loss"] = {"penalized_mse": {"penalty": 10,
+config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent
+config["args_loss"] = {"mse": [],
+                       "penalized_mse": [],
+                       "mse_proportional": [],
+                       "mse_power": [],
+                       "pinball": [],
+                       "pinball_proportional": [],
+                       "pinball_weight": []}
+config["kwargs_loss"] = {"mse": {},
+                         "penalized_mse": {"penalty": 10,
                                            "speed_threshold": 5},
                          "mse_proportional": {"penalty": 1},
                          "mse_power": {"penalty": 1,
@@ -290,7 +301,6 @@ all_stations = ['ABO', 'AEG', 'AGAAR', 'AGSUA', 'AGUIL. DU MIDI', 'AIG',
                 'TIBIO', 'TICAM', 'TIMOL', 'TIT', 'TOULOUSE-BLAGNAC', 'ULR', 'VAD',
                 'VEV', "VILLAR D'ARENE", 'VILLAR ST PANCRACE', 'VILLARD-DE-LANS',
                 'VIO', 'VIS', 'VIT', 'VLS', 'Vallot', 'WAE', 'WFJ', 'WYN', 'ZER']
-
 
 """
 # De même, marche bien mais DEVINE a de mauvaises statistiques
