@@ -76,9 +76,9 @@ config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
 
 # Architecture
-config["details"] = "pp_50_20"                                            # Str. Some details about the experiment
+config["details"] = "test_station"                                            # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False #"2022_7_27_labia_v4"
+config["restore_experience"] = False  #"2022_7_27_labia_v4"
 
 # ann_v0
 config["disable_training_cnn"] = True                                   # Bool. Default=True
@@ -100,12 +100,12 @@ config["nb_layers_skip_connection"] = 3
 
 # Hyperparameters
 config["batch_size"] = 128                                                # Int.
-config["epochs"] = 20                                                      # Int.
+config["epochs"] = 3                                                      # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
-config["optimizer"] = "Adam"                                         # Str.
-config["args_optimizer"] = [config["learning_rate"]]                                        # List.
+config["optimizer"] = "Adam"                                            # Str.
+config["args_optimizer"] = [config["learning_rate"]]                    # List.
 config["kwargs_optimizer"] = {}                                         # Dict.
 
 # Initializer
@@ -193,21 +193,9 @@ config["country_to_reject_during_training"] = ["pyr", "corse"]
 config["metric_split"] = "rmse"
 
 # Space split
-config["stations_test"] = ['MMMES', 'EGH', 'LA MURE-ARGENS', 'BLA', 'EVO', 'TGAMR', 'TIT',
-                           'MILLEFONTS-NIVOSE', 'COY', 'ULR', 'AGUIL. DU MIDI', 'SIA', 'PLF',
-                           'BIN', 'ZER', 'MMMUE', 'EGO', 'LUZ', 'DIGNE LES BAINS', 'TGILL',
-                           'CIM', 'Col du Lac Blanc', 'TICAM', 'CHB', 'LE PLENAY',
-                           'MONT DU CHAT', 'VAD', 'ARH', 'MTR', 'EMBRUN', 'MMKSB', 'MOB',
-                           'MMIBG', 'MMSAF', 'MMSAX', 'BIZ', 'BER', 'TALLARD', 'GRO',
-                           'INNEBI', 'MLS', 'PEONE', 'SRS', 'FLU', 'GVE', 'BIA', 'MMRIC',
-                           'PIL', 'MMSAS', 'La Muzelle Lac Blanc', 'TGDIE', 'TIAIR', 'MMNOI',
-                           'ALBERTVILLE JO']
-
-
-config["stations_val"] = ['LA MASSE', 'LE GRAND-BORNAND', 'MER', 'TGRIC', 'ARVIEUX',
-                          'BONNEVAL-NIVOSE', 'MMERZ', 'INNESF', 'TGLAN', 'MMLAF', 'SHA',
-                          'AND', 'Argentiere', 'BEH', 'TGNOL', 'GOS', 'PARPAILLON-NIVOSE',
-                          'MOA']
+# 2022_08_04 v4
+config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
 
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 
@@ -305,6 +293,55 @@ all_stations = ['ABO', 'AEG', 'AGAAR', 'AGSUA', 'AGUIL. DU MIDI', 'AIG',
 
 
 """
+# De même, marche bien mais DEVINE a de mauvaises statistiques
+# 2022_08_04 v5
+config["stations_test"] = ['Col du Lac Blanc', 'CREYS-MALVILLE', 'CEV', 'TGKAL', 'EIN', 'AEG', 'CHB', 'ZER', 'ULR', 'CMA', 'TICAM', 'AND', 'LES ROCHILLES-NIVOSE', 'HAI', 'MAH', 'BEH', 'LUS L CROIX HTE', 'BONNEVAL-NIVOSE', 'PIL', 'MMZNZ', 'KOP', 'ARH', 'INNEBI', 'GRA', 'ASCROS', 'ST JEAN-ST-NICOLAS', 'BER', 'AIGUILLES ROUGES-NIVOSE', 'TGNOL', 'VILLAR ST PANCRACE', 'SAE', 'PAY', 'MRP', 'BIZ', 'ARVIEUX', 'AGSUA', 'MTR', 'ST-PIERRE-LES EGAUX', 'GRANDE PAREI NIVOSE', 'Argentiere', 'COM', 'MMPRV', 'TIT', 'WYN', 'WAE', 'TGALL', 'DIGNE LES BAINS', 'RISTOLAS', 'DIA', 'BUS', 'BLA', 'MMRAF', 'SMM', 'MMSVG', 'MMSAX']
+config["stations_val"] = ['LUG', 'TGUSH', 'RAG', 'SRS', 'SAG', 'MER', 'BIV', 'PARPAILLON-NIVOSE', 'EGH', 'MOB', 'MMDAS', 'INNESF', 'DEM', 'GRE', 'MMSSE', 'TGDIE', 'DAV', 'LA MASSE']
+
+# Marche bien mais DEVINE trop biaisé
+# 2022_08_04 v4
+config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
+
+# 2022_08_04 v3
+['Col du Lac Blanc', 'LUZ', 'REH', 'MMSAX', 'TIAIR', 'MMDAS', 'MER', 'LAT', 'PEONE', 'NAS', 'ARVIEUX', 'SCM', 'LES ECRINS-NIVOSE', 'MMERZ', 'STG', 'Col du Lautaret', 'WAE', "ALPE-D'HUEZ", 'LAE', 'GIH', "VILLAR D'ARENE", 'TAE', 'MMMUM', 'RUE', 'MMBOY', 'SCU', 'GOS', 'TGDUS', 'COL-DES-SAISIES', 'TGAMR', 'COV', 'HAI', 'VAD', 'ULR', 'ST-PIERRE-LES EGAUX', 'LE PLENAY', 'CHU', 'LUG', 'LES ROCHILLES-NIVOSE', 'AIG', 'MMLEN', 'MMPRV', 'DAV', 'KLO', 'GRE', 'OBR', 'TALLARD', 'BIE', 'AIGLETON-NIVOSE', 'MVE', 'ROE', 'ANT', 'EBK', 'CEV', 'TGARE']
+['GRENOBLE - LVD', 'MMBIR', 'MMTRG', 'DIS', 'MMRIC', 'TGOTT', 'MMSAF', 'PEIRA CAVA', 'GUE', 'LAG', 'MMCPY', 'CDF', 'MMMAT', 'TGWEI', 'MMHIW', 'PAY', 'BIZ', 'MONT DU CHAT']
+
+
+# 2022_08_04 v2
+['Col du Lac Blanc', 'GIH', 'LEI', 'QUI', 'VIT', 'MMCPY', 'CHM', 'SMM', 'RISTOLAS', 'JUN', 'MMSAS', 'MMSRL', 'La Muzelle Lac Blanc', 'TGLAN', 'MMPRV', 'SIA', 'FRE', 'ALLANT-NIVOSE', 'LA MASSE', 'HAI', "VILLAR D'ARENE", 'MAG', 'FAH', 'TGNUS', 'GUE', 'BUF', 'LE CHEVRIL-NIVOSE', 'HOE', 'MMLOP', 'MMTIT', 'AIGUILLES ROUGES-NIVOSE', 'SRS', 'MMDAS', 'LA MURE- RADOME', 'MMLIN', 'SPF', 'GAP', 'CREYS-MALVILLE', 'PEIRA CAVA', 'GSB', 'ARO', 'BOL', 'BIE', 'KLO', 'EGO', 'AGAAR', 'PAY', 'GRANDE PAREI NIVOSE', 'AIGLETON-NIVOSE', 'INNRED', 'GES', 'MOE', 'MMFRS', 'TGILL', 'DAV']
+['GRO', 'TGRIC', 'TGEGN', 'FLU', 'MMUNS', 'CHU', 'BIN', 'PEONE', 'TIT', 'MOB', 'AND', 'INNESF', 'MMERZ', 'MMRAF', 'MMSSE', 'CGI', 'TGAMR', 'PIL']
+
+# 2022_08_04
+config["stations_test"] = ['Col du Lac Blanc', 'MMLAF', 'WAE', 'AGAAR', 'DIS', 'MMDAS', 'EMBRUN', 'ZER', 'LE TOUR',
+                           'GRH', 'SRS', 'MMSRL', 'BER', 'GIH', 'VAD', 'TAE', 'EGO', 'TGAMR', 'JUN', 'DEM', 'BRZ',
+                           'MMHIW', 'COL-DES-SAISIES', 'LE PLENAY', 'BONNEVAL-NIVOSE', 'MMCPY', 'Col de Porte', 'DIA',
+                           'TGNOL', 'INNESF', 'LA MEIJE-NIVOSE', 'LEI', 'STK', 'SIO', 'ST-PIERRE-LES EGAUX', 'MAS',
+                           'Argentiere', 'MEYTHET', 'BELLECOTE-NIVOSE', 'ASCROS', 'MMZWE', 'ROB', 'MFOFKP', 'WYN',
+                           'MMBIR', 'TGEGN', 'CDM', "VILLAR D'ARENE", 'PARPAILLON-NIVOSE', 'INNRED', 'HLL', 'ULR',
+                           'TGUSH', 'TGNUS', 'SIA']
+
+config["stations_val"] = ['SBO', 'CEV', 'MMBOY', 'THU', 'AND', 'MMTIT', 'ROE', 'RESTEFOND-NIVOSE',
+                          'La Muzelle Lac Blanc', 'BARCELONNETTE', 'GRANDE PAREI NIVOSE', 'GALIBIER-NIVOSE',
+                          'ALBERTVILLE JO', 'MER', 'ARH', 'SPF', 'PLF', 'AIGLETON-NIVOSE']
+
+
+# 2022_08_03
+['MMMES', 'EGH', 'LA MURE-ARGENS', 'BLA', 'EVO', 'TGAMR', 'TIT',
+                           'MILLEFONTS-NIVOSE', 'COY', 'ULR', 'AGUIL. DU MIDI', 'SIA', 'PLF',
+                           'BIN', 'ZER', 'MMMUE', 'EGO', 'LUZ', 'DIGNE LES BAINS', 'TGILL',
+                           'CIM', 'Col du Lac Blanc', 'TICAM', 'CHB', 'LE PLENAY',
+                           'MONT DU CHAT', 'VAD', 'ARH', 'MTR', 'EMBRUN', 'MMKSB', 'MOB',
+                           'MMIBG', 'MMSAF', 'MMSAX', 'BIZ', 'BER', 'TALLARD', 'GRO',
+                           'INNEBI', 'MLS', 'PEONE', 'SRS', 'FLU', 'GVE', 'BIA', 'MMRIC',
+                           'PIL', 'MMSAS', 'La Muzelle Lac Blanc', 'TGDIE', 'TIAIR', 'MMNOI',
+                           'ALBERTVILLE JO']
+                           
+['LA MASSE', 'LE GRAND-BORNAND', 'MER', 'TGRIC', 'ARVIEUX',
+  'BONNEVAL-NIVOSE', 'MMERZ', 'INNESF', 'TGLAN', 'MMLAF', 'SHA',
+  'AND', 'Argentiere', 'BEH', 'TGNOL', 'GOS', 'PARPAILLON-NIVOSE',
+  'MOA']    
+                           
 config["stations_test"] = ['AIGUILLES ROUGES-NIVOSE', 'LE GRAND-BORNAND', 'MEYTHET', 'LE PLENAY', 'Saint-Sorlin',
                            'Argentiere', 'Col du Lac Blanc', 'CHA', 'CMA', 'DOL', "GALIBIER-NIVOSE", 'LA MURE-ARGENS',
                            'ARVIEUX', 'PARPAILLON-NIVOSE', 'EMBRUN', 'LA FAURIE', 'GAP', 'LA MEIJE-NIVOSE',
@@ -326,4 +363,80 @@ config["stations_test"] = ['INNRED', 'TICAM', 'STK', 'OBR', 'EIN', 'AND', 'TGOTT
 
 config["stations_val"] = ['BUS', 'MMBIR', 'AGSUA', 'GRENOBLE-ST GEOIRS', 'DIS', 'RUE', 'GOS', 'CDF',
                           'ARVIEUX', 'COL AGNEL-NIVOSE', 'PEIRA CAVA', 'PMA']
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+General results
+mbe: -0.09720373898744583
+rmse: 1.9583745002746582
+corr: 0.5967392491028242
+mae: 1.3460997343063354
+ Alti category = (0, 1000)m
+Mode: Validation,  Nb stations: 10,  bias:  0.21,  rmse:  1.57,  corr:  0.59,  mae:  1.11
+Mode: Training,  Nb stations: 114,  bias:  0.26,  rmse:  1.58,  corr:  0.64,  mae:  1.15
+Mode: Test,  Nb stations: 31,  bias:  0.32,  rmse:  1.52,  corr:  0.65,  mae:  1.11
+ Alti category = (1000, 2000)m
+Mode: Validation,  Nb stations: 3,  bias:  0.05,  rmse:  1.53,  corr:  0.72,  mae:  1.10
+Mode: Training,  Nb stations: 59,  bias: -0.35,  rmse:  2.02,  corr:  0.57,  mae:  1.37
+Mode: Test,  Nb stations: 15,  bias: -0.10,  rmse:  1.76,  corr:  0.57,  mae:  1.29
+ Alti category = (2000, 3000)m
+Mode: Validation,  Nb stations: 5,  bias:  0.34,  rmse:  2.53,  corr:  0.51,  mae:  1.85
+Mode: Training,  Nb stations: 22,  bias: -1.40,  rmse:  3.07,  corr:  0.60,  mae:  2.20
+Mode: Test,  Nb stations: 6,  bias: -1.10,  rmse:  2.76,  corr:  0.61,  mae:  1.93
+ Alti category = (3000, 5000)m
+Mode: Validation,  Nb stations: 0,  bias:  nan,  rmse:  nan,  corr:  nan,  mae:  nan
+Mode: Training,  Nb stations: 4,  bias: -2.28,  rmse:  3.84,  corr:  0.55,  mae:  2.83
+Mode: Test,  Nb stations: 3,  bias: -0.16,  rmse:  2.64,  corr:  0.70,  mae:  1.96
+
+
+
+
+
+
+
+
+
+General results
+Training_mbe: -0.026106510311365128
+Test_mbe: -0.31169164180755615
+Validation_mbe: -0.26853638887405396
+Training_rmse: 1.94012451171875
+Test_rmse: 2.045722246170044
+Validation_rmse: 1.8953019380569458
+Training_corr: 0.5990634506707512
+Test_corr: 0.5785604500111888
+Validation_corr: 0.6536016792513266
+Training_mae: 1.3388566970825195
+Test_mae: 1.3758349418640137
+Validation_mae: 1.3379265069961548
+ Alti category = (0, 1000)m
+Mode: Training,  Nb stations: 117,  bias:  0.31,  rmse:  1.58,  corr:  0.65,  mae:  1.14
+Mode: Test,  Nb stations: 29,  bias:  0.19,  rmse:  1.54,  corr:  0.59,  mae:  1.11
+Mode: Validation,  Nb stations: 10,  bias: -0.03,  rmse:  1.54,  corr:  0.65,  mae:  1.13
+ Alti category = (1000, 2000)m
+Mode: Training,  Nb stations: 57,  bias: -0.30,  rmse:  2.04,  corr:  0.57,  mae:  1.39
+Mode: Test,  Nb stations: 17,  bias: -0.39,  rmse:  1.78,  corr:  0.61,  mae:  1.24
+Mode: Validation,  Nb stations: 3,  bias:  0.62,  rmse:  1.34,  corr:  0.49,  mae:  1.02
+ Alti category = (2000, 3000)m
+Mode: Training,  Nb stations: 22,  bias: -0.91,  rmse:  2.93,  corr:  0.54,  mae:  2.08
+Mode: Test,  Nb stations: 6,  bias: -1.56,  rmse:  3.16,  corr:  0.61,  mae:  2.28
+Mode: Validation,  Nb stations: 5,  bias: -1.36,  rmse:  2.71,  corr:  0.68,  mae:  1.98
+ Alti category = (3000, 5000)m
+Mode: Training,  Nb stations: 5,  bias: -0.90,  rmse:  2.87,  corr:  0.63,  mae:  2.10
+Mode: Test,  Nb stations: 2,  bias: -2.65,  rmse:  4.50,  corr:  0.48,  mae:  3.44
+Mode: Validation,  Nb stations: 0,  bias:  nan,  rmse:  nan,  corr:  nan,  mae:  nan
+
+
+
+
+
+
+
 """

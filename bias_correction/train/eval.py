@@ -71,7 +71,7 @@ class CustomEvaluation(VizualizationResults):
 
         :param df: DataFrame with data
         :type df: pandas.DataFrame
-        :return: DataFrame with temperature variables
+        :return: DataFrame with emperature variables
         """
         labels = self.data.get_labels(self.mode)
         inputs = self.data.get_inputs(self.mode)
@@ -98,7 +98,7 @@ class CustomEvaluation(VizualizationResults):
         columns = ["name", f"{self.current_variable}_obs"] + self.keys
         return df[columns]
 
-    def add_models(self, models):
+    def add_other_models(self, models):
 
         for model_str in models:
 
@@ -300,6 +300,16 @@ class StaticEval(VizualizationResults):
         assert "mode" in stations
 
         time_series = time_series[["name", "mode", "alti", "Wind", "vw10m(m/s)"]].dropna()
+
+        print("\n\nGeneral results")
+        for metric in ["mbe", "rmse", "corr", "mae"]:
+            for mode in stations["mode"].unique():
+                filter_mode = time_series["mode"] == mode
+                nwp = time_series.loc[filter_mode, "Wind"].values
+                obs = time_series.loc[filter_mode, "vw10m(m/s)"].values
+                metric_func = get_metric(metric)
+                result = metric_func(obs, nwp)
+                print(f"{mode}_{metric}: {result}")
 
         for alti_min, alti_max in zip(list_min, list_max):
             print(f"\n Alti category = {np.int(alti_min), np.int(alti_max)}m")

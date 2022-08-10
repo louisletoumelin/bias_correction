@@ -241,10 +241,15 @@ class ExperienceManager(AllExperiences):
 
     def save_experience_json(self):
 
+        if hasattr(self, "is_finished"):
+            is_finished = 0 if self.is_finished is None else self.is_finished
+        else:
+            is_finished = 0
+
         dict_exp = {"current_date": self.current_date,
                     "current_id": int(self.current_id),
                     "name_current_experience": self.name_current_experience,
-                    "is_finished": int(self.is_finished),
+                    "is_finished": int(is_finished),
                     "path_to_current_experience": self.path_to_current_experience,
                     "path_to_logs": self.path_to_logs,
                     "path_to_best_model": self.path_to_best_model,
@@ -259,16 +264,18 @@ class ExperienceManager(AllExperiences):
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
 
-    def save_all(self, data, c_eval, custom_model):
+    def save_all(self, data, custom_model):
 
         self.save_model(custom_model)
+        self.save_config_json()
+        self.save_experience_json()
         if self.config["standardize"]:
             self.save_norm_param(data.mean_standardize, data.std_standardize)
+
+    def save_results(self, c_eval):
         self.finished()
         self._update_finished_csv_file()
         self._update_csv_files_with_results(c_eval)
-        self.save_config_json()
-        self.save_experience_json()
 
     @classmethod
     def from_previous_experience(cls, path_to_previous_exp):
@@ -299,9 +306,6 @@ class ExperienceManager(AllExperiences):
                         dict_exp[key] = dict_exp[key].replace("//scratch/mrmn", "//home")
                     if "//home/mrmn" in dict_exp[key]:
                         dict_exp[key] = dict_exp[key].replace("//home/mrmn", "//home")
-
-        print("debug")
-        print(dict_exp)
 
         for key in dict_exp:
             setattr(inst, key, dict_exp[key])

@@ -45,6 +45,7 @@ if not config["restore_experience"]:
                                      validation_data=data_loader.get_tf_zipped_inputs_labels(mode="val"),
                                      dataloader=data_loader,
                                      mode_callback="test")
+exp.save_all(data_loader, cm)
 
 for model in ["last", "best"]:
     print(f"\n\n_______________________")
@@ -79,25 +80,11 @@ for model in ["last", "best"]:
     print(f"_______________________\n\n")
     data_loader.set_predictions(results_test, mode="test")
     del results_test
-    data_loader.add_models("_D", mode="test")
-    data_loader.add_models("_A")
+    data_loader.add_model("_D", mode="test")
+    data_loader.add_model("_A")
     c_eval = CustomEvaluation(exp, data_loader, mode="test", keys=["_AROME", "_nn"], other_models=["_D", "_A"])
     c_eval.print_stats()
-    exp.save_all(data_loader, c_eval, cm)
-
-    # Test without Aiguille du midi
-    print(f"\n\n_______________________")
-    print(f"Test statistics no Aiguille du midi: model={model}")
-    print(f"_______________________\n\n")
-    c_eval_no_aiguille = CustomEvaluation(exp,
-                                          data_loader,
-                                          mode="test",
-                                          stations_to_remove=['AGUIL. DU MIDI'],
-                                          keys=["_AROME", "_nn"],
-                                          other_models=["_D", "_A"])
-    c_eval_no_aiguille.print_stats()
-    exp.save_all(data_loader, c_eval_no_aiguille, cm)
-    del c_eval_no_aiguille
+    exp.save_results(c_eval)
 
     # Predict
     with tf.device('/GPU:0'):
@@ -113,7 +100,7 @@ for model in ["last", "best"]:
     print(f"_______________________\n\n")
     data_loader.set_predictions(results_other_countries, mode="other_countries")
     del results_other_countries
-    data_loader.add_models("_D", mode="other_countries")
+    data_loader.add_model("_D", mode="other_countries")
     c_eval_other_countries = CustomEvaluation(exp,
                                               data_loader,
                                               mode="other_countries",
@@ -132,7 +119,11 @@ for model in ["last", "best"]:
     with timer_context("Lead time"):
         c_eval.plot_lead_time(c_eval.df_results, keys=c_eval.keys, name=f"Lead_time_{model}")
     with timer_context("Boxplot"):
-        c_eval.plot_boxplot_topo_carac(c_eval.df_results, name=f"Boxplot_topo_carac_{model}")
+        c_eval.plot_boxplot_topo_carac(c_eval.df_results, name=f"Boxplot_topo_carac_{model}",
+                                       dict_keys={"_nn": "Neural Network + DEVINE",
+                                                  "_AROME": "$AROME_{forecast}$",
+                                                  "_D": "DEVINE",
+                                                  "_A": "$AROME_{analysis}$"})
 
     del c_eval
     gc.collect()

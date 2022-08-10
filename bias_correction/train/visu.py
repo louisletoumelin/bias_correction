@@ -67,7 +67,7 @@ class StaticPlots:
         self._save_figure(name_figure, save_path, format_=format_, svg=svg)
 
     @pass_if_doesnt_has_module()
-    def plot_pair_plot_parameters(self, stations, figsize=(10, 10), s=15):
+    def plot_pair_plot_parameters(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
         """Pair plot parameters"""
         if not _sns:
             raise ModuleNotFoundError("Seaborn is required for this function")
@@ -81,11 +81,12 @@ class StaticPlots:
         sns.pairplot(
             data=stations[["Elevation [m]", "TPI [m]", "Slope []", "Y coord. [m]", "mode"]],
             hue="mode",
+            hue_order=hue_order,
             plot_kws={"s": s})
         self.save_figure("Pair_plot_param")
 
     @pass_if_doesnt_has_module()
-    def plot_pair_plot_metrics(self, stations, figsize=(10, 10), s=15):
+    def plot_pair_plot_metrics(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
         """Pair plot metrics"""
         metric_computed = "rmse" in stations or "mbe" in stations or "corr" in stations or "mae" in stations
         assert metric_computed, "metrics (rmse, mbe, corr, mae) must be computed befor plotting this function"
@@ -103,10 +104,11 @@ class StaticPlots:
                            "Mean absolute error [$m\:s^{-1}$]",
                            "mode"]],
             hue="mode",
+            hue_order=hue_order,
             plot_kws={"s": s})
         self.save_figure("Pair_plot_metric")
 
-    def plot_pairplot_all(self, stations, figsize=(10, 10), s=15):
+    def plot_pairplot_all(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
         """Pair plot metrics and parameters"""
         stations = stations.rename(columns={"alti": "Elevation [m]",
                                             "tpi_500_NN_0": "TPI [m]",
@@ -130,6 +132,7 @@ class StaticPlots:
                            "Mean absolute error [$m\:s^{-1}$]",
                            "mode"]],
             hue="mode",
+            hue_order=hue_order,
             plot_kws={"s": s})
         self.save_figure("Pair_plot_all")
 

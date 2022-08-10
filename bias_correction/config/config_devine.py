@@ -153,21 +153,9 @@ config["country_to_reject_during_training"] = ["pyr", "corse"]
 config["metric_split"] = "rmse"
 
 # Space split
-config["stations_test"] = ['MMMES', 'EGH', 'LA MURE-ARGENS', 'BLA', 'EVO', 'TGAMR', 'TIT',
-                           'MILLEFONTS-NIVOSE', 'COY', 'ULR', 'AGUIL. DU MIDI', 'SIA', 'PLF',
-                           'BIN', 'ZER', 'MMMUE', 'EGO', 'LUZ', 'DIGNE LES BAINS', 'TGILL',
-                           'CIM', 'Col du Lac Blanc', 'TICAM', 'CHB', 'LE PLENAY',
-                           'MONT DU CHAT', 'VAD', 'ARH', 'MTR', 'EMBRUN', 'MMKSB', 'MOB',
-                           'MMIBG', 'MMSAF', 'MMSAX', 'BIZ', 'BER', 'TALLARD', 'GRO',
-                           'INNEBI', 'MLS', 'PEONE', 'SRS', 'FLU', 'GVE', 'BIA', 'MMRIC',
-                           'PIL', 'MMSAS', 'La Muzelle Lac Blanc', 'TGDIE', 'TIAIR', 'MMNOI',
-                           'ALBERTVILLE JO']
-
-
-config["stations_val"] = ['LA MASSE', 'LE GRAND-BORNAND', 'MER', 'TGRIC', 'ARVIEUX',
-                          'BONNEVAL-NIVOSE', 'MMERZ', 'INNESF', 'TGLAN', 'MMLAF', 'SHA',
-                          'AND', 'Argentiere', 'BEH', 'TGNOL', 'GOS', 'PARPAILLON-NIVOSE',
-                          'MOA']
+# 2022_08_04 v4
+config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
 
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 

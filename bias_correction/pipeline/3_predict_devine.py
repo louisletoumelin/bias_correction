@@ -41,15 +41,15 @@ with tf.device('/GPU:0'):
         results_test = cm.predict_with_batch(inputs_test)
 
     # Predict
-    with timer_context("Predict Pyrénées and Corsica"):
-        inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries")\
-            .batch(data_loader.length_other_countries)
-        results_other_countries = cm.predict_with_batch(inputs_other_countries)
+    #with timer_context("Predict Pyrénées and Corsica"):
+    #    inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries")\
+    #        .batch(data_loader.length_other_countries)
+    #    results_other_countries = cm.predict_with_batch(inputs_other_countries)
 
-for mode, result in zip(["test", "other_countries"], [results_test, results_other_countries]):
+for mode, result in zip(["test"], [results_test]):
     data_loader.set_predictions(result, mode=mode, str_model="_D")
     df = data_loader.get_predictions(mode)
-    df.to_pickle(exp.path_to_predictions+f"devine_{mode}.pkl")
+    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_2022_08_04_v4.pkl")
 
 # Evaluation
 #c_eval = CustomEvaluation(exp, data_loader, mode="test", keys=["_AROME", "_nn"])
