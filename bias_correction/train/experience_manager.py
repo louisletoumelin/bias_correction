@@ -76,7 +76,7 @@ class AllExperiences:
         df.index.name = "index"
         file_doesnt_exists = not self.check_csv_file_exists(name)
         if file_doesnt_exists or override:
-            df.to_csv(self.path_experiences+f"{name}.csv", index=False)
+            df.to_csv(self.path_experiences + f"{name}.csv", index=False)
 
 
 class ExperienceManager(AllExperiences):
@@ -97,13 +97,13 @@ class ExperienceManager(AllExperiences):
             # Paths
             path_to_current_experience = self._get_path_to_current_experience()
             self.dict_paths = {"path_to_current_experience": path_to_current_experience,
-                               "path_to_logs": path_to_current_experience+"logs/",
-                               "path_to_best_model": path_to_current_experience+"best_model/",
-                               "path_to_last_model": path_to_current_experience+"last_model/",
-                               "path_to_tensorboard_logs": path_to_current_experience+"tensorboard_logs/",
-                               "path_to_figures": path_to_current_experience+"figures/",
-                               "path_to_feature_importance": path_to_current_experience+"feature_importance/",
-                               "path_to_predictions": path_to_current_experience+"predictions/"}
+                               "path_to_logs": path_to_current_experience + "logs/",
+                               "path_to_best_model": path_to_current_experience + "best_model/",
+                               "path_to_last_model": path_to_current_experience + "last_model/",
+                               "path_to_tensorboard_logs": path_to_current_experience + "tensorboard_logs/",
+                               "path_to_figures": path_to_current_experience + "figures/",
+                               "path_to_feature_importance": path_to_current_experience + "feature_importance/",
+                               "path_to_predictions": path_to_current_experience + "predictions/"}
 
             # Attributes and create folders
             for key in self.dict_paths:
@@ -145,7 +145,8 @@ class ExperienceManager(AllExperiences):
 
     def _get_current_id(self):
         if self.other_experiences_created_today:
-            current_id = np.max([int(file.split("v")[1]) for file in self.other_experiences_created_today]).astype(np.int) + 1
+            ids = [int(file.split("v")[1]) for file in self.other_experiences_created_today]
+            current_id = np.max(ids).astype(np.int) + 1
         else:
             current_id = 0
         return current_id
@@ -168,24 +169,24 @@ class ExperienceManager(AllExperiences):
             pass
 
     def _update_experience_to_csv_file(self, name):
-        df = pd.read_csv(self.path_experiences+f"{name}.csv")
+        df = pd.read_csv(self.path_experiences + f"{name}.csv")
 
         keys = ["exp", "finished", "details"]
         values = [self.name_current_experience, self.is_finished, self.config["details"]]
         dict_to_append = {key: value for key, value in zip(keys, values)}
         df = df.append(dict_to_append, ignore_index=True)
-        df.to_csv(self.path_experiences+f"{name}.csv", index=False)
+        df.to_csv(self.path_experiences + f"{name}.csv", index=False)
 
     def _update_finished_csv_file(self):
         for name in ["experiences", "metrics", "hyperparameters"]:
-            df = pd.read_csv(self.path_experiences+f"{name}.csv")
+            df = pd.read_csv(self.path_experiences + f"{name}.csv")
             filter_exp = df["exp"] == self.name_current_experience
             df.loc[filter_exp, "finished"] = 1
-            df.to_csv(self.path_experiences+f"{name}.csv", index=False)
+            df.to_csv(self.path_experiences + f"{name}.csv", index=False)
             print(f"Save info about experience in: " + self.path_experiences + f"{name}.csv")
 
     def _update_single_metrics_csv(self, metric_value, metric_name, precision=3):
-        df = pd.read_csv(self.path_experiences+"metrics.csv")
+        df = pd.read_csv(self.path_experiences + "metrics.csv")
         filter_exp = df["exp"] == self.name_current_experience
         df.loc[filter_exp, metric_name] = np.round(metric_value, precision)
         df.to_csv(self.path_experiences + "metrics.csv", index=False, float_format=f"%.{precision}f")
@@ -218,8 +219,8 @@ class ExperienceManager(AllExperiences):
             json.dump(self.config, fp, sort_keys=True, indent=4)
 
     def save_norm_param(self, mean, std):
-        np.save(self.path_to_current_experience+"mean.npy", mean)
-        np.save(self.path_to_current_experience+"std.npy", std)
+        np.save(self.path_to_current_experience + "mean.npy", mean)
+        np.save(self.path_to_current_experience + "std.npy", std)
 
     def save_experience_json(self):
 
@@ -231,6 +232,16 @@ class ExperienceManager(AllExperiences):
 
         dict_exp = self.__dict__
 
+        # Remove dict, list... etc that are can not be (easily) transformed into a json file
+        for key in ["dict_paths", "other_experiences_created_today", "config"]:
+            if key in dict_exp:
+                dict_exp.pop(key)
+
+        # Numbers are converted to str
+        for key in dict_exp:
+            if not isinstance(dict_exp[key], str):
+                dict_exp[key] = str(dict_exp[key])
+
         # Paths
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
@@ -239,9 +250,9 @@ class ExperienceManager(AllExperiences):
 
         self.save_model(custom_model)
         self.save_config_json()
-        self.save_experience_json()
         if self.config["standardize"]:
             self.save_norm_param(data.mean_standardize, data.std_standardize)
+        self.save_experience_json()
 
     def save_results(self, c_eval):
         self.finished()
@@ -279,5 +290,7 @@ class ExperienceManager(AllExperiences):
             setattr(inst, key, dict_exp[key])
 
         config["restore_experience"] = True
+
+        inst.config = config
 
         return inst, config

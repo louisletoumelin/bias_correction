@@ -94,9 +94,6 @@ class TimeSeries(Interpolation):
                         nwp = self.interpolate_nwp(nwp)
 
                     filter_time = self.time_series.index.isin(nwp.time.values)
-                    print("debug")
-                    print(self.stations)
-                    print(self.stations["name"][self.stations["country"] == country])
                     for idx, station in enumerate(self.stations["name"][self.stations["country"] == country]):
                         if idx == 0:
                             logger.info(self.stations.head())

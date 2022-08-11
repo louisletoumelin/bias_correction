@@ -57,8 +57,6 @@ class TopoCaracteristics(DwnscHelbig, MicroMet, Rotation, Interpolation, Generat
         filter_country = self.stations["country"] == country
         str_lapl = f"laplacian_NN_{self.neighbor}"
         alti = self.get_alti(country)
-        print("debug")
-        print(np.shape(alti))
         self.stations.loc[filter_country, str_lapl] = self._laplacian_loop_numpy_1D(alti,
                                                                                     self.idx_x,
                                                                                     self.idx_y,
