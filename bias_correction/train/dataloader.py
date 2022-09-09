@@ -12,7 +12,12 @@ from bias_correction.train.metrics import get_metric
 class TopoGenerator:
 
     def __init__(self, dict_topos, names):
-        self.names = names
+
+        try:
+            self.names = names.values
+        except AttributeError:
+            self.names = names
+
         self.dict_topos1 = dict_topos
 
     def __call__(self):
@@ -29,6 +34,30 @@ class MeanGenerator:
     def __call__(self):
         for i in range(self.length):
             yield self.mean
+
+
+class Batcher:
+
+    def __init__(self, config):
+        self.config = config
+
+    def _get_prefetch(self):
+        if self.config.get("prefetch") == "auto":
+            return tf.data.AUTOTUNE
+        else:
+            return self.config["prefetch"]
+
+    def batch_train(self, dataset):
+        return dataset\
+            .batch(batch_size=self.config["global_batch_size"]) \
+            .cache() \
+            .prefetch(self._get_prefetch(self.config))
+
+    def batch_test(self, dataset):
+        raise NotImplementedError("Test data are not batched")
+
+    def batch_val(self, dataset):
+        return dataset.batch(batch_size=self.config["global_batch_size"])
 
 
 class SplitTrainTestVal:
@@ -73,20 +102,12 @@ class SplitTrainTestVal:
 
         split_strategy = self.config[f"split_strategy_{mode}"] if split_strategy is None else split_strategy
 
-        if split_strategy == "time":
-            time_series_train, time_series_test = self._split_by_time(time_series, mode)
+        strategies = {"time": self._split_by_time,
+                      "space": self._split_by_space,
+                      "time_and_space": self._split_time_and_space,
+                      "random": self._split_random}
 
-        elif split_strategy == "space":
-            time_series_train, time_series_test = self._split_by_space(time_series, mode)
-
-        elif split_strategy == "time_and_space":
-            time_series_train, time_series_test = self._split_time_and_space(time_series, mode)
-
-        elif split_strategy == "random":
-            time_series_train, time_series_test = self._split_random(time_series, mode)
-
-        else:
-            raise NotImplementedError("Available split strategies are: time, space, time_and_space and random")
+        time_series_train, time_series_test = strategies[split_strategy](time_series, mode)
 
         return time_series_train, time_series_test
 
@@ -138,6 +159,8 @@ class CustomDataHandler(SplitTrainTestVal):
             self.dict_topos = self._load_dict_topo()
         self.variables_needed = copy(['name'] + self.config["input_variables"] + self.config["labels"])
 
+        self.batcher = Batcher(config)
+
         # Attributes defined later
         self.inputs_train = None
         self.inputs_test = None
@@ -167,8 +190,12 @@ class CustomDataHandler(SplitTrainTestVal):
         with open(self.config["topos_near_station"], 'rb') as f:
             dict_topos = pickle.load(f)
 
+        y_l = 140-70
+        y_r = 140+70
+        x_l = 140-70
+        x_r = 140+70
         for station in dict_topos:
-            dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"][140-70:140+70, 140-70:140+70], (140, 140, 1))
+            dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"][y_l:y_r, x_l:x_r], (140, 140, 1))
 
         return dict_topos
 
@@ -301,13 +328,15 @@ class CustomDataHandler(SplitTrainTestVal):
         filter_val = df["name"].isin(self.get_names("val", unique=True))
         filter_train = df["name"].isin(self.get_names("train", unique=True))
         filter_other = df["name"].isin(self.get_names("other_countries", unique=True))
-        filter_rejected = ~(filter_test | filter_val | filter_train | filter_other)
+        filter_custom = df["name"].isin(self.get_names("custom", unique=True))
+        filter_rejected = ~(filter_test | filter_val | filter_train | filter_other | filter_custom)
 
         df.loc[filter_test, "mode"] = "Test"
         df.loc[filter_val, "mode"] = "Validation"
         df.loc[filter_train, "mode"] = "Training"
         df.loc[filter_other, "mode"] = "other_countries"
         df.loc[filter_rejected, "mode"] = "rejected"
+        df.loc[filter_custom, "mode"] = "custom"
 
         return df
 
@@ -499,28 +528,16 @@ class CustomDataHandler(SplitTrainTestVal):
         self._set_is_prepared()
 
     def get_inputs(self, mode):
-        try:
-            return getattr(self, f"inputs_{mode}")
-        except AttributeError:
-            raise NotImplementedError("We only support modes train/test/val/other_countries")
+        return getattr(self, f"inputs_{mode}")
 
     def get_length(self, mode):
-        try:
-            return getattr(self, f"length_{mode}")
-        except AttributeError:
-            raise NotImplementedError("We only support modes train/test/val/other_countries")
+        return getattr(self, f"length_{mode}")
 
     def get_labels(self, mode):
-        try:
-            return getattr(self, f"labels_{mode}")
-        except AttributeError:
-            raise NotImplementedError("We only support modes train/test/val/other_countries")
+        return getattr(self, f"labels_{mode}")
 
     def get_names(self, mode, unique=False):
-        try:
-            names = getattr(self, f"names_{mode}")
-        except AttributeError:
-            raise NotImplementedError("We only support modes train/test/val/other_countries")
+        names = getattr(self, f"names_{mode}")
 
         if unique:
             return list(names.unique())
@@ -538,10 +555,7 @@ class CustomDataHandler(SplitTrainTestVal):
         if names is None:
             names = self.get_names(mode)
 
-        try:
-            topos_generator = TopoGenerator(self.dict_topos, names.values)
-        except AttributeError:
-            topos_generator = TopoGenerator(self.dict_topos, names)
+        topos_generator = TopoGenerator(self.dict_topos, names)
 
         return tf.data.Dataset.from_generator(topos_generator, output_types=tf.float32, output_shapes=(140, 140, 1))
 
@@ -565,10 +579,10 @@ class CustomDataHandler(SplitTrainTestVal):
         if inputs is None:
             inputs = self.get_inputs(mode)
 
-        try:
-            inputs = tf.data.Dataset.from_tensor_slices(inputs.values)
-        except AttributeError:
-            inputs = tf.data.Dataset.from_tensor_slices(inputs)
+        if hasattr(inputs, "values"):
+            inputs = inputs.values
+
+        inputs = tf.data.Dataset.from_tensor_slices(inputs)
 
         if self.config["standardize"]:
             mean, std = self.get_tf_mean_std(mode)
@@ -578,11 +592,11 @@ class CustomDataHandler(SplitTrainTestVal):
 
     def get_tf_zipped_inputs_labels(self, mode):
         labels = self.get_labels(mode)
-        try:
-            labels = tf.data.Dataset.from_tensor_slices(labels.values)
-        except AttributeError:
-            labels = tf.data.Dataset.from_tensor_slices(labels)
 
+        if hasattr(labels, "values"):
+            labels = labels.values
+
+        labels = tf.data.Dataset.from_tensor_slices(labels)
         inputs = self.get_tf_zipped_inputs(mode=mode)
 
         return tf.data.Dataset.zip((inputs, labels))
@@ -636,12 +650,22 @@ class CustomDataHandler(SplitTrainTestVal):
         if names is None:
             names = self.get_names(mode)
 
-        try:
-            topos_generator = TopoGenerator(self.dict_topos, names.values)
-        except AttributeError:
-            topos_generator = TopoGenerator(self.dict_topos, names)
+        if hasattr(names, "values"):
+            names = names.values
+
+        topos_generator = TopoGenerator(self.dict_topos, names)
 
         return topos_generator()
+
+    def get_batched_inputs_labels(self, mode: str):
+
+        dataset = self.get_tf_zipped_inputs_labels(mode)
+
+        batch_func = {"train": self.batcher.batch_train,
+                      "test": self.batcher.batch_test,
+                      "val": self.batcher.batch_val}
+
+        return batch_func[mode](dataset)
 
     def _nn_output2df(self, result, mode, name_uv="UV_nn"):
 
@@ -657,48 +681,48 @@ class CustomDataHandler(SplitTrainTestVal):
 
         return df[["name", name_uv]]
 
-    def _set_predictions(self, results, mode="test", str_model="_nn"):
-        filter_int = isinstance(results, tuple) and len(results) > 1
-        has_intermediate_outputs = filter_int and self.config["get_intermediate_output"]
-        if has_intermediate_outputs and not (mode == "int"):
-            results = results[0]
-            str_model = str_model
-        elif has_intermediate_outputs and (mode == "int"):
-            results = results[1][:, 0]
-            str_model = "_int"
-        else:
-            str_model = str_model
-
-        name_uv = f"{self.config['current_variable']}{str_model}"
-        df = self._nn_output2df(results, mode, name_uv=name_uv)
-        setattr(self, f"predicted_{mode}", df)
-
     def detect_variable(self):
         if "temperature" in self.config["global_architecture"]:
             return "T2m"
         else:
             return "UV"
 
+    def _set_predictions(self, results, mode="test", str_model="_nn"):
+        filter_int = isinstance(results, tuple) and len(results) > 1
+        has_intermediate_outputs = filter_int and self.config["get_intermediate_output"]
+        if has_intermediate_outputs and not (str_model == "_int"):
+            results = results[0]
+            str_model = str_model
+            mode_str = mode
+        elif has_intermediate_outputs and (str_model == "_int"):
+            results = results[1][:, 0]
+            str_model = "_int"
+            mode_str = "int"
+        else:
+            str_model = str_model
+            mode_str = mode
+
+        name_uv = f"{self.config['current_variable']}{str_model}"
+        df = self._nn_output2df(results, mode, name_uv=name_uv)
+        setattr(self, f"predicted_{mode_str}", df)
+
     def set_predictions(self, results, mode="test", str_model="_nn"):
         self._set_predictions(results, mode=mode, str_model=str_model)
         if self.config["get_intermediate_output"]:
-            self._set_predictions(results, "int")
-            str_int = f"{self.config['current_variable']}_int"
-            predicted = getattr(self, f"predicted_{mode}")
-            predicted[str_int] = self.predicted_int[str_int]
-            setattr(self, f"predicted_{mode}", predicted)
+            self._set_predictions(results, mode=mode, str_model="_int")
 
     def _set_is_prepared(self):
         self.is_prepared = True
 
     def add_model(self, model, mode="test"):
-        if model == "_D":
-            path_to_file = self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl"
-            predictions = pd.read_pickle(path_to_file)
+        path_to_files = {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
+                         "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
+
+        predictions = pd.read_pickle(path_to_files[model])
+
         if model == "_A":
-            path_to_file = self.config["path_to_analysis"] + "time_series_bc_a.pkl"
-            predictions = pd.read_pickle(path_to_file)
             predictions = predictions.rename(columns={"Wind": "UV_A"})
+
         setattr(self, f"predicted{model}", predictions)
 
 

@@ -30,13 +30,15 @@ print(pprint(config))
 # Load inputs and outputs
 data_loader.prepare_train_test_data()
 
-inputs_and_labels_train = data_loader.get_tf_zipped_inputs_labels(mode="train")
-inputs_and_labels_val = data_loader.get_tf_zipped_inputs_labels(mode="val")
+inputs_and_labels_train = data_loader.get_batched_inputs_labels(mode="train")
+inputs_and_labels_val = data_loader.get_batched_inputs_labels(mode="val")
 
 with tf.device('/GPU:0'):
     with timer_context("fit"):
         results_train = cm.fit_with_strategy(inputs_and_labels_train,
-                                             validation_data=inputs_and_labels_val)
+                                             validation_data=inputs_and_labels_val,
+                                             dataloader=data_loader,
+                                             mode_callback="test")
 
     # Predict
     with timer_context("Predict"):

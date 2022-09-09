@@ -29,3 +29,9 @@ def print_intro():
                      CEN - Meteo-France
     """
     print(intro)
+
+
+def print_headline(name, value):
+    print(f"\n\n_______________________")
+    print(f"_____{name}:{value}_____")
+    print(f"_______________________\n\n")
