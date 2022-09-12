@@ -6,7 +6,7 @@ from bias_correction.config._config import config
 # Architecture
 config["details"] = "test_station"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = "2022_8_11_local_v22"  # "2022_7_27_labia_v4"
+config["restore_experience"] = False  # "2022_7_27_labia_v4"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True

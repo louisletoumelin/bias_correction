@@ -57,6 +57,12 @@ class StrategyInitializer:
 
         if self.config["distribution_strategy"] == "MirroredStrategy":
             self.strategy = self.init_mirrored_strategy()
+            nb_replicas = self.strategy.num_replicas_in_sync
+            # Adapt batch size according to the number of devices
+            self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
+        else:
+            # Do not modify batch size
+            self.config["global_batch_size"] = self.config["batch_size"]
 
         if self.config["distribution_strategy"] is None and self.config["network"] == "labia":
             print("\ntf.config.experimental.set_memory_growth called\n")
@@ -511,9 +517,6 @@ class CustomModel(StrategyInitializer):
         nb_replicas = self.strategy.num_replicas_in_sync
         print('\nMirroredStrategy: number of devices: {}'.format(nb_replicas))
 
-        # Adapt batch size according to the number of devices
-        self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
-
         with self.strategy.scope():
             self._build_compiled_model()
             if self.config["get_intermediate_output"]:
@@ -522,9 +525,6 @@ class CustomModel(StrategyInitializer):
     def _build_classic_strategy(self):
         if self.config["distribution_strategy"] is None:
             print('\nNot distributed: number of devices: 1')
-
-        # Do not modify batch size
-        self.config["global_batch_size"] = self.config["batch_size"]
 
         self._build_compiled_model()
 
