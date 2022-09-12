@@ -220,11 +220,61 @@ class Loader:
 
         return dict_topos
 
-    def open_time_series_pkl(self):
+    def load_time_series_pkl(self):
         return pd.read_pickle(self.config["time_series"])
 
-    def open_stations_pkl(self):
+    def load_stations_pkl(self):
         return pd.read_pickle(self.config["stations"])
+
+
+class ResultsSetter:
+
+    def __init__(self, config):
+        self.config = config
+
+    def has_intermediate_outputs(self, results):
+        return isinstance(results, tuple) and len(results) > 1 and self.config["get_intermediate_output"]
+
+    def _nn_output2df(self, result, names, name_uv="UV_nn"):
+
+        df = pd.DataFrame()
+        df["name"] = names
+        if "component" in self.config["type_of_output"]:
+
+            df[name_uv] = np.sqrt(result[0] ** 2 + result[1] ** 2)
+
+        else:
+
+            df[name_uv] = np.squeeze(result)
+
+        return df[["name", name_uv]]
+
+    def _prepare_intermediate_outputs(self, results):
+
+        assert self.has_intermediate_outputs(results)
+
+        results = results[1][:, 0]
+        str_model = "_int"
+        mode_str = "int"
+
+        return results, str_model, mode_str
+
+    def _prepare_final_outputs(self, results):
+        if self.has_intermediate_outputs(results):
+            results = results[0]
+        return results
+
+    def prepare_df_results(self, results, names, mode="test", str_model="_nn"):
+
+        if str_model == "_int":
+            results, str_model, mode_str = self._prepare_intermediate_outputs(results)
+        else:
+            results = self._prepare_final_outputs(results)
+            mode_str = mode
+
+        name_uv = f"{self.config['current_variable']}{str_model}"
+        df = self._nn_output2df(results, names, name_uv=name_uv)
+        return df, mode_str
 
 
 class CustomDataHandler:
@@ -237,6 +287,7 @@ class CustomDataHandler:
         self.batcher = Batcher(config)
         self.splitter = Splitter(config)
         self.loader = Loader(config)
+        self.results_setter = ResultsSetter(config)
 
         if load_dict_topo:
             self.dict_topos = self.loader.load_dict_topo()
@@ -490,18 +541,11 @@ class CustomDataHandler:
     def _apply_quick_test(self, time_series):
         return time_series[time_series["name"].isin(self.config["quick_test_stations"])]
 
-    def shuffle_eventually(self, time_series, _shuffle=None):
-        _shuffle = self.config["shuffle"] if _shuffle is None else _shuffle
-        if _shuffle:
-            return shuffle(time_series)
-        else:
-            return time_series
-
     def prepare_train_test_data(self, _shuffle=True, variables_needed=None):
 
         # Pre-processing time_series
-        time_series = self.loader.open_time_series_pkl()
-        stations = self.loader.open_stations_pkl()
+        time_series = self.loader.load_time_series_pkl()
+        stations = self.loader.load_stations_pkl()
 
         # Reject stations
         time_series, stations = self.reject_stations(time_series, stations)
@@ -527,7 +571,8 @@ class CustomDataHandler:
             time_series = self._apply_quick_test(time_series)
 
         # Shuffle
-        time_series = self.shuffle_eventually(time_series)
+        if self.config["shuffle"]:
+            time_series = shuffle(time_series)
 
         # Split time_series with countries
         if self.config["country_to_reject_during_training"]:
@@ -662,7 +707,7 @@ class CustomDataHandler:
     def get_time_series(self,
                         prepared=False,
                         mode=True):
-        time_series = self.loader.open_time_series_pkl()
+        time_series = self.loader.load_time_series_pkl()
         if prepared:
 
             assert self.is_prepared
@@ -693,7 +738,7 @@ class CustomDataHandler:
 
     def get_stations(self,
                      add_mode: Optional[bool] = False):
-        stations = self.loader.open_stations_pkl()
+        stations = self.loader.load_stations_pkl()
         if add_mode:
             stations = self.add_mode_to_df(stations)
         return stations
@@ -731,43 +776,14 @@ class CustomDataHandler:
 
         return batch_func[mode](dataset)
 
-    def _nn_output2df(self, result, mode, name_uv="UV_nn"):
-
-        df = pd.DataFrame()
-        df["name"] = self.get_names(mode)
-        if "component" in self.config["type_of_output"]:
-
-            df[name_uv] = np.sqrt(result[0] ** 2 + result[1] ** 2)
-
-        else:
-
-            df[name_uv] = np.squeeze(result)
-
-        return df[["name", name_uv]]
-
-    def _set_predictions(self, results, mode="test", str_model="_nn"):
-        filter_int = isinstance(results, tuple) and len(results) > 1
-        has_intermediate_outputs = filter_int and self.config["get_intermediate_output"]
-        if has_intermediate_outputs and not (str_model == "_int"):
-            results = results[0]
-            str_model = str_model
-            mode_str = mode
-        elif has_intermediate_outputs and (str_model == "_int"):
-            results = results[1][:, 0]
-            str_model = "_int"
-            mode_str = "int"
-        else:
-            str_model = str_model
-            mode_str = mode
-
-        name_uv = f"{self.config['current_variable']}{str_model}"
-        df = self._nn_output2df(results, mode, name_uv=name_uv)
+    def set_predictions(self, results, mode="test", str_model="_nn"):
+        names = self.get_names(mode)
+        df, mode_str = self.results_setter.prepare_df_results(results, names, mode=mode, str_model=str_model)
         setattr(self, f"predicted_{mode_str}", df)
 
-    def set_predictions(self, results, mode="test", str_model="_nn"):
-        self._set_predictions(results, mode=mode, str_model=str_model)
         if self.config["get_intermediate_output"]:
-            self._set_predictions(results, mode=mode, str_model="_int")
+            self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
+            setattr(self, f"predicted_{mode_str}", df)
 
     def _set_is_prepared(self):
         self.is_prepared = True
