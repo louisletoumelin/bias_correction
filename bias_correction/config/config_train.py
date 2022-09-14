@@ -49,6 +49,7 @@ config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
 config["quick_test"] = True  # Bool. Quicktest case (fast training)
+config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
