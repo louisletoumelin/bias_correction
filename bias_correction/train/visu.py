@@ -1,10 +1,13 @@
-import os
-
 import numpy as np
 import matplotlib.pyplot as plt
 
+import os
 import uuid
+from typing import Union, Tuple
+
 from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module
+from bias_correction.train.utils import create_folder_if_doesnt_exist
+from bias_correction.train.experience_manager import ExperienceManager
 
 try:
     import seaborn as sns
@@ -14,57 +17,73 @@ except ModuleNotFoundError:
     _sns = False
 
 
+def check_if_subfolder_in_filename(name_figure: str) -> bool:
+    if "/" in name_figure:
+        return True
+    else:
+        return False
+
+
+def get_path_subfolder(name_figure: str) -> Tuple[str, str]:
+    list_path = name_figure.split("/")[:-1]
+    filename = name_figure.split("/")[-1]
+    path_subfolder = '/'.join(list_path)
+    return path_subfolder, filename
+
+
+def _save_figure(name_figure: str,
+                 save_path: str,
+                 format_: str = "png",
+                 svg: bool = False
+                 ) -> None:
+    ax = plt.gca()
+    fig = ax.get_figure()
+    uuid_str = str(uuid.uuid4())[:4]
+    fig.savefig(save_path + f"{name_figure}_{uuid_str}.{format_}")
+    if svg:
+        fig.savefig(save_path + f"{name_figure}_{uuid_str}.svg")
+
+
+def create_subfolder_if_necessary(name_figure: str,
+                                  save_path: str) -> Tuple[str, str]:
+    path_subfolder, filename = get_path_subfolder(name_figure)
+    save_path = os.path.join(save_path, path_subfolder)
+    save_path = save_path + '/'
+    create_folder_if_doesnt_exist(save_path, _raise=False)
+    return save_path, filename
+
+
+def save_figure(name_figure: str,
+                exp: Union[ExperienceManager, None] = None,
+                save_path: str = None,
+                format_: str = "png",
+                svg: bool = False
+                ) -> None:
+
+    exp_is_provided = exp is not None
+    save_path_is_provided = save_path is not None
+
+    if not save_path_is_provided and exp_is_provided:
+        save_path = exp.path_to_figures
+    elif not save_path_is_provided and not exp_is_provided:
+        save_path = os.getcwd()
+    else:
+        pass
+
+    if exp_is_provided:
+        exp.create_folder_if_doesnt_exist(save_path, _raise=False)
+
+    subfolder_in_filename = check_if_subfolder_in_filename(name_figure)
+    if subfolder_in_filename:
+        save_path, name_figure = create_subfolder_if_necessary(name_figure, save_path)
+
+    _save_figure(name_figure, save_path, format_=format_, svg=svg)
+
+
 class StaticPlots:
 
-    def __init__(self, exp):
+    def __init__(self, exp=None):
         self.exp = exp
-
-    @staticmethod
-    def check_if_subfolder_in_filename(name_figure):
-        if "/" in name_figure:
-            return True
-        else:
-            return False
-
-    @staticmethod
-    def get_path_subfolder(name_figure):
-        list_path = name_figure.split("/")[:-1]
-        filename = name_figure.split("/")[-1]
-        path_subfolder = '/'.join(list_path)
-        return path_subfolder, filename
-
-    @staticmethod
-    def _save_figure(name_figure, save_path, format_="png", svg=False):
-        ax = plt.gca()
-        fig = ax.get_figure()
-        uuid_str = str(uuid.uuid4())[:4]
-        fig.savefig(save_path + f"{name_figure}_{uuid_str}.{format_}")
-        if svg:
-            fig.savefig(save_path + f"{name_figure}_{uuid_str}.svg")
-
-    def create_subfolder_if_necessary(self, name_figure, save_path):
-        path_subfolder, filename = self.get_path_subfolder(name_figure)
-        save_path = os.path.join(save_path, path_subfolder)
-        save_path = save_path + '/'
-        self.exp.create_folder_if_doesnt_exist(save_path, _raise=False)
-        return save_path, filename
-
-    def save_figure(self, name_figure, save_path=None, format_="png", svg=False):
-
-        if (save_path is None) and (hasattr(self, "exp")):
-            save_path = self.exp.path_to_figures
-        elif (save_path is None) and not hasattr(self, "exp"):
-            save_path = os.getcwd()
-        else:
-            pass
-
-        if hasattr(self, "exp"):
-            self.exp.create_folder_if_doesnt_exist(save_path, _raise=False)
-
-        subfolder_in_filename = self.check_if_subfolder_in_filename(name_figure)
-        if subfolder_in_filename:
-            save_path, name_figure = self.create_subfolder_if_necessary(name_figure, save_path)
-        self._save_figure(name_figure, save_path, format_=format_, svg=svg)
 
     @pass_if_doesnt_has_module()
     def plot_pair_plot_parameters(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
@@ -83,7 +102,7 @@ class StaticPlots:
             hue="mode",
             hue_order=hue_order,
             plot_kws={"s": s})
-        self.save_figure("Pair_plot_param")
+        save_figure("Pair_plot_param")
 
     @pass_if_doesnt_has_module()
     def plot_pair_plot_metrics(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
@@ -106,7 +125,7 @@ class StaticPlots:
             hue="mode",
             hue_order=hue_order,
             plot_kws={"s": s})
-        self.save_figure("Pair_plot_metric")
+        save_figure("Pair_plot_metric")
 
     def plot_pairplot_all(self, stations, figsize=(10, 10), s=15, hue_order=['Training', 'Test', 'Validation']):
         """Pair plot metrics and parameters"""
@@ -134,52 +153,60 @@ class StaticPlots:
             hue="mode",
             hue_order=hue_order,
             plot_kws={"s": s})
-        self.save_figure("Pair_plot_all")
+        save_figure("Pair_plot_all")
 
 
-class ModelVersusObsPlots(StaticPlots):
+#
+# current_variable = self.exp.config['current_variable']
+def plot_single_subplot(df,
+                        key_model="UV_AROME",
+                        key_obs="UV_obs",
+                        scaling_variable="UV",
+                        nb_columns=2,
+                        id_plot=1,
+                        s=1,
+                        min_value=None,
+                        max_value=None,
+                        text_x=None,
+                        text_y=None):
+    # Get values
+    obs = df[key_obs].values
+    model = df[key_model].values
 
-    def __init__(self, exp=None):
-        super().__init__(exp)
+    # Get limits
+    if scaling_variable == "UV":
+        min_value = -1  # np.min(df["UV_obs"].values) - 5
+        max_value = 25  # np.max(df["UV_obs"].values) + 5
+        text_x = 0
+        text_y = 21
 
-    def _plot_1_1_model_vs_arome(self, df, keys=["UV_nn", "UV_AROME"], figsize=(20, 10), s=1):
-        nb_columns = len(keys)
-        for idx, key in enumerate(keys):
-            self.plot_1_1_subplot(df, key, nb_columns, idx+1, s=s)
+    elif scaling_variable == "T2m":
+        min_value = -40  # np.min(df["UV_obs"].values) - 5
+        max_value = 40  # np.max(df["UV_obs"].values) + 5
+        text_x = -38
+        text_y = 38
 
-    def plot_1_1_subplot(self, df, key_model, nb_columns, id_plot, s=1):
+    else:
+        min_value = min_value
+        max_value = max_value
+        text_x = text_x
+        text_y = text_y
 
-        # Get values
-        obs = df[f"{self.exp.config['current_variable']}_obs"].values
-        model = df[key_model].values
+    # Figure
+    plt.subplot(1, nb_columns, id_plot)
+    plt.scatter(obs, model, s=s)
+    plt.plot(obs, obs, color='red')
 
-        # Get limits
-        if self.exp.config['current_variable'] == "UV":
-            min_value = -1  # np.min(df["UV_obs"].values) - 5
-            max_value = 25  # np.max(df["UV_obs"].values) + 5
-            text_x = 0
-            text_y = 21
-        elif self.exp.config['current_variable'] == "T2m":
-            min_value = -40  # np.min(df["UV_obs"].values) - 5
-            max_value = 40  # np.max(df["UV_obs"].values) + 5
-            text_x = -38
-            text_y = 38
+    # Text
+    try:
+        plt.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
+        plt.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
+        corr_coeff = df[[key_obs, key_model]].corr().iloc[0, 1]
+        plt.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
+    except:
+        print("Error in text figure")
 
-        # Figure
-        plt.subplot(1, nb_columns, id_plot)
-        plt.scatter(obs, model, s=s)
-        plt.plot(obs, obs, color='red')
-
-        # Text
-        try:
-            plt.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
-            plt.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
-            corr_coeff = df[[f"{self.exp.config['current_variable']}_obs", key_model]].corr().iloc[0, 1]
-            plt.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
-        except:
-            print("Error in text figure")
-
-        """
+    """
         # Additionnal text
         try:  # ${incomeTax:.2f}
             if (stations is not None) and (station is not None):
@@ -198,120 +225,164 @@ class ModelVersusObsPlots(StaticPlots):
             print(e)
         """
 
-        # xlim and ylim
-        plt.xlim(min_value, max_value)
-        plt.ylim(min_value, max_value)
-
-    def plot_1_1_all(self, df, key_model, figsize=(20, 10), s=1, name="1_1_all"):
-        self._plot_1_1_model_vs_arome(df, key_model, figsize=figsize, s=s)
-        self.save_figure(f"Model_vs_obs/{name}")
-
-    def plot_1_1_by_station(self, df, key_model, figsize=(20, 10), s=1, name=""):
-        for station in df["name"].unique():
-            plt.figure(figsize=figsize)
-            self._plot_1_1_model_vs_arome(df[df["name"] == station], key_model, figsize=figsize, s=s)
-            plt.title(station)
-            var_i = self.exp.config['current_variable']
-            self.save_figure(f"Model_vs_obs_by_station/1_1_{station}_{var_i}_models_vs_{var_i}_obs_{name}")
+    # xlim and ylim
+    plt.xlim(min_value, max_value)
+    plt.ylim(min_value, max_value)
 
 
-class SeasonalEvolution(ModelVersusObsPlots):
+def plot_1_1_models_vs_arome(df,
+                             keys_models=["UV_nn", "UV_AROME"],
+                             key_obs="UV_obs",
+                             scaling_variable="UV",
+                             figsize=(20, 10),
+                             s=1):
+    plt.figure(figsize=figsize)
+    nb_columns = len(keys_models)
+    for idx, key in enumerate(keys_models):
+        plot_single_subplot(df, key, key_obs, scaling_variable, nb_columns, idx + 1, s=s)
+
+
+class ModelVersusObsPlots:
 
     def __init__(self, exp=None):
-        super().__init__(exp)
+        self.exp = exp
 
-    @staticmethod
-    def _plot_seasonal_evolution(df, metric, fontsize=15, figsize=(20, 15), keys=["UV_nn", "UV_AROME"], groupby="month"):
-        keys = ['_'+key.split('_')[1] for key in keys]
-        list_metrics_to_plot = [f"{metric}{key}" for key in keys]
-        if hasattr(df.index, groupby):
-            index_groupby = getattr(df.index, groupby)
-        else:
-            index_groupby = groupby
-        df.groupby(index_groupby).mean()[list_metrics_to_plot].plot(figsize=figsize)
-        plt.xlabel(groupby.capitalize(), fontsize=fontsize)
-        plt.ylabel(metric.capitalize(), fontsize=fontsize)
+    def plot_1_1_all(self, df, keys_models=["UV_nn", "UV_AROME"], figsize=(20, 10), s=1, name="1_1_all"):
+        current_variable = self.exp.config['current_variable']
+        key_obs = f"{current_variable}_obs"
+        plot_1_1_models_vs_arome(df,
+                                 keys_models=keys_models,
+                                 key_obs=key_obs,
+                                 scaling_variable=current_variable,
+                                 figsize=figsize,
+                                 s=s)
+        save_figure(f"Model_vs_obs/{name}")
+
+    def plot_1_1_by_station(self, df, keys_models=["UV_nn", "UV_AROME"], figsize=(20, 10), s=1, name=""):
+        current_variable = self.exp.config['current_variable']
+        key_obs = f"{current_variable}_obs"
+        for station in df["name"].unique():
+            plot_1_1_models_vs_arome(df[df["name"] == station],
+                                     keys_models=keys_models,
+                                     key_obs=key_obs,
+                                     scaling_variable=current_variable,
+                                     figsize=figsize,
+                                     s=s)
+            plt.title(station)
+            var_i = self.exp.config['current_variable']
+            save_figure(f"Model_vs_obs_by_station/1_1_{station}_{var_i}_models_vs_{var_i}_obs_{name}")
+
+
+def plot_evolution(df,
+                   hue_names_to_plot=["bias_AROME", "bias_DEVINE"],
+                   y_label_name="Bias",
+                   fontsize=15,
+                   figsize=(20, 15),
+                   groupby="month"):
+
+    if hasattr(df.index, groupby):
+        index_groupby = getattr(df.index, groupby)
+    else:
+        index_groupby = groupby
+
+    df.groupby(index_groupby).mean()[hue_names_to_plot].plot(figsize=figsize)
+    plt.xlabel(groupby.capitalize(), fontsize=fontsize)
+    plt.ylabel(y_label_name.capitalize(), fontsize=fontsize)
+
+
+class SeasonalEvolution:
+
+    def __init__(self, exp=None):
+        self.exp = exp
 
     def plot_seasonal_evolution(self,
                                 df,
                                 metrics=["bias", "ae", "n_bias", "n_ae"],
-                                keys=["UV_nn", "UV_AROME"],
-                                groupby="month",
                                 fontsize=15,
                                 figsize=(20, 15),
+                                keys=["UV_nn", "UV_AROME"],
+                                groupby="month",
                                 name="Seasonal_evolution"):
+        keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
-            self._plot_seasonal_evolution(df,
-                                          metric,
-                                          keys=keys,
-                                          fontsize=fontsize,
-                                          figsize=figsize,
-                                          groupby=groupby)
-            self.save_figure(f"Seasonal_evolution/{name}")
+            list_metrics_to_plot = [f"{metric}{key}" for key in keys]
+            plot_evolution(df,
+                           hue_names_to_plot=list_metrics_to_plot,
+                           y_label_name=metric,
+                           fontsize=fontsize,
+                           figsize=figsize,
+                           groupby=groupby)
+            save_figure(f"Seasonal_evolution/{name}", exp=self.exp)
 
-    def plot_seasonal_evolution_by_station(self,
-                                           df,
+    @staticmethod
+    def plot_seasonal_evolution_by_station(df,
                                            metrics=["bias", "ae", "n_bias", "n_ae"],
                                            keys=["UV_nn", "UV_AROME"],
                                            groupby="month",
                                            fontsize=15,
                                            figsize=(20, 15),
                                            name=""):
+        keys = ['_' + key.split('_')[1] for key in keys]
         for station in df["name"].unique():
             for metric in metrics:
-                self._plot_seasonal_evolution(df[df["name"] == station],
-                                              metric,
-                                              keys=keys,
-                                              fontsize=fontsize,
-                                              figsize=figsize,
-                                              groupby=groupby)
+                list_metrics_to_plot = [f"{metric}{key}" for key in keys]
+                plot_evolution(df[df["name"] == station],
+                               hue_names_to_plot=list_metrics_to_plot,
+                               y_label_name=metric,
+                               fontsize=fontsize,
+                               figsize=figsize,
+                               groupby=groupby)
                 plt.title(station)
-                self.save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}_{name}")
+                save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}_{name}")
 
 
-class Leadtime(SeasonalEvolution):
+class Leadtime:
 
     def __init__(self, exp=None):
-        super().__init__(exp)
+        self.exp = exp
 
-    def plot_lead_time(self,
-                       df,
+    @staticmethod
+    def plot_lead_time(df,
                        metrics=["bias", "ae", "n_bias", "n_ae"],
                        keys=["UV_nn", "UV_AROME"],
                        groupby="lead_time",
                        fontsize=15,
                        figsize=(20, 15),
                        name="Lead_time"):
+        keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
-            self._plot_seasonal_evolution(df,
-                                          metric,
-                                          keys=keys,
-                                          fontsize=fontsize,
-                                          figsize=figsize,
-                                          groupby=groupby)
-            self.save_figure(f"Lead_time/{name}")
+            list_metrics_to_plot = [f"{metric}{key}" for key in keys]
+            plot_evolution(df,
+                           hue_names_to_plot=list_metrics_to_plot,
+                           y_label_name=metric,
+                           fontsize=fontsize,
+                           figsize=figsize,
+                           groupby=groupby)
+            save_figure(f"Lead_time/{name}")
 
-    def plot_lead_time_by_station(self,
-                                  df,
+    @staticmethod
+    def plot_lead_time_by_station(df,
                                   metrics=["bias", "ae", "n_bias", "n_ae"],
                                   keys=["UV_nn", "UV_AROME"],
-                                  groupby="month",
+                                  groupby="lead_time",
                                   fontsize=15,
                                   figsize=(20, 15)):
+
         keys = ['_' + key.split('_')[1] for key in keys]
         for station in df["name"].unique():
             for metric in metrics:
-                self._plot_seasonal_evolution(df[df["name"] == station],
-                                              metric,
-                                              keys=keys,
-                                              fontsize=fontsize,
-                                              figsize=figsize,
-                                              groupby=groupby)
+                list_metrics_to_plot = [f"{metric}{key}" for key in keys]
+                plot_evolution(df[df["name"] == station],
+                               hue_names_to_plot=list_metrics_to_plot,
+                               y_label_name=metric,
+                               fontsize=fontsize,
+                               figsize=figsize,
+                               groupby=groupby)
 
-                self.save_figure(f"Lead_time_{station}")
+                save_figure(f"Lead_time/Lead_time_{station}")
 
 
-class VizualizationResults(Leadtime):
+class VizualizationResults(Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots):
 
     def __init__(self, exp=None):
         super().__init__(exp)
@@ -360,4 +431,4 @@ class VizualizationResults(Leadtime):
                                               dict_keys=dict_keys,
                                               figsize=figsize,
                                               showfliers=showfliers)
-                self.save_figure(f"Boxplots/{name}")
+                save_figure(f"Boxplots/{name}")
