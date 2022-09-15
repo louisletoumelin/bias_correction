@@ -18,8 +18,6 @@ def create_unet(input_shape):
 
     inputs = Input(input_shape)
     zero_padding = ZeroPadding2D(padding=((0, 1), (0, 1)), input_shape=input_shape)(inputs)
-    print("zero_padding")
-    print(zero_padding)
 
     '''
     1st conv/pool
@@ -38,8 +36,6 @@ def create_unet(input_shape):
                    name='conv1')(conv1)
     pool1 = MaxPooling2D(pool_size=prm['pool_size'],
                          name='pool1')(conv1)
-    print("pool1")
-    print(pool1)
     '''
     2nd conv/pool
     '''
@@ -57,8 +53,6 @@ def create_unet(input_shape):
                    name='conv2')(conv2)
     pool2 = MaxPooling2D(pool_size=prm['pool_size'],
                          name='pool2')(conv2)
-    print("pool2")
-    print(pool2)
 
     '''
     3rd conv/poolextract_MNT_around_station
@@ -77,8 +71,6 @@ def create_unet(input_shape):
                    name='conv3')(conv3)
     pool3 = MaxPooling2D(pool_size=prm['pool_size'],
                          name='pool3')(conv3)
-    print("pool3")
-    print(pool3)
 
     '''
     4th conv/pool/up
@@ -104,8 +96,6 @@ def create_unet(input_shape):
                  kernel_initializer=prm['initializer'],
                  name='up4')(up4)
     up4 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up4)
-    print("up4")
-    print(up4)
 
     '''
     3rd up
@@ -134,7 +124,6 @@ def create_unet(input_shape):
                  kernel_initializer=prm['initializer'],
                  name='up3')(up3)
     up3 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up3)
-    print(up3)
     '''
     2nd up
     '''
@@ -161,14 +150,10 @@ def create_unet(input_shape):
                  padding=prm['padding'],
                  kernel_initializer=prm['initializer'],
                  name='up2')(up2)
-    print(up2)
 
     '''
     1st up
     '''
-    print("before concat")
-    print(conv1)
-    print(conv1)
     merge1 = concatenate([conv1, up2],
                          axis=3,
                          name='concat_1')
@@ -189,7 +174,7 @@ def create_unet(input_shape):
                      activation=prm['activation_regression'],
                      name='conv1_1')(conv1_up)
     up1 = Cropping2D(cropping=((0, 1), (0, 1)))(conv1_1)
-    print(up1)
+
     model = Model(inputs=inputs, outputs=up1)
-    print(model.summary())
+
     return model
