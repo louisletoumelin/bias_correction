@@ -19,7 +19,7 @@ else:
 # Path to CNN
 config["cnn_name"] = "date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
 config["path_experience"] = config["path_root"] + "Data/1_Raw/CNN/"
-config["model_path"] = config["path_experience"] + config["cnn_name"]
+config["unet_path"] = config["path_experience"] + config["cnn_name"]
 
 # Input data
 # Path

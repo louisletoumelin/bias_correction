@@ -349,6 +349,9 @@ class CustomDataHandler:
         self.predicted_test = None
         self.predicted_val = None
         self.predicted_other_countries = None
+        self.inputs_custom = None
+        self.length_custom = None
+        self.names_custom = None
 
     def _select_all_variables_needed(self,
                                      df: pd.DataFrame,
@@ -612,6 +615,17 @@ class CustomDataHandler:
                           ) -> pd.DataFrame:
         return time_series[time_series["name"].isin(self.config["quick_test_stations"])]
 
+    def prepare_custom_devine_data(self,
+                                   custom_time_series: pd.DataFrame,
+                                   dict_topo_custom: dict
+                                   ):
+
+        self.inputs_custom = custom_time_series
+        self.length_custom = len(self.inputs_custom)
+        self.names_custom = ["custom" for i in range(self.length_custom)]
+        self.dict_topos = dict_topo_custom
+        self._set_is_prepared()
+
     def prepare_train_test_data(self,
                                 _shuffle: bool = True,
                                 variables_needed: bool = None):
@@ -737,7 +751,8 @@ class CustomDataHandler:
 
     def get_tf_topos(self,
                      mode: str,
-                     names: Union[MutableSequence[str], None] = None
+                     names: Union[MutableSequence[str], None] = None,
+                     output_shapes: Tuple[int, int, int] = (140, 140, 1)
                      ) -> tf.data.Dataset:
 
         if names is None:
@@ -745,7 +760,7 @@ class CustomDataHandler:
 
         topos_generator = TopoGenerator(self.dict_topos, names)
 
-        return tf.data.Dataset.from_generator(topos_generator, output_types=tf.float32, output_shapes=(140, 140, 1))
+        return tf.data.Dataset.from_generator(topos_generator, output_types=tf.float32, output_shapes=output_shapes)
 
     def get_tf_mean_std(self,
                         mode: str
@@ -767,7 +782,8 @@ class CustomDataHandler:
     def get_tf_zipped_inputs(self,
                              mode: str = "test",
                              inputs: Union[pd.Series, pd.DataFrame] = None,
-                             names: MutableSequence["str"] = None
+                             names: MutableSequence["str"] = None,
+                             output_shapes: Tuple[int, int, int] = (140, 140, 1)
                              ) -> tf.data.Dataset:
 
         if inputs is None:
@@ -780,9 +796,13 @@ class CustomDataHandler:
 
         if self.config["standardize"]:
             mean, std = self.get_tf_mean_std(mode)
-            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names), inputs, mean, std))
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names, output_shapes=output_shapes),
+                                        inputs,
+                                        mean,
+                                        std))
         else:
-            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names), inputs))
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names, output_shapes=output_shapes),
+                                        inputs))
 
     def get_tf_zipped_inputs_labels(self,
                                     mode: str
@@ -864,7 +884,7 @@ class CustomDataHandler:
         return topos_generator()
 
     def get_batched_inputs_labels(self,
-                                  mode: str
+                                  mode: str,
                                   ) -> DatasetV2:
         dataset = self.get_tf_zipped_inputs_labels(mode)
 
