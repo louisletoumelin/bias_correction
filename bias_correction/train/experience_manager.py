@@ -301,9 +301,7 @@ class ExperienceManager(AllExperiences):
         self._update_csv_files_with_results(c_eval)
 
     @classmethod
-    def from_previous_experience(cls,
-                                 path_to_previous_exp: str
-                                 ) -> Tuple[ExperienceManager, dict]:
+    def from_previous_experience(cls, path_to_previous_exp):
 
         path_to_previous_exp = _get_full_path_to_previous_exp(path_to_previous_exp)
 

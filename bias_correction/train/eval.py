@@ -6,23 +6,155 @@ from matplotlib.pyplot import cm
 
 try:
     import seaborn as sns
+
     sns_ = True
 except (ImportError, ModuleNotFoundError):
     sns_ = False
 
 from bias_correction.train.visu import VizualizationResults
 from bias_correction.train.metrics import get_metric
+from bias_correction.train.dataloader import CustomDataHandler
+
+
+class DataFrameComputer:
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def classify_topo_carac(stations: pd.DataFrame,
+                            df: pd.DataFrame,
+                            topo_carac: list = ['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti']
+                            ) -> pd.DataFrame:
+        for carac in topo_carac:
+
+            if not hasattr(df, f"class_{carac}"):
+                df[f"class_{carac}"] = np.nan
+
+            carac_nn = carac + '_NN_0' if carac not in ["alti", "country"] else carac
+
+            q25 = np.quantile(stations[carac_nn].values, 0.25)
+            q50 = np.quantile(stations[carac_nn].values, 0.5)
+            q75 = np.quantile(stations[carac_nn].values, 0.75)
+
+            filter_1 = (df[carac_nn] <= q25)
+            filter_2 = (df[carac_nn] > q25) & (df[carac_nn] <= q50)
+            filter_3 = (df[carac_nn] > q50) & (df[carac_nn] <= q75)
+            filter_4 = (df[carac_nn] > q75)
+
+            df.loc[filter_1, f"class_{carac}"] = "$x \leq q_{25}$"
+            df.loc[filter_2, f"class_{carac}"] = "$q_{25}<x \leq q_{50}$"
+            df.loc[filter_3, f"class_{carac}"] = "$q_{50}<x \leq q_{75}$"
+            df.loc[filter_4, f"class_{carac}"] = "$q_{75}<x$"
+
+            print(f"Quantiles {carac}: ", q25, q50, q75)
+            return df
+
+    @staticmethod
+    def classify_alti(df: pd.DataFrame
+                      ) -> pd.DataFrame:
+
+        df.loc[:, "class_alti0"] = np.nan
+
+        filter_1 = (df["alti"] <= 500)
+        filter_2 = (500 < df["alti"]) & (df["alti"] <= 1000)
+        filter_3 = (1000 < df["alti"]) & (df["alti"] <= 2000)
+        filter_4 = (2000 < df["alti"])
+
+        df.loc[filter_1, "class_alti0"] = "$Elevation [m] \leq 500$"
+        df.loc[filter_2, "class_alti0"] = "$500<Elevation [m] \leq 1000$"
+        df.loc[filter_3, "class_alti0"] = "$1000<Elevation [m] \leq 2000$"
+        df.loc[filter_4, "class_alti0"] = "$2000<Elevation [m]$"
+
+        for filter_alti in [filter_1, filter_2, filter_3, filter_4]:
+            print(len(df.loc[filter_alti, "name"].unique()))
+
+        return df
+
+    @staticmethod
+    def classify_forecast_term(df: pd.DataFrame
+                               ) -> pd.DataFrame:
+
+        def compute_lead_time(hour):
+            return (hour - 6) % 24 + 6
+
+        df.loc[:, "lead_time"] = compute_lead_time(df.index.hour.values)
+
+        return df
+
+    @staticmethod
+    def add_metric_to_df(df: pd.DataFrame,
+                         keys: list[str],
+                         key_obs: str,
+                         metrics: list[str] = ["bias", "n_bias", "ae", "n_ae"]
+                         ) -> pd.DataFrame:
+        for metric in metrics:
+            metric_func = get_metric(metric)
+            for key in keys:
+                result = metric_func(df[key_obs].values, df[key].values)
+                key = '_' + key.split('_')[1]
+                df[f"{metric}{key}"] = result
+        return df
+
+    @staticmethod
+    def add_topo_carac_from_stations_to_df(df, stations,
+                                           topo_carac=['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti',
+                                                       'country']):
+        for station in df["name"].unique():
+            filter_df = df["name"] == station
+            filter_s = stations["name"] == station
+            for carac in topo_carac:
+                carac = carac + '_NN_0' if carac not in ["alti", "country"] else carac
+                if hasattr(df, carac):
+                    df.loc[filter_df, carac] = stations.loc[filter_s, carac].values[0]
+                else:
+                    df[carac] = np.nan
+                    df.loc[filter_df, carac] = stations.loc[filter_s, carac].values[0]
+        return df
+
+    @staticmethod
+    def add_other_models(df: pd.DataFrame,
+                         models: list[str],
+                         current_variable: str,
+                         data_loader: CustomDataHandler):
+
+        for model_str in models:
+
+            assert hasattr(data_loader, f"predicted{model_str}")
+            results = []
+
+            df.loc[:, current_variable + model_str] = np.nan
+
+            for station in df["name"].unique():
+                filter_df_results = df["name"] == station
+                df_station = df.loc[filter_df_results, :]
+
+                model = getattr(data_loader, f"predicted{model_str}")
+                filter_df_model = model["name"] == station
+                model_station = model.loc[filter_df_model, :]
+
+                filter_time = df_station.index.intersection(model_station.index)
+                df_station.loc[filter_time, current_variable + model_str] = model_station.loc[
+                    filter_time, current_variable + model_str]
+                results.append(df_station)
+
+            df = pd.concat(results)
+
+        return df
 
 
 class CustomEvaluation(VizualizationResults):
 
-    def __init__(self, exp, data, mode="test", keys=["_AROME", "_nn"], stations_to_remove=[], other_models=[], quick=False):
+    def __init__(self, exp, data, mode="test", keys=["_AROME", "_nn"], stations_to_remove=[], other_models=[],
+                 quick=False):
         super().__init__(exp)
 
         self.exp = exp
         self.data = data
         self.current_variable = self.exp.config["current_variable"]
         self.mode = mode
+
+        self.computer = DataFrameComputer()
 
         if self.exp.config["get_intermediate_output"]:
             keys.append("_int")
@@ -31,7 +163,10 @@ class CustomEvaluation(VizualizationResults):
         self.df_results = self.create_df_results()
 
         if other_models:
-            self.add_other_models(other_models)
+            self.df_results = self.computer.add_other_models(self.df_results,
+                                                             other_models,
+                                                             self.current_variable,
+                                                             self.data)
             keys = keys + other_models
             self._set_key_attributes(keys)
             self._set_key_list(keys)
@@ -40,11 +175,19 @@ class CustomEvaluation(VizualizationResults):
             self.df_results = self.df_results[~self.df_results["name"].isin(stations_to_remove)]
 
         if not quick:
-            self._add_metric_to_df_results()
-            self._add_topo_carac_to_df_results()
-            self.classify_topo_carac()
-            self.classify_alti()
-            self.classify_forecast_term()
+            self.df_results = self.computer.add_metric_to_df(self.df_results,
+                                                             self.keys,
+                                                             self.key_obs,
+                                                             metrics=["bias", "n_bias", "ae", "n_ae"])
+            self.df_results = self.computer.add_topo_carac_from_stations_to_df(self.df_results,
+                                                                               self.data.get_stations(),
+                                                                               topo_carac=['mu', 'curvature', 'tpi_500',
+                                                                                           'tpi_2000', 'laplacian',
+                                                                                           'alti',
+                                                                                           'country'])
+            self.df_results = self.computer.classify_topo_carac(self.data.get_stations(), self.df_results)
+            self.df_results = self.computer.classify_alti(self.df_results)
+            self.df_results = self.computer.classify_forecast_term(self.df_results)
 
     def _set_key_attributes(self, keys):
         self.key_obs = f"{self.current_variable}_obs"
@@ -71,7 +214,7 @@ class CustomEvaluation(VizualizationResults):
 
         :param df: DataFrame with data
         :type df: pandas.DataFrame
-        :return: DataFrame with emperature variables
+        :return: DataFrame with temperature variables
         """
         labels = self.data.get_labels(self.mode)
         inputs = self.data.get_inputs(self.mode)
@@ -98,104 +241,8 @@ class CustomEvaluation(VizualizationResults):
         columns = ["name", f"{self.current_variable}_obs"] + self.keys
         return df[columns]
 
-    def add_other_models(self, models):
-
-        for model_str in models:
-
-            assert hasattr(self.data, f"predicted{model_str}")
-            results = []
-
-            self.df_results.loc[:, self.current_variable+model_str] = np.nan
-
-            for station in self.df_results["name"].unique():
-
-                filter_df_results = self.df_results["name"] == station
-                df_station = self.df_results.loc[filter_df_results, :]
-
-                model = getattr(self.data, f"predicted{model_str}")
-                filter_df_model = model["name"] == station
-                model_station = model.loc[filter_df_model, :]
-
-                filter_time = df_station.index.intersection(model_station.index)
-                df_station.loc[filter_time, self.current_variable+model_str] = model_station.loc[filter_time, self.current_variable+model_str]
-                results.append(df_station)
-
-            self.df_results = pd.concat(results)
-
-    def _add_metric_to_df_results(self, metrics=["bias", "n_bias", "ae", "n_ae"]):
-        for metric in metrics:
-            metric_func = get_metric(metric)
-            for key in self.keys:
-                result = metric_func(self.df_results[self.key_obs].values, self.df_results[key].values)
-                key = '_' + key.split('_')[1]
-                self.df_results[f"{metric}{key}"] = result
-
-    def _add_topo_carac_to_df_results(self, topo_carac=['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti',
-                                                        'country']):
-        stations = self.data.get_stations()
-        for station in self.df_results["name"].unique():
-            filter_df = self.df_results["name"] == station
-            filter_s = stations["name"] == station
-            for carac in topo_carac:
-                carac = carac + '_NN_0' if carac not in ["alti", "country"] else carac
-                if hasattr(self.df_results, carac):
-                    self.df_results.loc[filter_df, carac] = stations.loc[filter_s, carac].values[0]
-                else:
-                    self.df_results[carac] = np.nan
-                    self.df_results.loc[filter_df, carac] = stations.loc[filter_s, carac].values[0]
-
-    def classify_topo_carac(self, topo_carac=['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti']):
-        stations = self.data.get_stations()
-        for carac in topo_carac:
-
-            if not hasattr(self.df_results, f"class_{carac}"):
-                self.df_results[f"class_{carac}"] = np.nan
-
-            carac_nn = carac + '_NN_0' if carac not in ["alti", "country"] else carac
-
-            q25 = np.quantile(stations[carac_nn].values, 0.25)
-            q50 = np.quantile(stations[carac_nn].values, 0.5)
-            q75 = np.quantile(stations[carac_nn].values, 0.75)
-
-            filter_1 = (self.df_results[carac_nn] <= q25)
-            filter_2 = (self.df_results[carac_nn] > q25) & (self.df_results[carac_nn] <= q50)
-            filter_3 = (self.df_results[carac_nn] > q50) & (self.df_results[carac_nn] <= q75)
-            filter_4 = (self.df_results[carac_nn] > q75)
-
-            self.df_results.loc[filter_1, f"class_{carac}"] = "$x \leq q_{25}$"
-            self.df_results.loc[filter_2, f"class_{carac}"] = "$q_{25}<x \leq q_{50}$"
-            self.df_results.loc[filter_3, f"class_{carac}"] = "$q_{50}<x \leq q_{75}$"
-            self.df_results.loc[filter_4, f"class_{carac}"] = "$q_{75}<x$"
-
-            print(f"Quantiles {carac}: ", q25, q50, q75)
-
-    def classify_alti(self):
-        self.df_results.loc[:, "class_alti0"] = np.nan
-
-        filter_1 = (self.df_results["alti"] <= 500)
-        filter_2 = (500 < self.df_results["alti"]) & (self.df_results["alti"] <= 1000)
-        filter_3 = (1000 < self.df_results["alti"]) & (self.df_results["alti"] <= 2000)
-        filter_4 = (2000 < self.df_results["alti"])
-
-        self.df_results.loc[filter_1, "class_alti0"] = "$Elevation [m] \leq 500$"
-        self.df_results.loc[filter_2, "class_alti0"] = "$500<Elevation [m] \leq 1000$"
-        self.df_results.loc[filter_3, "class_alti0"] = "$1000<Elevation [m] \leq 2000$"
-        self.df_results.loc[filter_4, "class_alti0"] = "$2000<Elevation [m]$"
-
-        print(len(self.df_results.loc[filter_1, "name"].unique()))
-        print(len(self.df_results.loc[filter_2, "name"].unique()))
-        print(len(self.df_results.loc[filter_3, "name"].unique()))
-        print(len(self.df_results.loc[filter_4, "name"].unique()))
-
-    def classify_forecast_term(self):
-
-        def compute_lead_time(hour):
-            return (hour - 6) % 24 + 6
-
-        self.df_results.loc[:, "lead_time"] = compute_lead_time(self.df_results.index.hour.values)
-
     @staticmethod
-    def _df2metric(df, metric_name, current_variable, key_obs, keys, print_=False):
+    def _df2metric(df, metric_name, key_obs, keys, print_=False):
         metric_func = get_metric(metric_name)
         results = []
         for key in keys:
@@ -207,7 +254,7 @@ class CustomEvaluation(VizualizationResults):
         return results
 
     def df2metric(self, metric_name, print_=False):
-        return self._df2metric(self.df_results, metric_name, self.current_variable,
+        return self._df2metric(self.df_results, metric_name,
                                self.key_obs, self.keys, print_=print_)
 
     def df2mae(self, print_=False):
@@ -224,7 +271,7 @@ class CustomEvaluation(VizualizationResults):
             filter_obs = self.df_results[self.key_obs] >= min_obs
             filter_model = self.df_results[key] >= min_model
             df = self.df_results[filter_obs & filter_model]
-            self._df2metric(df, "m_n_be", self.current_variable, self.key_obs, self.keys, print_=print_)
+            self._df2metric(df, "m_n_be", self.key_obs, self.keys, print_=print_)
 
     def df2m_n_ae(self, min_obs, min_model, print_=False):
         for key in self.keys:
@@ -232,13 +279,13 @@ class CustomEvaluation(VizualizationResults):
             filter_obs = self.df_results[self.key_obs] >= min_obs
             filter_model = self.df_results[key_model] >= min_model
             df = self.df_results[filter_obs & filter_model]
-            self._df2metric(df, "m_n_ae", self.current_variable, self.key_obs, self.keys, print_=print_)
+            self._df2metric(df, "m_n_ae", self.key_obs, self.keys, print_=print_)
 
     def df2ae(self, print_=False):
-        return self._df2metric(self.df_results, "ae", self.current_variable, self.key_obs, self.keys, print_=print_)
+        return self._df2metric(self.df_results, "ae", self.key_obs, self.keys, print_=print_)
 
     def df2bias(self, print_=False):
-        return self._df2metric(self.df_results, "bias", self.current_variable, self.key_obs, self.keys, print_=print_)
+        return self._df2metric(self.df_results, "bias", self.key_obs, self.keys, print_=print_)
 
     def df2correlation(self, print_=False):
         for station in self.df_results["name"].unique():
