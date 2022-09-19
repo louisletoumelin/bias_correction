@@ -41,18 +41,21 @@ callbacks_dict = {"TensorBoard": TensorBoard,
                   "ModelCheckpoint": ModelCheckpoint,
                   "FeatureImportanceCallback": FeatureImportanceCallback}
 if _horovod:
-    # Horovod: broadcast initial variable states from rank 0 to all other processes.
-    # This is necessary to ensure consistent initialization of all workers when
-    # training is started with random weights or restored from a checkpoint.
-    callbacks_dict["BroadcastGlobalVariablesCallback"] = hvd.keras.callbacks.BroadcastGlobalVariablesCallback
-    # Horovod: average metrics among workers at the end of every epoch.
-    # Note: This callback must be in the list before the ReduceLROnPlateau,
-    # TensorBoard or other metrics-based callbacks.
-    callbacks_dict["MetricAverageCallback"] = hvd.keras.callbacks.MetricAverageCallback
-    # Horovod: using `lr = 1.0 * hvd.size()` from the very beginning leads to worse final
-    # accuracy. Scale the learning rate `lr = 1.0` ---> `lr = 1.0 * hvd.size()` during
-    # the first five epochs. See https://arxiv.org/abs/1706.02677 for details.
-    callbacks_dict["LearningRateWarmupCallback"] = hvd.keras.callbacks.LearningRateWarmupCallback
+    try:
+        # Horovod: broadcast initial variable states from rank 0 to all other processes.
+        # This is necessary to ensure consistent initialization of all workers when
+        # training is started with random weights or restored from a checkpoint.
+        callbacks_dict["BroadcastGlobalVariablesCallback"] = hvd.keras.callbacks.BroadcastGlobalVariablesCallback
+        # Horovod: average metrics among workers at the end of every epoch.
+        # Note: This callback must be in the list before the ReduceLROnPlateau,
+        # TensorBoard or other metrics-based callbacks.
+        callbacks_dict["MetricAverageCallback"] = hvd.keras.callbacks.MetricAverageCallback
+        # Horovod: using `lr = 1.0 * hvd.size()` from the very beginning leads to worse final
+        # accuracy. Scale the learning rate `lr = 1.0` ---> `lr = 1.0 * hvd.size()` during
+        # the first five epochs. See https://arxiv.org/abs/1706.02677 for details.
+        callbacks_dict["LearningRateWarmupCallback"] = hvd.keras.callbacks.LearningRateWarmupCallback
+    except AttributeError as e:
+        print(e)
 
 
 def load_callbacks(callbacks_str: List[str], args_callbacks: dict, kwargs_callbacks: dict) -> list:
@@ -97,7 +100,9 @@ def load_callback_with_custom_model(cm, data_loader=None, mode_callback=None):
     # Update old kwargs dict with new kwargs
     for callback in cm.config["kwargs_callbacks"]:
         with no_raise_on_key_error():
-            kwargs[callback] = cm.config["kwargs_callbacks"][callback] | _tmp_kwargs_callbacks[callback]
+            d = cm.config["kwargs_callbacks"][callback].copy()
+            d.update(_tmp_kwargs_callbacks[callback])
+            kwargs[callback] = d
 
         with no_raise_on_key_error():
             args[callback].extend(_tmp_args_callbacks[callback])

@@ -110,7 +110,10 @@ for model in ["last", "best"]:
     with timer_context("Lead time"):
         c_eval.plot_lead_time(c_eval.df_results, keys=c_eval.keys, name=f"Lead_time_{model}")
     with timer_context("Boxplot"):
-        c_eval.plot_boxplot_topo_carac(c_eval.df_results, name=f"Boxplot_topo_carac_{model}",
+        print("debug")
+        print(c_eval.df_results.columns)
+        c_eval.plot_boxplot_topo_carac(c_eval.df_results,
+                                       name=f"Boxplot_topo_carac_{model}",
                                        dict_keys={"_nn": "Neural Network + DEVINE",
                                                   "_AROME": "$AROME_{forecast}$",
                                                   "_D": "DEVINE",

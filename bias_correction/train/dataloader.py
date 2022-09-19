@@ -250,7 +250,7 @@ class ResultsSetter:
 
     def has_intermediate_outputs(self,
                                  results: MutableSequence[float]
-                                 ) -> bool:
+                                 ) -> Union[bool]:
         return isinstance(results, tuple) and len(results) > 1 and self.config["get_intermediate_output"]
 
     def _nn_output2df(self,
@@ -914,6 +914,7 @@ class CustomDataHandler:
                   model: str,
                   mode: str = "test"
                   ) -> None:
+
         path_to_files = {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
                          "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
 
