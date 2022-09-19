@@ -8,14 +8,30 @@ config["details"] = "new_test"                                          # Str. S
 config["global_architecture"] = "devine_only"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False
 config["type_of_output"] = "map_u_v_w"                               # Str. "output_speed" or "output_components", "map", "map_components", "map_u_v_w"
+config["custom_unet"] = True
+config["custom_input_shape"] = (90, 88, 1)
+config["disable_training_cnn"] = True
 
 # General
 config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"                                                # Default="auto", else = Int
 
-# Input variables
 config["input_variables"] = ['Wind', 'Wind_DIR']
 config["wind_nwp_variables"] = ["Wind", "Wind_DIR"]                     # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
+config["get_intermediate_output"] = False
+config["standardize"] = False
+config["labels"] = []
+config["batch_size"] = 32
+config["initializer"] = None
+config["args_initializer"] = []
+config["kwargs_initializer"] = {}
+config["loss"] = "mse"
+config["args_loss"] = {"mse": []}
+config["kwargs_loss"] = {"mse": {}}
+config["optimizer"] = "Adam"
+config["learning_rate"] = 0.01
+config["args_optimizer"] = [config["learning_rate"]]  # List.
+config["kwargs_optimizer"] = {}  # Dict.
 
 # Do not modify: assert inputs are correct
 config = adapt_distribution_strategy_to_available_devices(config)

@@ -8,10 +8,7 @@ import json
 from typing import Union, MutableSequence, Tuple
 
 from bias_correction.utils_bc.network import detect_network
-from bias_correction.train.eval import CustomEvaluation
-from bias_correction.train.model import CustomModel
-from bias_correction.train.dataloader import CustomDataHandler
-
+from bias_correction.train.utils import create_folder_if_doesnt_exist
 
 def _is_full_path(path_to_previous_exp: str) -> bool:
     if len(path_to_previous_exp.split("/")) == 1:
@@ -208,7 +205,7 @@ class ExperienceManager(AllExperiences):
             self._update_single_metrics_csv(metric_value, metric_name + model, precision=precision)
 
     def _update_csv_files_with_results(self,
-                                       c_eval: CustomEvaluation
+                                       c_eval
                                        ) -> None:
 
         assert hasattr(c_eval, "df_results")
@@ -225,7 +222,7 @@ class ExperienceManager(AllExperiences):
         self.is_finished = 1
 
     def save_model(self,
-                   custom_model: CustomModel
+                   custom_model
                    ) -> None:
         tf.keras.models.save_model(custom_model.model, self.path_to_last_model)
 
@@ -265,8 +262,8 @@ class ExperienceManager(AllExperiences):
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
 
     def save_all(self,
-                 data: CustomDataHandler,
-                 custom_model: CustomModel
+                 data,
+                 custom_model
                  ) -> None:
 
         self.save_model(custom_model)
@@ -276,7 +273,7 @@ class ExperienceManager(AllExperiences):
         self.save_experience_json()
 
     def save_results(self,
-                     c_eval: CustomEvaluation
+                     c_eval
                      ) -> None:
         self.finished()
         self._update_finished_csv_file()
