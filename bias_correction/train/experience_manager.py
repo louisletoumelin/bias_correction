@@ -96,8 +96,6 @@ class ExperienceManager(AllExperiences):
         super().__init__(config, override=override, create=create)
 
         self.config = config
-        print("debug ExperienceManager")
-        print(self.config)
 
         self.list_physical_devices()
 
@@ -109,6 +107,16 @@ class ExperienceManager(AllExperiences):
             self.current_id = self._get_current_id()
             self.name_current_experience = self._get_name_current_experience()
             self.is_finished = 0
+
+            # Define later
+            self.path_to_current_experience = None
+            self.path_to_logs = None
+            self.path_to_best_model = None
+            self.path_to_last_model = None
+            self.path_to_tensorboard_logs = None
+            self.path_to_figures = None
+            self.path_to_feature_importance = None
+            self.path_to_predictions = None
 
             # Paths
             path_to_current_experience = self._get_path_to_current_experience()
@@ -130,6 +138,8 @@ class ExperienceManager(AllExperiences):
             for name in ["experiences", "metrics", "hyperparameters"]:
                 self._update_experience_to_csv_file(name)
             self.save_config_json()
+
+
 
     def get_config(self):
         return self.config
