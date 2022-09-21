@@ -6,12 +6,12 @@ from bias_correction.config._config import config
 # Architecture
 config["details"] = "relaunch_exp"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = "2022_9_19_labia_v20"  # "2022_7_27_labia_v4"
+config["restore_experience"] = False  # reference "2022_9_19_labia_v20"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]  # 25, 10                                    # List. Each member is a unit [40, 20, 10, 5]
+config["nb_units"] = [25, 10]  # 25, 10               #todo 3 architectures                     # List. Each member is a unit [40, 20, 10, 5]
 config["use_bias"] = True
 
 # General
@@ -26,12 +26,12 @@ config["prefetch"] = "auto"  # Default="auto", else = Int
 config["dense_with_skip_connection"] = False
 
 # Hyperparameters
-config["batch_size"] = 128  # Int.
-config["epochs"] = 15  # Int.
-config["learning_rate"] = 0.001
+config["batch_size"] = 128  # Int. # todo sensibility 32 64 128 256
+config["epochs"] = 1  # Int. # todo sensibility without early stopping 1, 5, 8, 10, 12, 15, 20
+config["learning_rate"] = 0.001  # todo sensibility 0.001 0.05 0.01
 
 # Optimizer
-config["optimizer"] = "Adam"  # Str.
+config["optimizer"] = "Adam"  # Str.  # todo sensibility à 3 differents
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
@@ -48,12 +48,13 @@ config["standardize"] = True  # Bool. Apply standardization
 config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = False  # Bool. Quicktest case (fast training)
-config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
+config["quick_test"] = True  # Bool. Quicktest case (fast training)
+config["quick_test_stations"] = ["ALPE-D'HUEZ"]
+#config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -69,9 +70,8 @@ config["unbalanced_threshold"] = 2
 # Callbacks
 config["callbacks"] = ["TensorBoard",
                        "ReduceLROnPlateau",
-                       "EarlyStopping",
                        "CSVLogger",
-                       "ModelCheckpoint"]  # "FeatureImportanceCallback"
+                       "ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
 config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "EarlyStopping": [],
                             "ModelCheckpoint": [],
@@ -115,6 +115,9 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "CSVLogger": {},
                               }
 
+# Metrics
+config["metrics"] = ["tf_mae", "tf_rmse", "tf_mbe"]
+
 # Split
 config["split_strategy_test"] = "time_and_space"  # "time", "space", "time_and_space", "random"
 config["split_strategy_val"] = "time_and_space"
@@ -147,10 +150,10 @@ config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 
 # Intermediate output
-config["get_intermediate_output"] = False
+config["get_intermediate_output"] = True
 
 # Custom loss
-config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent
+config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent #  todo sensibility 2 ou 3 fonctions
 config["args_loss"] = {"mse": [],
                        "penalized_mse": [],
                        "mse_proportional": [],
@@ -165,13 +168,8 @@ config["kwargs_loss"] = {"mse": {},
                          "mse_power": {"penalty": 1,
                                        "power": 2},
                          "pinball": {"tho": 0.85},
-                         "pinball_proportional": {"tho": 0.6},
+                         "pinball_proportional": {"tho": 0.6},  # todo sensibility 0.5, 0.6, 0.7, 0.8
                          "pinball_weight": {"tho": 0.95}}
-
-# todo assert station validation not in station test
-# todo assert kwargs split strategy are defined
-# todo assert a seed is given for any random input
-
 
 # Do not modify: assert inputs are correct
 config = assert_input_for_skip_connection(config)

@@ -16,7 +16,7 @@ def plot_1_1_subplot(df, key_obs="vw10m(m/s)", key_model="Wind", min_=-1, max_=3
     # Figure
     plt.figure(figsize=figsize)
     plt.scatter(obs, model, s=s)
-    plt.plot(obs, obs, color='red')
+    plt.plot(obs, obs, color='black')
     plt.xlim(min_, max_)
     plt.ylim(min_, max_)
 

@@ -904,7 +904,7 @@ class CustomDataHandler:
         setattr(self, f"predicted_{mode_str}", df)
 
         if self.config["get_intermediate_output"]:
-            self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
+            df, mode_str = self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
             setattr(self, f"predicted_{mode_str}", df)
 
     def _set_is_prepared(self) -> None:

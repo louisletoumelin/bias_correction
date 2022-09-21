@@ -89,6 +89,10 @@ class CustomEvaluation(VizualizationResults):
         df = self.data.get_predictions(mode)
 
         if self.current_variable == "UV":
+
+            if self.exp.config["get_intermediate_output"]:
+                df_int = self.data.get_predictions("int")
+                df["UV_int"] = df_int["UV_int"]
             return self.create_df_speed(df)
         else:
             return self.create_df_temp(df)
@@ -321,7 +325,7 @@ class Interpretability(VizualizationResults):
         inputs_tf = self.data.get_tf_zipped_inputs(inputs=inputs).batch(length_batch)
 
         with tf.device('/GPU:0'):
-            results = self.cm.predict_with_batch(inputs_tf)
+            results = self.cm.predict_single_bath(inputs_tf)
 
         # Calculate the new RMSE
         self.data.set_predictions(results, mode=mode)
@@ -344,7 +348,7 @@ class Interpretability(VizualizationResults):
 
             # Predict
             with tf.device('/GPU:0'):
-                results_permutation = self.cm.predict_with_batch(inputs_tf)
+                results_permutation = self.cm.predict_single_bath(inputs_tf)
 
             # Calculate the new metrics
             self.data.set_predictions(results_permutation, mode=mode)
@@ -434,7 +438,7 @@ class Interpretability(VizualizationResults):
 
                 # Predict
                 with tf.device('/GPU:0'):
-                    results_fixed_value = self.cm.predict_with_batch(inputs_tf)
+                    results_fixed_value = self.cm.predict_single_bath(inputs_tf)
 
                 mean = np.nanmean(results_fixed_value)
                 std = np.nanstd(results_fixed_value)

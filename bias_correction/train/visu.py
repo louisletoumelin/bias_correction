@@ -213,7 +213,7 @@ def plot_single_subplot(df: pd.DataFrame,
     # Figure
     plt.subplot(1, nb_columns, id_plot)
     plt.scatter(obs, model, c=color, s=s)
-    plt.plot(obs, obs, color='red')
+    plt.plot(obs, obs, color='black')
 
     # Text
     try:
@@ -286,15 +286,16 @@ def plot_single_1_1(df: pd.DataFrame,
 
     # Figure
     plt.figure(figsize=figsize)
-    plt.scatter(obs, model, c=color, s=s)
-    plt.plot(obs, obs, color='red')
+    ax = plt.gca()
+    ax.scatter(obs, model, c=color, s=s)
+    ax.plot(obs, obs, color='black')
 
     # Text
     try:
-        plt.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
-        plt.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
+        ax.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
+        ax.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
         corr_coeff = df[[key_obs, key_model]].corr().iloc[0, 1]
-        plt.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
+        ax.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
     except:
         print("Error in text figure")
 
@@ -328,24 +329,12 @@ def plot_1_1_multiple_subplots(df: pd.DataFrame,
                                scaling_variable: str = "UV",
                                figsize: Tuple[int, int] = (20, 10),
                                s: int = 1,
-                               color: Tuple[str] = ("C1", "C2", "C0", "C3"),
+                               color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
                                ) -> None:
     plt.figure(figsize=figsize)
     nb_columns = len(keys_models)
     for idx, key in enumerate(keys_models):
         plot_single_subplot(df, key, key_obs, scaling_variable, nb_columns, idx + 1, color=color[idx], s=s)
-
-
-def plot_multiple_1_1(df: pd.DataFrame,
-                      keys_models: Tuple[str] = ("UV_nn", "UV_AROME"),
-                      key_obs: str = "UV_obs",
-                      scaling_variable: str = "UV",
-                      s: int = 1,
-                      figsize: Tuple[int, int] = (15, 15),
-                      color: Tuple[str] = ("C1", "C2", "C0", "C3")
-                      ) -> None:
-    for idx, key in enumerate(keys_models):
-        plot_single_1_1(df, key, key_obs, scaling_variable, s=s, figsize=figsize, color=color[idx])
 
 
 class ModelVersusObsPlots:
@@ -355,36 +344,31 @@ class ModelVersusObsPlots:
 
     def plot_1_1_all(self,
                      df: pd.DataFrame,
-                     keys_models: Tuple[str] = ("UV_nn", "UV_AROME"),
+                     keys: Tuple[str, str, str, str, str] = ("UV_nn", "UV_AROME"),
                      figsize: Tuple[int, int] = (15, 15),
                      s: int = 1,
                      name: str = "1_1_all",
-                     color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                     color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                      ) -> None:
         current_variable = self.exp.config['current_variable']
         key_obs = f"{current_variable}_obs"
-        plot_multiple_1_1(df,
-                          keys_models=keys_models,
-                          key_obs=key_obs,
-                          scaling_variable=current_variable,
-                          s=s,
-                          color=color,
-                          figsize=figsize)
-        save_figure(f"Model_vs_obs/{name}", exp=self.exp)
+        for idx, key in enumerate(keys):
+            plot_single_1_1(df, key, key_obs, current_variable, s=s, figsize=figsize, color=color[idx])
+            save_figure(f"Model_vs_obs/{name}_{key}", exp=self.exp)
 
     def plot_1_1_by_station(self,
                             df: pd.DataFrame,
-                            keys_models: Tuple[str] = ("UV_nn", "UV_AROME"),
+                            keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                             s: int = 1,
                             name: str = "",
-                            color: Tuple[str] = ("C1", "C2", "C0", "C3"),
+                            color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
                             figsize: Tuple[int, int] = (40, 10),
                             ) -> None:
         current_variable = self.exp.config['current_variable']
         key_obs = f"{current_variable}_obs"
         for station in df["name"].unique():
             plot_1_1_multiple_subplots(df[df["name"] == station],
-                                       keys_models=keys_models,
+                                       keys_models=keys,
                                        key_obs=key_obs,
                                        scaling_variable=current_variable,
                                        figsize=figsize,
@@ -401,14 +385,17 @@ def plot_evolution(df: pd.DataFrame,
                    fontsize: int = 15,
                    figsize: Tuple[int, int] = (20, 15),
                    groupby: str = "month",
-                   color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                   color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                    ) -> None:
+
     if hasattr(df.index, groupby):
         index_groupby = getattr(df.index, groupby)
     else:
         index_groupby = groupby
 
-    df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(figsize=figsize, color=list(color))
+    plt.figure(figsize=figsize)
+    ax = plt.gca()
+    df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=list(color), ax=ax)
     plt.xlabel(groupby.capitalize(), fontsize=fontsize)
     plt.ylabel(y_label_name.capitalize(), fontsize=fontsize)
 
@@ -422,51 +409,68 @@ class SeasonalEvolution:
 
     def plot_seasonal_evolution(self,
                                 df: pd.DataFrame,
-                                metrics: Tuple[str] = ("bias", "ae", "n_bias", "n_ae"),
+                                metrics: Tuple[str, ...] = ("bias", "ae", "n_bias", "n_ae"),
                                 fontsize: int = 15,
                                 figsize: Tuple[int, int] = (20, 15),
-                                keys: Tuple[str] = ("UV_nn", "UV_AROME"),
+                                keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                                 groupby: str = "month",
                                 name: str = "Seasonal_evolution",
-                                color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                                color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                                 ) -> None:
-        # keys = ['_' + key.split('_')[1] for key in keys]
+        keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
             dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                              f"{metric}_nn": "Neural Network + DEVINE",
                               f"{metric}_D": "DEVINE",
+                              f"{metric}_nn": "Neural Network + DEVINE",
+                              f"{metric}_int": "Neural Network",
                               f"{metric}_A": "$AROME_{analysis}$",
                               }
+
             df = df.rename(columns=dict_new_names)
+            olds: List[str, ...] = list(dict_new_names.keys())
+            news: List[str, ...] = list(dict_new_names.values())
+            models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if key in name]
+            print("debug")
+            print(models_to_plot)
             plot_evolution(df,
-                           hue_names_to_plot=tuple(tuple(dict_new_names.values())),
+                           hue_names_to_plot=tuple(models_to_plot),
                            y_label_name=metric,
                            fontsize=fontsize,
                            figsize=figsize,
                            groupby=groupby,
                            color=color)
+
+            df = df.drop(columns=models_to_plot)
+
             save_figure(f"Seasonal_evolution/{name}", exp=self.exp)
 
     def plot_seasonal_evolution_by_station(self,
                                            df: pd.DataFrame,
-                                           metrics: Tuple[str] = ("bias", "ae", "n_bias", "n_ae"),
-                                           keys: Tuple[str] = ("UV_nn", "UV_AROME"),
+                                           metrics: Tuple[str, str, str, str] = ("bias", "ae", "n_bias", "n_ae"),
+                                           keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                                            groupby: str = "month",
                                            fontsize: int = 15,
                                            figsize: Tuple[int, int] = (20, 15),
                                            name: str = "",
-                                           color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                                           color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                                            ) -> None:
+        keys = ['_' + key.split('_')[1] for key in keys]
         for station in df["name"].unique():
-            for metric in metrics:
+            df_copy = df.copy(deep=True)
+            for idx_metric, metric in enumerate(metrics):
                 dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                                  f"{metric}_nn": "Neural Network + DEVINE",
                                   f"{metric}_D": "DEVINE",
+                                  f"{metric}_nn": "Neural Network + DEVINE",
+                                  f"{metric}_int": "Neural Network",
                                   f"{metric}_A": "$AROME_{analysis}$",
                                   }
-                df = df.rename(columns=dict_new_names)
-                plot_evolution(df[df["name"] == station],
-                               hue_names_to_plot=tuple(dict_new_names.values()),
+                df_copy = df_copy.rename(columns=dict_new_names)
+                olds: List[str, ...] = list(dict_new_names.keys())
+                news: List[str, ...] = list(dict_new_names.values())
+                models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if
+                                                  key in name]
+                plot_evolution(df_copy[df_copy["name"] == station],
+                               hue_names_to_plot=tuple(models_to_plot),
                                y_label_name=metric,
                                fontsize=fontsize,
                                figsize=figsize,
@@ -474,6 +478,7 @@ class SeasonalEvolution:
                                color=color)
                 plt.title(station)
                 save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}_{name}", exp=self.exp)
+                df_copy = df_copy.drop(columns=models_to_plot)
 
 
 class Leadtime:
@@ -483,59 +488,64 @@ class Leadtime:
                  ) -> None:
         self.exp = exp
 
-    """
-    hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "Neural Network + DEVINE",
-                                          "DEVINE", "$AROME_{analysis}$"),
-    palette: Union[Tuple[str], None] = ("C1", "C2", "C0", "C3")
-    """
-
     def plot_lead_time(self,
                        df: pd.DataFrame,
-                       metrics: Tuple[str] = ("bias", "ae", "n_bias", "n_ae"),
-                       keys: Tuple[str] = ("UV_nn", "UV_AROME"),
+                       metrics: Tuple[str, str, str, str] = ("bias", "ae", "n_bias", "n_ae"),
+                       keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                        groupby: str = "lead_time",
                        fontsize: int = 15,
                        figsize: Tuple[int, int] = (20, 15),
                        name: str = "Lead_time",
-                       color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                       color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                        ) -> None:
-
+        keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
             dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                              f"{metric}_nn": "Neural Network + DEVINE",
                               f"{metric}_D": "DEVINE",
+                              f"{metric}_nn": "Neural Network + DEVINE",
+                              f"{metric}_int": "Neural Network",
                               f"{metric}_A": "$AROME_{analysis}$",
                               }
             df = df.rename(columns=dict_new_names)
+            olds: List[str, ...] = list(dict_new_names.keys())
+            news: List[str, ...] = list(dict_new_names.values())
+            models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if key in name]
             plot_evolution(df,
-                           hue_names_to_plot=tuple(dict_new_names.values()),
+                           hue_names_to_plot=tuple(models_to_plot),
                            y_label_name=metric,
                            fontsize=fontsize,
                            figsize=figsize,
                            groupby=groupby,
                            color=color)
             save_figure(f"Lead_time/{name}", exp=self.exp)
+            df = df.drop(columns=models_to_plot)
 
     def plot_lead_time_by_station(self,
                                   df: pd.DataFrame,
-                                  metrics: List[str] = ("bias", "ae", "n_bias", "n_ae"),
-                                  keys: List[str] = ("UV_nn", "UV_AROME"),
+                                  metrics: Tuple[str, str, str, str] = ("bias", "ae", "n_bias", "n_ae"),
+                                  keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                                   groupby: str = "lead_time",
                                   fontsize: int = 15,
                                   figsize: Tuple[int, int] = (20, 15),
-                                  color: Tuple[str] = ("C1", "C2", "C0", "C3")
+                                  color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                                   ) -> None:
-
+        keys = ['_' + key.split('_')[1] for key in keys]
         for station in df["name"].unique():
+            df_copy = df.copy(deep=True)
             for metric in metrics:
                 dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                                  f"{metric}_nn": "Neural Network + DEVINE",
                                   f"{metric}_D": "DEVINE",
+                                  f"{metric}_nn": "Neural Network + DEVINE",
+                                  f"{metric}_int": "Neural Network",
                                   f"{metric}_A": "$AROME_{analysis}$",
                                   }
-                df = df.rename(columns=dict_new_names)
-                plot_evolution(df[df["name"] == station],
-                               hue_names_to_plot=tuple(dict_new_names.values()),
+                df_copy = df_copy.rename(columns=dict_new_names)
+                olds: List[str, ...] = list(dict_new_names.keys())
+                news: List[str, ...] = list(dict_new_names.values())
+                models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if
+                                                  key in name]
+                plot_evolution(df_copy[df_copy["name"] == station],
+                               hue_names_to_plot=tuple(models_to_plot),
                                y_label_name=metric,
                                fontsize=fontsize,
                                figsize=figsize,
@@ -543,6 +553,7 @@ class Leadtime:
                                color=color)
 
                 save_figure(f"Lead_time/Lead_time_{station}", exp=self.exp)
+                df_copy = df_copy.drop(columns=models_to_plot)
 
 
 def plot_boxplot_models(df: pd.DataFrame,
@@ -554,10 +565,11 @@ def plot_boxplot_models(df: pd.DataFrame,
                         figsize: Tuple[int, int] = (15, 12),
                         order: Union[Tuple[str], None] = ("$x \leq q_{25}$", "$q_{25}<x \leq q_{50}$",
                                                           "$q_{50}<x \leq q_{75}$", "$q_{75}<x$"),
-                        hue_order: Union[Tuple[str], None] = ("Neural Network + DEVINE", "$AROME_{forecast}$",
-                                                              "DEVINE", "$AROME_{analysis}$"),
-                        palette: Union[Tuple[str], None] = ("C1", "C2", "C0", "C3")
+                        hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "DEVINE",
+                                                              "Neural Network + DEVINE", "$AROME_{analysis}$"),
+                        palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C3")
                         ) -> None:
+
     df_melted = df.melt(id_vars=["name", carac],
                         value_vars=models_names,
                         var_name='Model',
@@ -596,9 +608,9 @@ class Boxplots:
                                 name: str = "Boxplot_topo_carac",
                                 order: Union[Tuple[str], None] = ("$x \leq q_{25}$", "$q_{25}<x \leq q_{50}$",
                                                                   "$q_{50}<x \leq q_{75}$", "$q_{75}<x$"),
-                                hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "Neural Network + DEVINE",
-                                                                      "DEVINE", "$AROME_{analysis}$"),
-                                palette: Union[Tuple[str], None] = ("C1", "C2", "C0", "C3")
+                                hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "DEVINE",
+                                                                      "Neural Network + DEVINE", "$AROME_{analysis}$"),
+                                palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C3")
                                 ) -> None:
 
         for carac in topo_carac:

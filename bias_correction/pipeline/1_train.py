@@ -46,6 +46,7 @@ if not config["restore_experience"]:
                                  mode_callback="test")
 exp.save_all(data_loader, cm)
 
+
 for model in ["last", "best"]:
     print_headline("Model", model)
 
@@ -53,7 +54,7 @@ for model in ["last", "best"]:
     # Predict
     # with timer_context("Predict train set"):
     #    inputs_train = data_loader.get_tf_zipped_inputs(mode="train").batch(data_loader.length_train)
-    #    results_train = cm.predict_with_batch(inputs_train, model_str=model)
+    #    results_train = cm.predict_single_bath(inputs_train, model_str=model)
     #    del inputs_train
 
     # Train
@@ -67,7 +68,7 @@ for model in ["last", "best"]:
     # Predict
     with tf.device('/GPU:0'), timer_context("Predict test set"):
         inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-        results_test = cm.predict_with_batch(inputs_test, model_version=model)
+        results_test = cm.predict_single_bath(inputs_test, model_version=model)
         del inputs_test
 
     # Test
@@ -80,13 +81,14 @@ for model in ["last", "best"]:
     c_eval.print_stats()
     exp.save_results(c_eval)
 
+    """
     # Predict
     with tf.device('/GPU:0'), timer_context("Predict Pyrénées and Corsica"):
         inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries") \
             .batch(data_loader.length_other_countries)
-        results_other_countries = cm.predict_with_batch(inputs_other_countries, model_version=model)
+        results_other_countries = cm.predict_single_bath(inputs_other_countries, model_version=model)
         del inputs_other_countries
-
+    
     # Other countries
     print_headline("Other countries statistics", model)
     data_loader.set_predictions(results_other_countries, mode="other_countries")
@@ -99,19 +101,28 @@ for model in ["last", "best"]:
                                               other_models=["_D", "_A"])
     c_eval_other_countries.print_stats()
     del c_eval_other_countries
+    """
 
     # Save figures
     with timer_context("1-1 plots"):
-        c_eval.plot_1_1_all(c_eval.df_results, c_eval.keys, name=f"1_1_all_{model}")
-        c_eval.plot_1_1_by_station(c_eval.df_results, c_eval.keys, name=model)
+        c_eval.plot_1_1_all(c_eval.df_results,
+                            keys=('UV_AROME', 'UV_D', 'UV_nn', 'UV_int', 'UV_A'),
+                            name=f"1_1_all_{model}")
+        c_eval.plot_1_1_by_station(c_eval.df_results,
+                                   keys=('UV_AROME', 'UV_D', 'UV_nn', 'UV_int', 'UV_A'),
+                                   name=model)
     with timer_context("Seasonal evolution"):
-        c_eval.plot_seasonal_evolution(c_eval.df_results, keys=c_eval.keys, name=f"Seasonal_evolution_{model}")
-        c_eval.plot_seasonal_evolution_by_station(c_eval.df_results, keys=c_eval.keys, name=model)
+        c_eval.plot_seasonal_evolution(c_eval.df_results,
+                                       keys=('UV_AROME', 'UV_D', 'UV_nn', 'UV_int', 'UV_A'),
+                                       name=f"Seasonal_evolution_{model}")
+        c_eval.plot_seasonal_evolution_by_station(c_eval.df_results,
+                                                  keys=('UV_AROME', 'UV_D', 'UV_nn', 'UV_int', 'UV_A'),
+                                                  name=model)
     with timer_context("Lead time"):
-        c_eval.plot_lead_time(c_eval.df_results, keys=c_eval.keys, name=f"Lead_time_{model}")
+        c_eval.plot_lead_time(c_eval.df_results,
+                              keys=('UV_AROME', 'UV_D', 'UV_nn', 'UV_int', 'UV_A'),
+                              name=f"Lead_time_{model}")
     with timer_context("Boxplot"):
-        print("debug")
-        print(c_eval.df_results.columns)
         c_eval.plot_boxplot_topo_carac(c_eval.df_results,
                                        name=f"Boxplot_topo_carac_{model}",
                                        dict_keys={"_nn": "Neural Network + DEVINE",

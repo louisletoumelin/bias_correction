@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+
 
 def bias(y_true, y_pred):
     """Bias"""
@@ -52,6 +54,16 @@ def mae(y_true, y_pred):
     return np.nanmean(ae(y_true, y_pred))
 
 
+def tf_mbe(y_true, y_pred):
+    """Mean biad error written in Tensorflow"""
+    from tensorflow.python.framework import ops
+    from tensorflow.python.ops import math_ops
+
+    y_pred = ops.convert_to_tensor_v2_with_dispatch(y_pred)
+    y_true = math_ops.cast(y_true, y_pred.dtype)
+    return tf.keras.backend.mean(y_pred - y_true, axis=-1)
+
+
 dict_metrics = {"bias": bias,
                 "n_bias": n_bias,
                 "ae": ae,
@@ -61,7 +73,11 @@ dict_metrics = {"bias": bias,
                 "m_n_ae": m_n_ae,
                 "corr": corr,
                 "rmse": rmse,
-                "mae": mae}
+                "mae": mae,
+                "tf_rmse": tf.keras.metrics.RootMeanSquaredError(),
+                "tf_mae": tf.keras.metrics.MeanAbsoluteError(),
+                "tf_mbe": tf_mbe
+                }
 
 
 def get_metric(metric_name):
