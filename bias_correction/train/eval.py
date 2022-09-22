@@ -138,7 +138,7 @@ class CustomEvaluation(VizualizationResults):
     def _df2metric(df: pd.DataFrame,
                    metric_name: str,
                    key_obs: str,
-                   keys: List[str],
+                   keys: List[str, ...],
                    print_: bool = False
                    ) -> list:
         metric_func = get_metric(metric_name)
