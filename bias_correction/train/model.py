@@ -418,8 +418,6 @@ class CustomModel(StrategyInitializer):
         self.model_is_built = None
         self.model_is_compiled = None
 
-        self.has_intermediate_outputs = self.config.get("get_intermediate_output", False)
-
     def get_optimizer(self):
         name_optimizer = self.config.get("optimizer")
 
@@ -617,7 +615,7 @@ class CustomModel(StrategyInitializer):
 
         with self.strategy.scope():
             self._build_compiled_model(print_=print_)
-            if self.has_intermediate_outputs:
+            if self.config.get("get_intermediate_output", False):
                 self.add_intermediate_output()
 
     def _build_classic_strategy(self, print_=True):
@@ -626,7 +624,7 @@ class CustomModel(StrategyInitializer):
 
         self._build_compiled_model(print_=print_)
 
-        if self.has_intermediate_outputs:
+        if self.config.get("get_intermediate_output", False):
             self.add_intermediate_output()
 
     def build_model_with_strategy(self, print_=True):

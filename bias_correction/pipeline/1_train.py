@@ -51,9 +51,11 @@ with timer_context("Prepare data"):
 if not config["restore_experience"]:
     # We don't fit a model with two outputs because it cause error in the loss function
     config["get_intermediate_output"] = False
+    data_loader.config["get_intermediate_output"] = False
+    cm.config["get_intermediate_output"] = False
+    exp.config["get_intermediate_output"] = False
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
-                                 validation_data=data_loader.get_batched_inputs_labels(mode="val"),
                                  dataloader=data_loader,
                                  mode_callback="test")
 

@@ -212,9 +212,12 @@ class Splitter:
         else:
             ts = time_series_train
 
-        time_series_train, time_series_val = self.split_wrapper(ts,
-                                                                mode="val",
-                                                                split_strategy=split_strategy)
+        if self.config["stations_val"]:
+            time_series_train, time_series_val = self.split_wrapper(ts,
+                                                                    mode="val",
+                                                                    split_strategy=split_strategy)
+        else:
+            time_series_val = pd.DataFrame()
         return time_series_train, time_series_test, time_series_val
 
 
@@ -400,6 +403,7 @@ class CustomDataHandler:
         elif "space" in self.config["split_strategy_test"]:
             return self.config["stations_test"]
         elif "space" in self.config["split_strategy_val"]:
+            # stations_test or stations_val?
             return self.config["stations_test"]
         else:
             return []
@@ -683,28 +687,32 @@ class CustomDataHandler:
         # Input variables
         self.inputs_train = time_series_train[self.config["input_variables"]]
         self.inputs_test = time_series_test[self.config["input_variables"]]
-        self.inputs_val = time_series_val[self.config["input_variables"]]
+        if self.config["stations_val"]:
+            self.inputs_val = time_series_val[self.config["input_variables"]]
         if self.config.get("country_to_reject_during_training", False):
             self.inputs_other_countries = time_series_other_countries[self.config["input_variables"]]
 
         # Length
         self.length_train = len(self.inputs_train)
         self.length_test = len(self.inputs_test)
-        self.length_val = len(self.inputs_val)
+        if self.config["stations_val"]:
+            self.length_val = len(self.inputs_val)
         if self.config.get("country_to_reject_during_training", False):
             self.length_other_countries = len(self.inputs_other_countries)
 
         # labels
         self.labels_train = time_series_train[self.config["labels"]]
         self.labels_test = time_series_test[self.config["labels"]]
-        self.labels_val = time_series_val[self.config["labels"]]
+        if self.config["stations_val"]:
+            self.labels_val = time_series_val[self.config["labels"]]
         if self.config.get("country_to_reject_during_training", False):
             self.labels_other_countries = time_series_other_countries[self.config["labels"]]
 
         # names
         self.names_train = time_series_train["name"]
         self.names_test = time_series_test["name"]
-        self.names_val = time_series_val["name"]
+        if self.config["stations_val"]:
+            self.names_val = time_series_val["name"]
         if self.config.get("country_to_reject_during_training", False):
             self.names_other_countries = time_series_other_countries["name"]
 
