@@ -8,9 +8,9 @@ def bias(y_true, y_pred):
     return y_pred - y_true
 
 
-def n_bias(y_true, y_pred):
+def n_bias(y_true, y_pred, epsilon=0.01):
     """Normalized bias"""
-    return (y_pred - y_true)/y_true
+    return (y_pred - y_true)/(y_true+epsilon)
 
 
 def ae(y_true, y_pred):
@@ -18,9 +18,9 @@ def ae(y_true, y_pred):
     return np.abs(y_pred - y_true)
 
 
-def n_ae(y_true, y_pred):
+def n_ae(y_true, y_pred, epsilon=0.01):
     """Normalized absolute error"""
-    return np.abs(n_bias(y_true, y_pred))
+    return np.abs(n_bias(y_true, y_pred, epsilon=epsilon))
 
 
 def mbe(y_true, y_pred):
@@ -28,14 +28,14 @@ def mbe(y_true, y_pred):
     return np.nanmean(bias(y_true, y_pred))
 
 
-def m_n_be(y_true, y_pred):
+def m_n_be(y_true, y_pred, epsilon=0.01):
     """Normalized mean bias"""
-    return np.nanmean(n_bias(y_true, y_pred))
+    return np.nanmean(n_bias(y_true, y_pred, epsilon=epsilon))
 
 
-def m_n_ae(y_true, y_pred):
+def m_n_ae(y_true, y_pred, epsilon=0.01):
     """Mean normalized absolute error"""
-    return np.nanmean(n_ae(y_true, y_pred))
+    return np.nanmean(n_ae(y_true, y_pred, epsilon=epsilon))
 
 
 def corr(y_true, y_pred):
@@ -64,6 +64,23 @@ def tf_mbe(y_true, y_pred):
     return tf.keras.backend.mean(y_pred - y_true, axis=-1)
 
 
+def bias_direction(y_true, y_pred):
+    """Bias for wind direction"""
+    # Wind direction = 0 means wind direction is not specified
+    pred = np.where(y_pred != 0, y_pred, np.nan)
+    true = np.where(y_true != 0, y_true, np.nan)
+
+    diff1 = np.mod((pred - true), 360)
+    diff2 = np.mod((true - pred), 360)
+
+    return np.where(diff1 <= diff2, diff1, -diff2)
+
+
+def abs_bias_direction(y_true, y_pred):
+    """Absolute bias for wind direction"""
+    return np.abs(bias_direction(y_true, y_pred))
+
+
 dict_metrics = {"bias": bias,
                 "n_bias": n_bias,
                 "ae": ae,
@@ -76,7 +93,9 @@ dict_metrics = {"bias": bias,
                 "mae": mae,
                 "tf_rmse": tf.keras.metrics.RootMeanSquaredError(),
                 "tf_mae": tf.keras.metrics.MeanAbsoluteError(),
-                "tf_mbe": tf_mbe
+                "tf_mbe": tf_mbe,
+                "bias_direction": bias_direction,
+                "abs_bias_direction": abs_bias_direction
                 }
 
 

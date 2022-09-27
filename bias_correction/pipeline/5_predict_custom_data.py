@@ -4,7 +4,7 @@ import logging
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 import tensorflow as tf
 import matplotlib
-matplotlib.use('Qt5Agg')
+#matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 
 import sys

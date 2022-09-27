@@ -64,8 +64,9 @@ class StrategyInitializer:
             # Adapt batch size according to the number of devices
             self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
         else:
+            batch_size = self.config.get("batch_size", 32)
             # Do not modify batch size
-            self.config["global_batch_size"] = self.config["batch_size"]
+            self.config["global_batch_size"] = batch_size
 
         if self.config["distribution_strategy"] is None and self.config["network"] == "labia":
             print("\ntf.config.experimental.set_memory_growth called\n")
@@ -205,7 +206,7 @@ class DevineBuilder(StrategyInitializer):
         else:
             unet = self.load_classic_unet(self.config["unet_path"])
 
-        if self.config["disable_training_cnn"]:
+        if self.config.get("disable_training_cnn", True):
             unet = self.disable_training(unet)
 
         y = unet(y)
@@ -219,18 +220,19 @@ class DevineBuilder(StrategyInitializer):
                               fill_value=fill_value)(w, x[:, 1])
             w = SimpleScaling()(w, x[:, 0])
 
-        if self.config["type_of_output"] in ["output_components", "map", "map_components", "map_u_v_w"]:
+        if self.config["type_of_output"] in ["output_components", "map", "map_components",
+                                             "map_u_v_w", "output_speed_and_direction", "output_direction"]:
             # Direction
             alpha_or_direction = Components2Alpha()(y)
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
                                                fill_value=fill_value)(alpha_or_direction, x[:, 1])
-
-        # Speed
-        y = Components2Speed()(y)
-        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=fill_value)(y, x[:, 1])
-        y = ActivationArctan(alpha=38.2)(y, x[:, 0])
+        if self.config["type_of_output"] not in ["output_direction"]:
+            # Speed
+            y = Components2Speed()(y)
+            y = RotationLayer(clockwise=True, unit_input="degree", fill_value=fill_value)(y, x[:, 1])
+            y = ActivationArctan(alpha=38.2)(y, x[:, 0])
 
         if self.config["type_of_output"] == "output_components":
             x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
@@ -241,6 +243,15 @@ class DevineBuilder(StrategyInitializer):
         elif self.config["type_of_output"] == "output_speed":
             y = SelectCenter(79, 69)(y)
             bc_model = Model(inputs=inputs, outputs=(y), name="bias_correction")
+
+        elif self.config["type_of_output"] == "output_direction":
+            alpha_or_direction = SelectCenter(79, 69)(alpha_or_direction)
+            bc_model = Model(inputs=inputs, outputs=(alpha_or_direction), name="bias_correction")
+
+        elif self.config["type_of_output"] == "output_speed_and_direction":
+            y = SelectCenter(79, 69)(y)
+            alpha_or_direction = SelectCenter(79, 69)(alpha_or_direction)
+            bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
 
         elif self.config["type_of_output"] == "map_components":
             x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
@@ -395,6 +406,7 @@ class CustomModel(StrategyInitializer):
 
         # Get initializer
         self.initializer = self.get_initializer()
+
         self.exp = experience
         self.ann = ArtificialNeuralNetwork(config)
         self.cnn_input = CNNInput(config)
@@ -406,8 +418,15 @@ class CustomModel(StrategyInitializer):
         self.model_is_built = None
         self.model_is_compiled = None
 
+        self.has_intermediate_outputs = self.config.get("get_intermediate_output", False)
+
     def get_optimizer(self):
-        optimizer = load_optimizer(self.config["optimizer"],
+        name_optimizer = self.config.get("optimizer")
+
+        if name_optimizer is None:
+            return None
+
+        optimizer = load_optimizer(name_optimizer,
                                    self.config["learning_rate"],
                                    *self.config["args_optimizer"],
                                    **self.config["kwargs_optimizer"])
@@ -418,15 +437,22 @@ class CustomModel(StrategyInitializer):
             return optimizer
 
     def get_loss(self):
-        name_loss = self.config["loss"]
-        return load_loss(name_loss,
-                         *self.config["args_loss"][name_loss],
-                         **self.config["kwargs_loss"][name_loss])
+        name_loss = self.config.get("loss")
+        if name_loss is None:
+            return None
+        else:
+            return load_loss(name_loss,
+                             *self.config["args_loss"][name_loss],
+                             **self.config["kwargs_loss"][name_loss])
 
     def get_initializer(self):
-        return load_initializer(self.config["initializer"],
-                                *self.config["args_initializer"],
-                                **self.config["kwargs_initializer"])
+        name_initializer = self.config.get("initializer")
+        if name_initializer is None:
+            return None
+        else:
+            return load_initializer(name_initializer,
+                                    *self.config["args_initializer"],
+                                    **self.config["kwargs_initializer"])
 
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
@@ -440,7 +466,10 @@ class CustomModel(StrategyInitializer):
             return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos), inputs_nwp])
 
     def get_training_metrics(self):
-        return [get_metric(metric) for metric in self.config["metrics"]]
+        metrics = self.config.get("metrics")
+        if metrics is None:
+            return None
+        return [get_metric(metric) for metric in metrics]
 
     def add_intermediate_output(self):
         assert self.model_is_built
@@ -460,6 +489,7 @@ class CustomModel(StrategyInitializer):
                                   use_final_relu: bool,
                                   name: Union[str, None],
                                   input_shape_topo: Tuple[int, int, int] = (140, 140, 1),
+                                  print_=True
                                   ):
 
         # Inputs
@@ -500,10 +530,11 @@ class CustomModel(StrategyInitializer):
         else:
             bc_model = Model(inputs=inputs, outputs=(x[:, 0]), name=name)
 
-        print(bc_model.summary())
+        if print_:
+            print(bc_model.summary())
         self.model = bc_model
 
-    def _build_dense_temperature(self):
+    def _build_dense_temperature(self, print_=True):
         self._build_model_architecture(
             nb_input_variables=self.config["nb_input_variables"],
             nb_outputs_dense_network=1,
@@ -517,7 +548,7 @@ class CustomModel(StrategyInitializer):
             input_shape_topo=(140, 140, 1),
         )
 
-    def _build_dense_only(self):
+    def _build_dense_only(self, print_=True):
         self._build_model_architecture(
             nb_input_variables=self.config["nb_input_variables"],
             nb_outputs_dense_network=2,
@@ -531,7 +562,7 @@ class CustomModel(StrategyInitializer):
             input_shape_topo=(140, 140, 1),
         )
 
-    def _build_devine_only(self):
+    def _build_devine_only(self, print_=True):
 
         if self.config.get("custom_unet", False):
             input_shape = self.config["custom_input_shape"]
@@ -544,10 +575,11 @@ class CustomModel(StrategyInitializer):
         inputs = (topos, x)
         bc_model = self.devine_builder.devine(topos, x, inputs)
 
-        print(bc_model.summary())
+        if print_:
+            print(bc_model.summary())
         self.model = bc_model
 
-    def _build_ann_v0(self):
+    def _build_ann_v0(self, print_=True):
         self._build_model_architecture(
             nb_input_variables=self.config["nb_input_variables"],
             nb_outputs_dense_network=2,
@@ -559,48 +591,49 @@ class CustomModel(StrategyInitializer):
             use_final_relu=True,
             name=None,
             input_shape_topo=(140, 140, 1),
+            print_=print_
         )
 
-    def _build_model(self):
+    def _build_model(self, print_=True):
         """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
         model_architecture = self.config["global_architecture"]
         methods_build = {"ann_v0": self._build_ann_v0,
                          "dense_only": self._build_dense_only,
                          "dense_temperature": self._build_dense_temperature,
                          "devine_only": self._build_devine_only}
-        methods_build[model_architecture]()
+        methods_build[model_architecture](print_=print_)
         self.model_is_built = True
 
-    def _build_compiled_model(self):
-        self._build_model()
+    def _build_compiled_model(self, print_=True):
+        self._build_model(print_=print_)
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
         self.model_is_compiled = True
 
-    def _build_mirrored_strategy(self):
+    def _build_mirrored_strategy(self, print_=True):
 
         # Get number of devices
         nb_replicas = self.strategy.num_replicas_in_sync
         print('\nMirroredStrategy: number of devices: {}'.format(nb_replicas))
 
         with self.strategy.scope():
-            self._build_compiled_model()
-            if self.config["get_intermediate_output"]:
+            self._build_compiled_model(print_=print_)
+            if self.has_intermediate_outputs:
                 self.add_intermediate_output()
 
-    def _build_classic_strategy(self):
+    def _build_classic_strategy(self, print_=True):
         if self.config["distribution_strategy"] is None:
             print('\nNot distributed: number of devices: 1')
 
-        self._build_compiled_model()
+        self._build_compiled_model(print_=print_)
 
-        if self.config["get_intermediate_output"]:
+        if self.has_intermediate_outputs:
             self.add_intermediate_output()
 
-    def build_model_with_strategy(self):
+    def build_model_with_strategy(self, print_=True):
         if self.config["distribution_strategy"] == "MirroredStrategy":
-            self._build_mirrored_strategy()
+            self._build_mirrored_strategy(print_=print_)
         else:
-            self._build_classic_strategy()
+            self._build_classic_strategy(print_=print_)
 
     def select_model(self, force_build=False, model_version="last"):
 

@@ -49,11 +49,13 @@ with tf.device('/GPU:0'):
 for mode, result in zip(["test"], [results_test]):
     data_loader.set_predictions(result, mode=mode, str_model="_D")
     df = data_loader.get_predictions(mode)
-    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_2022_08_04_v4.pkl")
+    print("exp.path_to_predictions")
+    print(exp.path_to_predictions)
+    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_2022_08_04_v4_dir.pkl")
 
 # Evaluation
-#c_eval = CustomEvaluation(exp, data_loader, mode="test", keys=["_AROME", "_nn"])
-#c_eval_other_countries = CustomEvaluation(exp, data_loader, mode="other_countries", keys=["_AROME", "_nn"])
+#c_eval = CustomEvaluation(exp, data_loader, mode="test", keys=("_AROME", "_nn"))
+#c_eval_other_countries = CustomEvaluation(exp, data_loader, mode="other_countries", keys=("_AROME", "_nn"))
 #c_eval.df2correlation()
 #exp.save_all(data_loader, c_eval, cm)
 
