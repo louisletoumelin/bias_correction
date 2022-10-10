@@ -199,10 +199,15 @@ class ExperienceManager(AllExperiences):
     def _update_single_metrics_csv(self,
                                    metric_value: float,
                                    metric_name: str,
-                                   precision: int = 3
+                                   precision: int = 3,
+                                   no_value: float = -9999
                                    ) -> None:
         df = pd.read_csv(self.path_experiences + "metrics.csv")
         filter_exp = df["exp"] == self.name_current_experience
+
+        if metric_name not in df:
+            df[metric_name] = no_value
+
         df.loc[filter_exp, metric_name] = np.round(metric_value, precision)
         df.to_csv(self.path_experiences + "metrics.csv", index=False, float_format=f"%.{precision}f")
         print("Updated: " + self.path_experiences + "metrics.csv")
@@ -210,24 +215,50 @@ class ExperienceManager(AllExperiences):
     def _update_metrics_csv(self,
                             list_metric_values: list,
                             metric_name: Union[str, None] = None,
-                            precision: int = 3
+                            precision: int = 3,
+                            keys: Tuple[str, ...] = ("_a", "_nn", "_int")
                             ) -> None:
-        for metric_value, model in zip(list_metric_values, ["_a", "_nn", "_int"]):
+        for metric_value, model in zip(list_metric_values, keys):
             self._update_single_metrics_csv(metric_value, metric_name + model, precision=precision)
 
+    def save_metrics_current_experience(self,
+                                        metric_values: Tuple[list, ...],
+                                        metric_names: Tuple[str, ...],
+                                        precision: int = 3,
+                                        keys: Tuple[str, ...] = ("_a", "_nn", "_int")
+                                        ) -> None:
+
+        for name, list_metrics in zip(metric_names, metric_values):
+            df = pd.DataFrame([list_metrics], columns=keys)
+            df.to_csv(self.path_to_current_experience + f"{name}.csv", index=False, float_format=f"%.{precision}f")
+            print("Updated: " + self.path_to_current_experience + f"{name}.csv")
+
     def _update_csv_files_with_results(self,
-                                       c_eval
+                                       c_eval,
+                                       mae: list = None,
+                                       rmse: list = None,
+                                       bias: list = None,
+                                       corr: list = None,
+                                       keys: List[str] = None
                                        ) -> None:
 
         assert hasattr(c_eval, "df_results")
 
-        mae = c_eval.df2mae()
-        rmse = c_eval.df2rmse()
-        bias = c_eval.df2mbe()
+        if mae is None:
+            mae = c_eval.df2mae()
+        if rmse is None:
+            rmse = c_eval.df2rmse()
+        if bias is None:
+            bias = c_eval.df2mbe()
+        if corr is None:
+            corr = c_eval.df2correlation()
+        if keys is None:
+            keys = tuple(['_' + key.split('_')[-1] for key in c_eval.keys])
 
-        self._update_metrics_csv(mae, metric_name="MAE")
-        self._update_metrics_csv(rmse, metric_name="RMSE")
-        self._update_metrics_csv(bias, metric_name="MB")
+        self._update_metrics_csv(mae, metric_name="MAE", keys=keys)
+        self._update_metrics_csv(rmse, metric_name="RMSE", keys=keys)
+        self._update_metrics_csv(bias, metric_name="MB", keys=keys)
+        self._update_metrics_csv(corr, metric_name="corr", keys=keys)
 
     def finished(self) -> None:
         self.is_finished = 1
@@ -283,11 +314,15 @@ class ExperienceManager(AllExperiences):
         self.save_experience_json()
 
     def save_results(self,
-                     c_eval
+                     c_eval,
+                     mae: list = None,
+                     rmse: list = None,
+                     mbe: list = None,
+                     corr: list = None
                      ) -> None:
         self.finished()
         self._update_finished_csv_file()
-        self._update_csv_files_with_results(c_eval)
+        self._update_csv_files_with_results(c_eval, mae, rmse, mbe, corr)
 
     @classmethod
     def from_previous_experience(cls, path_to_previous_exp):

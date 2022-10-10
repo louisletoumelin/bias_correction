@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "dropout050"  # Str. Some details about the experiment
+config["details"] = "input_15"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  #  todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -17,7 +17,7 @@ config["use_bias"] = True
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
 config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.5  # Int. or False. Dropout rate or no dropout  #  todo sensibility
+config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout  #  todo sensibility
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -31,7 +31,7 @@ config["epochs"] = 5  # Int. # todo sensibility without early stopping 1, 5, 8, 
 config["learning_rate"] = 0.001  # todo sensibility 0.001 0.05 0.01
 
 # Optimizer
-config["optimizer"] = "Adam"  # Str.  # todo sensibility à 3 differents
+config["optimizer"] = "Nadam"  # Str.  # todo sensibility à 3 differents
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
@@ -53,8 +53,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 #config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
+config["input_variables"] = ['ZS', 'Wind', 'Wind_DIR']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 

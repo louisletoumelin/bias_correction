@@ -4,20 +4,20 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "dropout050"  # Str. Some details about the experiment
+config["details"] = "25_10_50"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False  #  todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
+config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]  # 25, 10               #todo 3 architectures                     # List. Each member is a unit [40, 20, 10, 5]
+config["nb_units"] = [25, 10, 50]  # 25, 10               #todo 3 architectures                     # List. Each member is a unit [40, 20, 10, 5]
 config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
 config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.5  # Int. or False. Dropout rate or no dropout  #  todo sensibility
+config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout  #  todo sensibility
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -50,7 +50,7 @@ config["shuffle"] = True  # Bool. Shuffle inputs
 # Quick test
 config["quick_test"] = False  # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ"]
-#config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
+# config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
@@ -80,7 +80,9 @@ config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "FeatureImportanceCallback": [],
                             "BroadcastGlobalVariablesCallback": [],
                             "MetricAverageCallback": [],
+                            "learning_rate_decay": [],
                             }
+
 config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                                                     "factor": 0.5,  # new_lr = lr * factor
                                                     "patience": 3,
@@ -112,6 +114,8 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "MetricAverageCallback": {},
 
                               "CSVLogger": {},
+
+                              "learning_rate_decay": {},
                               }
 
 # Metrics
@@ -146,12 +150,12 @@ config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AN
 config["stations_val"] = []
 
 # Before merging
-#['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
+# ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
 #                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
 #                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
 #                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
 #                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
-#['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU',
+# ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU',
 #                          'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
 
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
@@ -160,7 +164,8 @@ config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 config["get_intermediate_output"] = True
 
 # Custom loss
-config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent #  todo sensibility 2 ou 3 fonctions
+config[
+    "loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent #  todo sensibility 2 ou 3 fonctions
 config["args_loss"] = {"mse": [],
                        "penalized_mse": [],
                        "mse_proportional": [],
@@ -294,12 +299,12 @@ config["stations_val"] = ['SBO', 'CEV', 'MMBOY', 'THU', 'AND', 'MMTIT', 'ROE', '
                            'INNEBI', 'MLS', 'PEONE', 'SRS', 'FLU', 'GVE', 'BIA', 'MMRIC',
                            'PIL', 'MMSAS', 'La Muzelle Lac Blanc', 'TGDIE', 'TIAIR', 'MMNOI',
                            'ALBERTVILLE JO']
-                           
+
 ['LA MASSE', 'LE GRAND-BORNAND', 'MER', 'TGRIC', 'ARVIEUX',
   'BONNEVAL-NIVOSE', 'MMERZ', 'INNESF', 'TGLAN', 'MMLAF', 'SHA',
   'AND', 'Argentiere', 'BEH', 'TGNOL', 'GOS', 'PARPAILLON-NIVOSE',
   'MOA']    
-                           
+
 config["stations_test"] = ['AIGUILLES ROUGES-NIVOSE', 'LE GRAND-BORNAND', 'MEYTHET', 'LE PLENAY', 'Saint-Sorlin',
                            'Argentiere', 'Col du Lac Blanc', 'CHA', 'CMA', 'DOL', "GALIBIER-NIVOSE", 'LA MURE-ARGENS',
                            'ARVIEUX', 'PARPAILLON-NIVOSE', 'EMBRUN', 'LA FAURIE', 'GAP', 'LA MEIJE-NIVOSE',
@@ -321,16 +326,16 @@ config["stations_test"] = ['INNRED', 'TICAM', 'STK', 'OBR', 'EIN', 'AND', 'TGOTT
 
 config["stations_val"] = ['BUS', 'MMBIR', 'AGSUA', 'GRENOBLE-ST GEOIRS', 'DIS', 'RUE', 'GOS', 'CDF',
                           'ARVIEUX', 'COL AGNEL-NIVOSE', 'PEIRA CAVA', 'PMA']
-                          
-                          
-                          
-                          
-                          
-                          
-                          
-                          
-                          
-                          
+
+
+
+
+
+
+
+
+
+
 General results
 mbe: -0.09720373898744583
 rmse: 1.9583745002746582

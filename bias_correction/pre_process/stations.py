@@ -220,11 +220,6 @@ class Stations(TopoCaracteristics):
                 if idx == 0:
                     self.stations[name_str_x] = np.nan
                     self.stations[name_str_y] = np.nan
-                print("debug update_stations_with_knn_of_nwp_in_mnt_using_ckdtree")
-                print("x_str")
-                print(x_str)
-                print("y_str")
-                print(y_str)
                 _, nn_index, _ = self.search_neighbors_in_dem_using_ckdtree(x_str,
                                                                             y_str,
                                                                             country=country)

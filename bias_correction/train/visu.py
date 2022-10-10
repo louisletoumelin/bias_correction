@@ -14,6 +14,7 @@ from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module
 from bias_correction.train.utils import create_folder_if_doesnt_exist
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.windrose import plot_windrose
+from bias_correction.train.ale import ale_plot
 
 try:
     import seaborn as sns
@@ -63,12 +64,8 @@ def _save_figure(name_figure: str,
         ax = plt.gca()
         fig = ax.get_figure()
     uuid_str = str(uuid.uuid4())[:4]
-    print("debug")
-    print(fig)
-    print(save_path)
-    print(f"{name_figure}_{uuid_str}.{format_}")
-    print(fig.savefig(save_path + f"{name_figure}_{uuid_str}.{format_}"))
     fig.savefig(save_path + f"{name_figure}_{uuid_str}.{format_}")
+    print("Saving figure: " + save_path + f"{name_figure}_{uuid_str}.{format_}")
     if svg:
         fig.savefig(save_path + f"{name_figure}_{uuid_str}.svg")
 
@@ -322,9 +319,6 @@ def plot_single_1_1(df: pd.DataFrame,
     ax = plt.gca()
     ax.scatter(obs, model, c=color, s=s)
     ax.plot(obs, obs, color='black')
-    print("debug")
-    print(obs[:5])
-    print(model[:5])
     # xlim and ylim
     plt.xlim(min_value, max_value)
     plt.ylim(min_value, max_value)
@@ -379,13 +373,7 @@ class ModelVersusObsPlots:
                      ) -> None:
         current_variable = self.exp.config['current_variable']
         key_obs = f"{current_variable}_obs"
-        print("debug")
-        print(df.columns)
         for idx, key in enumerate(keys):
-            print("debug key")
-            print(key)
-            print(key_obs)
-            print(current_variable)
             fig = plot_single_1_1(df, key, key_obs, current_variable,
                                   s=s, figsize=figsize, color=color[idx], print_=print_)
             save_figure(f"Model_vs_obs/{name}_{key}", exp=self.exp, fig=fig)
@@ -721,8 +709,6 @@ class WindRoses:
             for key in keys:
                 if print_:
                     print(f"metric: {metric}, key: {key}, nb of obs {len(df)}")
-                print("debug")
-                print(df.columns)
                 plot_windrose(df,
                               var_name=f"{metric}{key}",
                               direction_name=f"UV_DIR{key}",
@@ -732,7 +718,33 @@ class WindRoses:
                 save_figure(f"Wind_direction/{name}_{metric}_{key}", exp=self.exp)
 
 
-class VizualizationResults(Boxplots, Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots, WindRoses):
+class ALEPlot:
+    def __init__(self, exp: Union[ExperienceManager, None] = None
+                 ) -> None:
+        self.exp = exp
+
+    def plot_ale(self, cm, data_loader, features, bins, monte_carlo=False, rugplot_lim=None,
+                 cmap="viridis", marker='x', markersize=1, linewidth=1):
+        model = cm.model
+        df_inputs = data_loader.get_inputs(mode="test")
+        cmap = plt.get_cmap(cmap, 4)
+        colors = cmap(np.linspace(0, 1, len(features)))
+        for feature, color in zip(features, colors):
+            ale_plot(model,
+                     df_inputs,
+                     [feature],
+                     bins=bins,
+                     monte_carlo=monte_carlo,
+                     rugplot_lim=rugplot_lim,
+                     data_loader=data_loader,
+                     color=color,
+                     marker=marker,
+                     markersize=markersize,
+                     linewidth=linewidth)
+            save_figure(f"ALE/ale_{feature}", exp=self.exp)
+
+
+class VizualizationResults(Boxplots, Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots, WindRoses, ALEPlot):
 
     def __init__(self, exp: Union[ExperienceManager, None] = None
                  ) -> None:

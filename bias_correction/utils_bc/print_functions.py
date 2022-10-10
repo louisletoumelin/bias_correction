@@ -32,6 +32,6 @@ def print_intro():
 
 
 def print_headline(name, value):
-    print(f"\n\n_______________________")
-    print(f"_____{name}:{value}_____")
-    print(f"_______________________\n\n")
+    print(f"\n\n_______________________", flush=True)
+    print(f"_____{name}:{value}_____", flush=True)
+    print(f"_______________________\n\n", flush=True)
