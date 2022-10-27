@@ -31,7 +31,6 @@ print(pprint(config))
 
 # Load inputs and outputs
 data_loader.prepare_train_test_data()
-#inputs_and_labels_train = data_loader.get_tf_zipped_inputs_labels(mode="train")
 
 with tf.device('/GPU:0'):
 
@@ -51,29 +50,5 @@ for mode, result in zip(["test"], [results_test]):
     df = data_loader.get_predictions(mode)
     print("exp.path_to_predictions")
     print(exp.path_to_predictions)
-    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_2022_08_04_v4_dir.pkl")
+    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_2022_10_25_speed.pkl")
 
-# Evaluation
-#c_eval = CustomEvaluation(exp, data_loader, mode="test", keys=("_AROME", "_nn"))
-#c_eval_other_countries = CustomEvaluation(exp, data_loader, mode="other_countries", keys=("_AROME", "_nn"))
-#c_eval.df2correlation()
-#exp.save_all(data_loader, c_eval, cm)
-
-# print results
-#print(c_eval.df_results[[c_eval.key_obs] + c_eval.keys].round(2))
-
-# Save figures
-
-"""
-c_eval.plot_1_1_all(c_eval.df_results, c_eval.keys)
-c_eval.plot_1_1_by_station(c_eval.df_results, c_eval.keys)
-c_eval.plot_seasonal_evolution(c_eval.df_results, keys=c_eval.keys)
-c_eval.plot_seasonal_evolution_by_station(c_eval.df_results, keys=c_eval.keys)
-c_eval.plot_lead_time(c_eval.df_results, keys=c_eval.keys)
-c_eval.plot_boxplot_topo_carac(c_eval.df_results)
-c_eval_other_countries.plot_1_1_all(c_eval_other_countries.df_results, c_eval_other_countries.keys)
-c_eval_other_countries.plot_1_1_by_station(c_eval_other_countries.df_results, c_eval_other_countries.keys)
-c_eval_other_countries.plot_seasonal_evolution(c_eval_other_countries.df_results, keys=c_eval_other_countries.keys)
-c_eval_other_countries.plot_seasonal_evolution_by_station(c_eval_other_countries.df_results, keys=c_eval_other_countries.keys)
-c_eval_other_countries.plot_lead_time(c_eval_other_countries.df_results, keys=c_eval_other_countries.keys)
-"""

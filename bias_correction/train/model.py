@@ -28,7 +28,8 @@ from bias_correction.train.layers import RotationLayer, \
     Components2Alpha, \
     Alpha2Direction, \
     NormalizationInputs, \
-    SimpleScaling
+    SimpleScaling, \
+    MeanTopo
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
@@ -170,7 +171,7 @@ class DevineBuilder(StrategyInitializer):
                x,
                inputs,
                use_crop=True,
-               fill_value=-9999):
+               fill_value=-1):
 
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
@@ -194,7 +195,7 @@ class DevineBuilder(StrategyInitializer):
                                y_offset=y_diff,
                                x_offset=x_diff)(y)
 
-        y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
+        y = Normalization(self.std_norm_cnn)(y)
 
         if self.config.get("custom_unet", False):
             unet = self.load_custom_unet((y_diff*2+1, y_diff*2+1, 1), self.config["unet_path"])
@@ -223,6 +224,7 @@ class DevineBuilder(StrategyInitializer):
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
                                                fill_value=fill_value)(alpha_or_direction, x[:, 1])
+
         if self.config["type_of_output"] not in ["output_direction"]:
             # Speed
             y = Components2Speed()(y)
@@ -596,10 +598,13 @@ class CustomModel(StrategyInitializer):
                          "devine_only": self._build_devine_only}
         methods_build[model_architecture](print_=print_)
         self.model_is_built = True
+        if print_:
+            print(f"{model_architecture} is built", flush=True)
 
     def _build_compiled_model(self, print_=True):
         self._build_model(print_=print_)
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
+        print("model is compiled", flush=True)
         self.model_is_compiled = True
 
     def _build_mirrored_strategy(self, print_=True):
@@ -651,9 +656,9 @@ class CustomModel(StrategyInitializer):
             if build:
                 self.model.load_weights(self.exp.path_to_last_model)
                 self.model_version = "last"
-                print("last model weights loaded")
+                print("select_model_version: last model weights loaded")
             else:
-                print("last model is already built and weights are loaded")
+                print("select_model_version: last model is already built and weights are loaded")
 
         elif "best":
             self.model.load_weights(self.exp.path_to_best_model)

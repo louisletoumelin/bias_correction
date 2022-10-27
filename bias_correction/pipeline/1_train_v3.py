@@ -247,11 +247,11 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                            metrics=metrics,
                                            name=f"Seasonal_evolution_{model}_{cv}",
                                            print_=True)
-            # c_eval.plot_seasonal_evolution_by_station(c_eval.df_results,
-            #                                          keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-            #                                          metrics=metrics,
-            #                                          name=f"{cv}_{model}",
-            #                                          print_=True)
+            c_eval.plot_seasonal_evolution_by_station(c_eval.df_results,
+                                                      keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                                      metrics=metrics,
+                                                      name=f"{cv}_{model}",
+                                                      print_=True)
     except Exception as e:
         print(f"\nWARNING Exception for Seasonal: {e}", flush=True)
 

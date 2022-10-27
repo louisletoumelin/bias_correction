@@ -120,7 +120,7 @@ class Splitter:
         str_random_state = f"random_split_state_{mode}"
 
         if self.config["quick_test"] and mode == "test":
-            test_size = 0.8
+            test_size = 0.05
         elif self.config["quick_test"] and mode == "val":
             test_size = 0.01
         else:
@@ -653,6 +653,10 @@ class CustomDataHandler:
         # Reject stations
         time_series, stations = self.reject_stations(time_series, stations)
 
+        # Quick test
+        if self.config["quick_test"]:
+            time_series = self._apply_quick_test(time_series)
+
         # Add topo characteristics
         time_series = self.add_topo_carac_time_series(time_series, stations)
 
@@ -672,10 +676,6 @@ class CustomDataHandler:
 
         # Dropna
         time_series = time_series.dropna()
-
-        # Quick test
-        if self.config["quick_test"]:
-            time_series = self._apply_quick_test(time_series)
 
         # Shuffle
         if self.config.get("shuffle", True):
@@ -969,7 +969,7 @@ class CustomDataHandler:
                   ) -> None:
 
         path_to_files = {"UV":
-                             {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
+                             {"_D": self.config["path_to_devine"] + f"devine_2022_10_25_speed_{mode}.pkl",
                               "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"},
                          "UV_DIR":
                              {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}_dir.pkl",

@@ -4,10 +4,10 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "new_test"                                          # Str. Some details about the experiment
+config["details"] = "devine_with_correct_mean_elevation"                                          # Str. Some details about the experiment
 config["global_architecture"] = "devine_only"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False
-config["type_of_output"] = "output_direction"                               # Str. "output_speed" or "output_components", "map", "map_components"
+config["type_of_output"] = "output_speed"                               # Str. "output_speed" or "output_components", "map", "map_components"
 
 # General
 config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None
@@ -21,7 +21,7 @@ config["kwargs_optimizer"] = {}  # Dict.
 
 # Quick test
 config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
-config["quick_test_stations"] = ["ALPE-D'HUEZ", 'LES ECRINS-NIVOSE', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
+config["quick_test_stations"] = ["ALPE-D'HUEZ", 'LES ECRINS-NIVOSE']
 
 # Input variables
 config["input_variables"] = ['Wind', 'Wind_DIR']

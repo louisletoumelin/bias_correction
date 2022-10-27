@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import LightSource
 
-from bias_correction.train.wind_utils import wind2comp, comp2speed
+from bias_correction.train.wind_utils import wind2comp, comp2speed, comp2dir
 
 try:
     import seaborn as sns
@@ -44,9 +44,10 @@ def plot_contour(x, y, z, color="dimgrey", levels=15, alpha=0.75, plot_levels=Tr
 def plot_quiver(x, y, u, v, uv,
                 cmap="coolwarm", norm=None, linewidths=1, scale=1/0.004, axis_equal=True, edgecolor=None):
     ax = plt.gca()
-    ax.quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths, scale=scale, edgecolor=edgecolor)
+    fig = ax.quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths, scale=scale, edgecolor=edgecolor)
     if axis_equal:
         plt.axis("equal")
+    return fig
 
 
 def get_two_slope_norm(vmin=0, vcenter=5, vmax=10):
@@ -56,7 +57,7 @@ def get_two_slope_norm(vmin=0, vcenter=5, vmax=10):
 class VisuMap:
 
     def __init__(self, exp, d0, d, d1, station, config):
-        super().__init__(exp)
+        self.exp = exp
         self.d0 = d0
         self.d = d
         self.d1 = d1
@@ -90,7 +91,7 @@ class VisuMap:
 
         # Prepare data for predictions
         inputs_test = data_loader.get_tf_zipped_inputs(inputs=inputs, names=names).batch(len(inputs))
-        results_test = cm.predict_single_bath(inputs_test)
+        results_test = cm.predict_single_bath(inputs_test, force_build=True)
 
         # Prepare maps
         uv = results_test[0][:, :, :, 0]
@@ -191,14 +192,14 @@ class VisuMap:
 
         # Select variables
         inputs = inputs[['U_obs', 'V_obs']]
-        inputs = inputs[filter_station]
 
         # Wind fields
         u = inputs['U_obs'].values[0]
         v = inputs['V_obs'].values[0]
         uv = comp2speed(u, v)
+        dir = comp2dir(u, v)
 
-        return uv, u, v
+        return uv, dir, u, v
 
     def plot_quiver(self, time_series, data_loader, cm,
                     fraction=0.01, vert_exag=10_000, dx=30, dy=30, vmin=0.48, vmax=0.51,
@@ -215,16 +216,23 @@ class VisuMap:
 
         # DEVINE
         uv, _, u, v = self.get_map_prediction(time_series, data_loader, cm)
-        plot_quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths, scale=scale, axis_equal=axis_equal)
+        fig = plot_quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths, scale=scale, axis_equal=axis_equal)
+        plt.colorbar(fig)
 
         # AROME
-        uv, _, u, v = self.get_arome_wind(time_series)
+        uv, dir, u, v = self.get_arome_wind(time_series)
+        print("uv AROME")
+        print(uv)
+        print(dir)
         x, y = self.get_arome_x_y(data_loader)
         plot_quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths,
                     scale=scale, axis_equal=axis_equal, edgecolor=edgecolor_arome)
 
         # Observation
         x, y = self.get_observation_x_y(data_loader)
-        uv, _, u, v = self.get_arome_wind(time_series)
+        uv, dir, u, v = self.get_observation_wind(time_series)
+        print("uv obs")
+        print(uv)
+        print(dir)
         plot_quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths,
                     scale=scale, axis_equal=axis_equal, edgecolor=edgecolor_observation)

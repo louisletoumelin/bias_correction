@@ -3,7 +3,6 @@ import pandas as pd
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
-
 # matplotlib.use('Agg')
 
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -16,7 +15,7 @@ import sys
 sys.path.append("/home/letoumelinl/bias_correction/src/")
 sys.path.append("//home/mrmn/letoumelinl/bias_correction/src/")
 
-from bias_correction.config.config_train import config
+from bias_correction.config.config_train_v12 import config
 from bias_correction.train.model import CustomModel
 from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.train.experience_manager import ExperienceManager
@@ -52,56 +51,6 @@ with timer_context("Prepare data"):
     data_loader = CustomDataHandler(config)
     data_loader.prepare_train_test_data()
 
-"""
-with timer_context("write TFRecords"):
-
-    # to remove
-    t = data_loader._get_all_zipped("test")
-
-    for i, _ in enumerate(t.element_spec):
-        ds_i = t.map(lambda *args: args[i]).map(tf.io.serialize_tensor)
-        writer = tf.data.experimental.TFRecordWriter(f'/scratch/mrmn/letoumelinl/bias_correction/mydata.{i}.tfrecord')
-        writer.write(ds_i)
-"""
-
-with timer_context("read TFRecords"):
-    # Read
-    NUM_PARTS = 5
-    parts_0 = []
-
-
-    def read_map_fn(x):
-        return tf.io.parse_tensor(x, tf.float32)
-
-
-    for i in range(NUM_PARTS):
-        print(i)
-        parts_0.append(
-            tf.data.TFRecordDataset(f'/scratch/mrmn/letoumelinl/bias_correction/mydata.{i}.tfrecord').map(read_map_fn))
-    print("np.shape(parts_0)")
-    print(np.shape(parts_0))
-    print("np.shape(parts_0[:-1])")
-    print(np.shape(parts_0[:-1]))
-    print("np.shape(parts_0[-1])")
-    print(np.shape(parts_0[-1]))
-    n = tf.data.Dataset.zip(tuple([parts_0[0], parts_0[1], parts_0[2], parts_0[3]]))
-    print("tf.data.Dataset.zip(tuple(parts_0[:-1])))")
-    print(n)
-    n = tf.data.Dataset.zip(tuple([n, parts_0[-1]]))
-    print("n = tf.data.Dataset.zip(tuple([n, parts_0[-1]]))")
-    print(n)
-    n.batch(batch_size=128).prefetch(tf.data.AUTOTUNE)
-
-for i in n:
-    print(i)
-    break
-
-# with timer_context("Save tf.dataset experimental"):
-#    tf.data.experimental.save(t, "//scratch/mrmn/letoumelinl/bias_correction/")
-# with timer_context("Load tf.dataset experimental"):
-#    n = tf.data.experimental.load("//scratch/mrmn/letoumelinl/bias_correction/")
-#    print(len(n))
-
 if not config["restore_experience"]:
     print_headline("Launch training", "")
     # We don't fit a model with two outputs because it cause error in the loss function
@@ -110,14 +59,7 @@ if not config["restore_experience"]:
     cm.config["get_intermediate_output"] = False
     exp.config["get_intermediate_output"] = False
     with tf.device('/GPU:0'), timer_context("fit"):
-        # to remove
-        """
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
-                                 dataloader=data_loader,
-                                 mode_callback="test")
-        # to remove 
-        """
-        _ = cm.fit_with_strategy(n,
                                  dataloader=data_loader,
                                  mode_callback="test")
         exp.save_model(cm)
@@ -140,7 +82,6 @@ zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
-
 for type_of_output, metrics, label in zip(["output_speed"],
                                           [("bias", "n_bias", "ae", "n_ae")],
                                           [['vw10m(m/s)']]):
@@ -268,7 +209,8 @@ for type_of_output, metrics, label in zip(["output_speed"],
                         marker='x',
                         markersize=1,
                         linewidth=1)
-    
+    """
+
     if cv == "UV":
         try:
             with timer_context("1-1 plots"):
@@ -282,7 +224,7 @@ for type_of_output, metrics, label in zip(["output_speed"],
                 #                           print_=True)
         except Exception as e:
             print(f"\nWARNING Exception for 1-1 plots: {e}", flush=True)
-    
+
     if cv == "UV_DIR":
         try:
             with timer_context("plot_wind_direction_all"):
@@ -322,7 +264,7 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                   print_=True)
     except Exception as e:
         print(f"\nWARNING Exception for Lead time: {e}", flush=True)
-    """
+
     try:
         with timer_context("Boxplot"):
             c_eval.plot_boxplot_topo_carac(c_eval.df_results,

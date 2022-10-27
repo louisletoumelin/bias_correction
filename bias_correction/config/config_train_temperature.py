@@ -64,7 +64,7 @@ config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experienc
 config["time_series"] = config["path_time_series_pre_processed"] + "time_series_bc.pkl"
 config["time_series_int"] = config["path_time_series_pre_processed"] + "time_series_bc_interpolated.pkl"
 config["stations"] = config["path_stations_pre_processed"] + "stations_bc.pkl"
-config["topos_near_station"] = config["path_topos_pre_processed"] + "dict_topo_near_station.pickle"
+config["topos_near_station"] = config["path_topos_pre_processed"] + "dict_topo_near_station_2022_10_26.pickle"
 config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp.pickle"
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
 

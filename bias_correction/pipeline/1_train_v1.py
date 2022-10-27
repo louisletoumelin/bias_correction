@@ -72,7 +72,9 @@ cm.config["get_intermediate_output"] = get_intermediate_output
 data_loader.config["get_intermediate_output"] = get_intermediate_output
 if config["get_intermediate_output"]:
     cm.build_model_with_strategy(print_=False)
+    print("Launch load_weights")
     cm.model.load_weights(cm.exp.path_to_last_model)
+    print(f"Restore weights from {cm.exp.path_to_last_model}")
     cm.model_version = "last"
 
 exp.save_all(data_loader, cm)
@@ -198,17 +200,18 @@ for type_of_output, metrics, label in zip(["output_speed"],
 
     # Save figures
     """
-    with timer_context("ALE plot"):
-        c_eval.plot_ale(cm,
-                        data_loader,
-                        ['alti', 'ZS', 'Tair', 'LWnet', 'SWnet', 'CC_cumul', 'BLH', 'Wind', 'Wind_DIR'],
-                        10,
-                        monte_carlo=False,
-                        rugplot_lim=1000,
-                        cmap="viridis",
-                        marker='x',
-                        markersize=1,
-                        linewidth=1)
+    if cv == "UV":
+        with timer_context("ALE plot"):
+            c_eval.plot_ale(cm,
+                            data_loader,
+                            ['Wind', 'Wind_DIR'],
+                            10,
+                            monte_carlo=False,
+                            rugplot_lim=1000,
+                            cmap="viridis",
+                            marker='x',
+                            markersize=1,
+                            linewidth=1)
     """
 
     if cv == "UV":
@@ -218,10 +221,10 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                     keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
                                     name=f"1_1_all_{model}_{cv}",
                                     print_=True)
-                # c_eval.plot_1_1_by_station(c_eval.df_results,
-                #                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                #                           name=f"{cv}_{model}",
-                #                           print_=True)
+                c_eval.plot_1_1_by_station(c_eval.df_results,
+                                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                           name=f"{cv}_{model}",
+                                           print_=True)
         except Exception as e:
             print(f"\nWARNING Exception for 1-1 plots: {e}", flush=True)
 
@@ -233,10 +236,10 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                                metrics=("abs_bias_direction",),
                                                name=f"wind_direction_all",
                                                print_=True)
-                # c_eval.plot_1_1_by_station(c_eval.df_results,
-                #                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                #                           name=f"{cv}_{model}",
-                #                           print_=True)
+                c_eval.plot_1_1_by_station(c_eval.df_results,
+                                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                           name=f"{cv}_{model}",
+                                           print_=True)
         except Exception as e:
             print(f"\nWARNING Exception for plot_wind_direction_all: {e}", flush=True)
 

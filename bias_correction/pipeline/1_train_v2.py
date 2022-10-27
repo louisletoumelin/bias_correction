@@ -233,10 +233,10 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                                metrics=("abs_bias_direction",),
                                                name=f"wind_direction_all",
                                                print_=True)
-                # c_eval.plot_1_1_by_station(c_eval.df_results,
-                #                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                #                           name=f"{cv}_{model}",
-                #                           print_=True)
+                c_eval.plot_1_1_by_station(c_eval.df_results,
+                                           keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                           name=f"{cv}_{model}",
+                                           print_=True)
         except Exception as e:
             print(f"\nWARNING Exception for plot_wind_direction_all: {e}", flush=True)
 

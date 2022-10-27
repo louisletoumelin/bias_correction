@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "inputs11"  # Str. Some details about the experiment
+config["details"] = "inputs15"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -53,9 +53,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                             'SWE', 'snow_density', 'snow_albedo', 'vegetation_fraction']  # todo sensibility 10
+config["input_variables"] = ['ZS', 'Wind', 'Wind_DIR']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -68,6 +66,7 @@ config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                  'TKE87', 'TKE84', 'TKE75', 'TT90', 'TT87', 'TT84', 'TT75', 'SWE',
 #                  'snow_density', 'snow_albedo', 'vegetation_fraction', 'Wind',
 #                  'Wind_DIR', 'U_obs', 'V_obs', 'U_AROME', 'V_AROME', "month", "hour"]
+
 
 # Labels
 config["labels"] = ['vw10m(m/s)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)']

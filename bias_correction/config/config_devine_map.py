@@ -56,6 +56,15 @@ config = adapt_distribution_strategy_to_available_devices(config)
 config = init_learning_rate_adapted(config)
 config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
+config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None
+config["prefetch"] = "auto"                                                # Default="auto", else = Int
+config["standardize"] = False
+config["disable_training_cnn"] = True
+config["optimizer"] = "Adam"  # Str.
+config["learning_rate"] = [0.01]  # List.
+config["args_optimizer"] = [config["learning_rate"]]  # List.
+config["kwargs_optimizer"] = {}  # Dict.
+
 
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
                   'winddir(deg)', 'HTN(cm)','Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
