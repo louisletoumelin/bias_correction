@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "inputs11"  # Str. Some details about the experiment
+config["details"] = "epoch20"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -27,7 +27,7 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int. # todo sensibility 32 64 128 256
-config["epochs"] = 5  # Int. # todo sensibility without early stopping 1, 5, 8, 10, 12, 15, 20
+config["epochs"] = 50  # Int. # todo sensibility without early stopping 1, 5, 8, 10, 12, 15, 20
 config["learning_rate"] = 0.001  # todo sensibility 0.001 0.05 0.01
 
 # Optimizer
@@ -54,8 +54,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                             'SWE', 'snow_density', 'snow_albedo', 'vegetation_fraction']  # todo sensibility 10
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 

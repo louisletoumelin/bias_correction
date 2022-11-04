@@ -55,7 +55,7 @@ def create_unet(input_shape):
                          name='pool2')(conv2)
 
     '''
-    3rd conv/poolextract_MNT_around_station
+    3rd conv/pool
     '''
     conv3 = Conv2D(4 * prm['nb_filters'],
                    prm['kernel_size'],
@@ -123,7 +123,8 @@ def create_unet(input_shape):
                  padding=prm['padding'],
                  kernel_initializer=prm['initializer'],
                  name='up3')(up3)
-    up3 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up3)
+    #up3 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up3) for test case with Nora
+    up3 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up3)
     '''
     2nd up
     '''

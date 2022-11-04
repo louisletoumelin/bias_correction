@@ -7,8 +7,12 @@ from operator import add
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy
-import seaborn as sns
+try:
+    import seaborn as sns
+
+    _sns = True
+except ModuleNotFoundError:
+    _sns = False
 from matplotlib.patches import Rectangle
 from scipy.spatial import cKDTree
 

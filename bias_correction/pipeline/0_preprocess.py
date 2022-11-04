@@ -84,7 +84,6 @@ if config["pre_process_nwp"]:
     del n
 
 # time series
-
 if config["pre_process_time_series"]:
 
     stations = pd.read_pickle(config["path_stations_pre_processed"] + "stations_bc.pkl")

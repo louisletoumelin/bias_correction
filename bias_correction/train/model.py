@@ -216,8 +216,12 @@ class DevineBuilder(StrategyInitializer):
                               fill_value=fill_value)(w, x[:, 1])
             w = SimpleScaling()(w, x[:, 0])
 
-        if self.config["type_of_output"] in ["output_components", "map", "map_components",
-                                             "map_u_v_w", "output_speed_and_direction", "output_direction"]:
+        if self.config["type_of_output"] in ["output_components",
+                                             "map",
+                                             "map_speed_direction",
+                                             "map_u_v_w",
+                                             "output_speed_and_direction",
+                                             "output_direction"]:
             # Direction
             alpha_or_direction = Components2Alpha()(y)
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
@@ -229,7 +233,8 @@ class DevineBuilder(StrategyInitializer):
             # Speed
             y = Components2Speed()(y)
             y = RotationLayer(clockwise=True, unit_input="degree", fill_value=fill_value)(y, x[:, 1])
-            y = ActivationArctan(alpha=38.2)(y, x[:, 0])
+            if self.config.get("use_scaling", True):
+                y = ActivationArctan(alpha=38.2)(y, x[:, 0])
 
         if self.config["type_of_output"] == "output_components":
             x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
@@ -304,14 +309,15 @@ class ArtificialNeuralNetwork(StrategyInitializer):
                        initializer=None,
                        batch_normalization=None,
                        dropout_rate=None,
-                       use_bias=None):
+                       use_bias=None,
+                       str_name=""):
 
         for index, nb_unit in enumerate(nb_units):
 
             dense_layer = Dense(nb_unit,
                                 activation=activation_dense,
                                 kernel_initializer=initializer,
-                                name=f"D{index}",
+                                name=f"D{index}{str_name}",
                                 use_bias=use_bias)
 
             # First layer using standardized inputs
@@ -329,7 +335,7 @@ class ArtificialNeuralNetwork(StrategyInitializer):
         x = Dense(nb_outputs,
                   activation="linear",
                   kernel_initializer=initializer,
-                  name=f"D_output",
+                  name=f"D_output_{str_name}",
                   use_bias=use_bias)(x)
 
         return x
@@ -342,13 +348,14 @@ class ArtificialNeuralNetwork(StrategyInitializer):
                                              initializer=None,
                                              batch_normalization=None,
                                              dropout_rate=None,
-                                             use_bias=None):
+                                             use_bias=None,
+                                             str_name=""):
         for index in range(nb_units):
 
             dense_unit = Dense(nb_units,
                                activation=activation_dense,
                                kernel_initializer=initializer,
-                               name=f"D{index}",
+                               name=f"D{index}{str_name}",
                                use_bias=use_bias)
 
             # First layer using standardized inputs
@@ -371,14 +378,15 @@ class ArtificialNeuralNetwork(StrategyInitializer):
 
         return y
 
-    def get_func_dense_network(self, config: dict) -> Callable:
+    def get_func_dense_network(self, config: dict, str_name="") -> Callable:
         kwargs_dense = {
             "nb_units": config["nb_units"],
             "activation_dense": config["activation_dense"],
             "initializer": config["initializer"],
             "batch_normalization": config["batch_normalization"],
             "dropout_rate": config["dropout_rate"],
-            "use_bias": config["use_bias"]}
+            "use_bias": config["use_bias"],
+            "str_name": str_name}
 
         if config["dense_with_skip_connection"]:
 
@@ -452,8 +460,8 @@ class CustomModel(StrategyInitializer):
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
-    def get_dense_network(self):
-        return self.ann.get_func_dense_network(self.config)
+    def get_dense_network(self, str_name=""):
+        return self.ann.get_func_dense_network(self.config, str_name)
 
     def cnn_and_concatenate(self, topos, inputs_nwp):
         if self.config["standardize"]:
@@ -469,7 +477,15 @@ class CustomModel(StrategyInitializer):
     def add_intermediate_output(self):
         assert self.model_is_built
         inputs = self.model.input
-        intermediate_outputs = self.model.get_layer("Add_dense_output").output
+        if self.config["global_architecture"] == "double_ann":
+            if self.config["type_of_output"] == "output_speed":
+                str_name = "_speed_ann"
+            else:
+                str_name = "_dir_ann"
+        else:
+            str_name = ""
+
+        intermediate_outputs = self.model.get_layer(f"Add_dense_output{str_name}").output
         self.model = Model(inputs=inputs, outputs=(self.model.outputs, intermediate_outputs))
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
 
@@ -484,7 +500,8 @@ class CustomModel(StrategyInitializer):
                                   use_final_relu: bool,
                                   name: Union[str, None],
                                   input_shape_topo: Tuple[int, int, int] = (140, 140, 1),
-                                  print_=True
+                                  print_: bool = True,
+                                  use_double_ann: bool = False
                                   ):
 
         # Inputs
@@ -507,18 +524,37 @@ class CustomModel(StrategyInitializer):
             nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
 
         # Dense network
-        dense_network = self.get_dense_network()
-        if use_standardize:
-            x = dense_network(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+        if use_double_ann:
+            d0 = self.get_dense_network(str_name="speed_ann")
+            d1 = self.get_dense_network(str_name="dir_ann")
+            if use_standardize:
+                speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+                dir = d1(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+            else:
+                speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
+                dir = d1(nwp_variables, nb_outputs=nb_outputs_dense_network)
         else:
-            x = dense_network(nwp_variables, nb_outputs=nb_outputs_dense_network)
+            dense_network = self.get_dense_network()
+            if use_standardize:
+                x = dense_network(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+            else:
+                x = dense_network(nwp_variables, nb_outputs=nb_outputs_dense_network)
 
         # Final skip connection
-        if use_final_skip_connection:
+        if use_final_skip_connection and not use_double_ann:
             x = Add(name="Add_dense_output")([x, nwp_variables[:, -nb_var_for_skip_connection:]])
+        if use_final_skip_connection and use_double_ann:
+            speed = Add(name="Add_dense_output_speed_ann")([speed, nwp_variables[:, -2]])
+            dir = Add(name="Add_dense_output_dir_ann")([dir, nwp_variables[:, -1]])
 
-        if use_final_relu:
+        if use_final_relu and not use_double_ann:
             x = tf.keras.activations.relu(x)
+        if use_final_relu and use_double_ann:
+            speed = tf.keras.activations.relu(speed)
+            dir = tf.keras.activations.relu(dir)
+
+        if use_double_ann:
+            x = concatenate([speed, dir], axis=-1)
 
         if use_devine:
             bc_model = self.devine_builder.devine(topos, x, inputs)
@@ -541,6 +577,7 @@ class CustomModel(StrategyInitializer):
             use_final_relu=False,
             name="bias_correction_temperature",
             input_shape_topo=(140, 140, 1),
+            use_double_ann=False
         )
 
     def _build_dense_only(self, print_=True):
@@ -555,6 +592,7 @@ class CustomModel(StrategyInitializer):
             use_final_relu=True,
             name="bias_correction",
             input_shape_topo=(140, 140, 1),
+            use_double_ann=False
         )
 
     def _build_devine_only(self, print_=True):
@@ -586,7 +624,24 @@ class CustomModel(StrategyInitializer):
             use_final_relu=True,
             name=None,
             input_shape_topo=(140, 140, 1),
-            print_=print_
+            print_=print_,
+            use_double_ann=False
+        )
+
+    def _build_double_ann(self, print_=True):
+        self._build_model_architecture(
+            nb_input_variables=self.config["nb_input_variables"],
+            nb_outputs_dense_network=1,
+            nb_var_for_skip_connection=1,
+            use_input_cnn=self.config["input_cnn"],
+            use_final_skip_connection=self.config["final_skip_connection"],
+            use_devine=True,
+            use_standardize=self.config["standardize"],
+            use_final_relu=True,
+            name=None,
+            input_shape_topo=(140, 140, 1),
+            print_=print_,
+            use_double_ann=True
         )
 
     def _build_model(self, print_=True):
@@ -595,7 +650,8 @@ class CustomModel(StrategyInitializer):
         methods_build = {"ann_v0": self._build_ann_v0,
                          "dense_only": self._build_dense_only,
                          "dense_temperature": self._build_dense_temperature,
-                         "devine_only": self._build_devine_only}
+                         "devine_only": self._build_devine_only,
+                         "double_ann": self._build_double_ann}
         methods_build[model_architecture](print_=print_)
         self.model_is_built = True
         if print_:
@@ -638,7 +694,8 @@ class CustomModel(StrategyInitializer):
         has_model_version = {"ann_v0": True,
                              "dense_only": True,
                              "dense_temperature": True,
-                             "devine_only": False}
+                             "devine_only": False,
+                             "double_ann": False}
 
         if force_build:
             self.build_model_with_strategy()
@@ -676,16 +733,26 @@ class CustomModel(StrategyInitializer):
 
         return results_test
 
-    def predict_multiple_batches(self, inputs, model_version="last", force_build=False):
+    def predict_multiple_batches(self,
+                                 inputs,
+                                 model_version="last",
+                                 batch_size=1,
+                                 output_shape=(2, 360, 2761, 2761),
+                                 force_build=False):
 
         if model_version:
             self.select_model(force_build=force_build, model_version=model_version)
 
-        results_test = []
-        for index, i in enumerate(inputs):
-            results_test.append(self.model.predict(i))
+        results_test = np.zeros(output_shape, dtype=np.float32)
+        index = 0
+        for batch_index, i in enumerate(inputs):
+            print(f"Batch: {batch_index}")
+            result = self.model.predict(i)
+            index_end = np.min([index+batch_size, 360])
+            results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
+            index += 3
 
-        return np.squeeze(np.concatenate(results_test, axis=0))
+        return np.squeeze(results_test)
 
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
 
