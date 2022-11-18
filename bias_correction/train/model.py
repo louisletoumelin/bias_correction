@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 import os
 from functools import partial
-from typing import Callable, Union, Tuple
+from typing import Callable, Union, Tuple, MutableSequence
 
 from bias_correction.train.layers import RotationLayer, \
     CropTopography, \
@@ -29,17 +29,35 @@ from bias_correction.train.layers import RotationLayer, \
     Alpha2Direction, \
     NormalizationInputs, \
     SimpleScaling, \
-    MeanTopo
+    MeanTopo, \
+    SlidingMean, \
+    EParam
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
 from bias_correction.train.callbacks import load_callback_with_custom_model
+from bias_correction.train.activations import load_activation
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.unet import create_unet
 from bias_correction.train.metrics import get_metric
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
+def tf_deg2rad(angle):
+    """
+    Converts angles in degrees to radians
+
+    Note: pi/180 = 0.01745329
+    """
+
+    return angle * tf.convert_to_tensor(0.01745329)
+
+
+def tf_rad2deg(inputs):
+    """Convert input in radian to degrees"""
+    return tf.convert_to_tensor(57.2957795, dtype=tf.float32) * inputs
 
 
 class StrategyInitializer:
@@ -124,6 +142,16 @@ class StrategyInitializer:
         os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
 
 
+def load_norm_unet(model_path):
+    """Load normalization parameters: mean and std"""
+
+    dict_norm = pd.read_csv(model_path + "dict_norm.csv")
+    mean = dict_norm["0"].iloc[0]
+    std = dict_norm["0"].iloc[1]
+
+    return mean, std
+
+
 class DevineBuilder(StrategyInitializer):
 
     def __init__(self,
@@ -132,7 +160,7 @@ class DevineBuilder(StrategyInitializer):
         super().__init__(config)
 
         # Get norm
-        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_unet(config["unet_path"])
+        self.mean_norm_cnn, self.std_norm_cnn = load_norm_unet(config["unet_path"])
 
     @staticmethod
     def load_classic_unet(model_path: str):
@@ -144,16 +172,6 @@ class DevineBuilder(StrategyInitializer):
         return load_model(model_path,
                           custom_objects=dependencies,
                           options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost'))
-
-    @staticmethod
-    def load_norm_unet(model_path):
-        """Load normalization parameters: mean and std"""
-
-        dict_norm = pd.read_csv(model_path + "dict_norm.csv")
-        mean = dict_norm["0"].iloc[0]
-        std = dict_norm["0"].iloc[1]
-
-        return mean, std
 
     @staticmethod
     def disable_training(model):
@@ -172,7 +190,6 @@ class DevineBuilder(StrategyInitializer):
                inputs,
                use_crop=True,
                fill_value=-1):
-
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
         y = RotationLayer(clockwise=False, unit_input="degree", fill_value=fill_value)(topos, x[:, 1])
@@ -181,13 +198,16 @@ class DevineBuilder(StrategyInitializer):
             length_y = self.config["custom_input_shape"][0]
             length_x = self.config["custom_input_shape"][1]
             min_length = np.min([self.config["custom_input_shape"][0], self.config["custom_input_shape"][1]])
-            y_diff = np.intp((min_length/np.sqrt(2))) // 2
-            x_diff = np.intp((min_length/np.sqrt(2))) // 2
+            y_diff = np.intp((min_length / np.sqrt(2))) // 2
+            x_diff = np.intp((min_length / np.sqrt(2))) // 2
         else:
             length_y = 140
             length_x = 140
             y_diff = 79 // 2
             x_diff = 69 // 2
+
+        if self.config.get("sliding_mean", False):
+            y = SlidingMean(self.std_norm_cnn)(y)
 
         if use_crop:
             y = CropTopography(initial_length_x=length_x,
@@ -195,10 +215,13 @@ class DevineBuilder(StrategyInitializer):
                                y_offset=y_diff,
                                x_offset=x_diff)(y)
 
-        y = Normalization(self.std_norm_cnn)(y)
+        if not self.config.get("sliding_mean", False):
+
+            y = Normalization(self.std_norm_cnn)(y)
+
 
         if self.config.get("custom_unet", False):
-            unet = self.load_custom_unet((y_diff*2+1, y_diff*2+1, 1), self.config["unet_path"])
+            unet = self.load_custom_unet((y_diff * 2 + 1, y_diff * 2 + 1, 1), self.config["unet_path"])
         else:
             unet = self.load_classic_unet(self.config["unet_path"])
 
@@ -223,8 +246,11 @@ class DevineBuilder(StrategyInitializer):
                                              "output_speed_and_direction",
                                              "output_direction"]:
             # Direction
+
             alpha_or_direction = Components2Alpha()(y)
+
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
+
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
                                                fill_value=fill_value)(alpha_or_direction, x[:, 1])
@@ -273,26 +299,47 @@ class CNNInput(StrategyInitializer):
 
     def __init__(self, config):
         super().__init__(config)
+        self.mean_norm_cnn, self.std_norm_cnn = load_norm_unet(config["unet_path"])
 
     @staticmethod
-    def tf_input_cnn(topos, kernel_size=(2, 2), filters=[32, 16, 8, 4], activation="relu", pool_size=(3, 3)):
+    def tf_input_cnn(inputs_maps,
+                     kernel_size=(3, 3),
+                     filters=[16, 32, 64],
+                     activation="relu",
+                     pool_size=(2, 2),
+                     use_batch_norm=False,
+                     name_conv_layer="",
+                     use_normalization=True):
 
-        topos_norm = NormalizationInputs()(topos, 1258.0, 791.0)
+        inputs_maps = CropTopography(initial_length_x=140,
+                                     initial_length_y=140,
+                                     y_offset=20,
+                                     x_offset=20)(inputs_maps)
+        if use_normalization:
+            inputs_maps = Normalization(use_own_std=True)(inputs_maps)
+
         last_index = len(filters) - 1
 
         for idx, filter in enumerate(filters):
 
-            conv_layer = Conv2D(filters=filter, kernel_size=kernel_size, activation=activation)
+            conv_layer = Conv2D(filters=filter,
+                                kernel_size=kernel_size,
+                                activation=activation,
+                                name=name_conv_layer + f"_C{idx}")
 
             if idx == 0:
-                y = conv_layer(topos_norm)
+                y = conv_layer(inputs_maps)
             else:
                 y = conv_layer(y)
 
             if idx < last_index:
-                y = MaxPooling2D(pool_size=pool_size)(y)
+                if use_batch_norm:
+                    y = BatchNormalization(name=name_conv_layer + f"_C{idx}_BN")(y)
+
+                y = MaxPooling2D(pool_size=pool_size, name=name_conv_layer + f"_C{idx}_max_pooling")(y)
 
         y = Flatten()(y)
+
         return y
 
 
@@ -378,10 +425,11 @@ class ArtificialNeuralNetwork(StrategyInitializer):
 
         return y
 
-    def get_func_dense_network(self, config: dict, str_name="") -> Callable:
+    def get_func_dense_network(self, config: dict, str_name="", nb_units=[]) -> Callable:
+
         kwargs_dense = {
-            "nb_units": config["nb_units"],
-            "activation_dense": config["activation_dense"],
+            "nb_units": nb_units,
+            "activation_dense": load_activation(config["activation_dense"]),
             "initializer": config["initializer"],
             "batch_normalization": config["batch_normalization"],
             "dropout_rate": config["dropout_rate"],
@@ -460,13 +508,32 @@ class CustomModel(StrategyInitializer):
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
-    def get_dense_network(self, str_name=""):
-        return self.ann.get_func_dense_network(self.config, str_name)
+    def get_dense_network(self, str_name="", nb_units=[]):
+        return self.ann.get_func_dense_network(self.config, str_name, nb_units)
 
-    def cnn_and_concatenate(self, topos, inputs_nwp):
-        if self.config["standardize"]:
-            # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
-            return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos), inputs_nwp])
+    def cnn_and_concatenate(self, topos, inputs_nwp, inputs_nwp_norm, use_standardize, name_conv_layer=""):
+        if ("aspect" in self.config["map_variables"]) and ("tan_slope" in self.config["map_variables"]):
+            # Here NOT standardized inputs are used, becase we need wind direction with it's real units to compute E
+            topos = EParam()(topos, inputs_nwp)
+        # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
+        if use_standardize:
+            return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos,
+                                                                                    use_batch_norm=self.config[
+                                                                                        "use_batch_norm_cnn"],
+                                                                                    activation=load_activation(
+                                                                                        self.config["activation_cnn"]),
+                                                                                    name_conv_layer=name_conv_layer,
+                                                                                    use_normalization=self.config["use_normalization_cnn_inputs"]),
+                                                        inputs_nwp_norm])
+        else:
+            return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos,
+                                                                                    use_batch_norm=self.config[
+                                                                                        "use_batch_norm_cnn"],
+                                                                                    activation=load_activation(
+                                                                                        self.config["activation_cnn"]),
+                                                                                    name_conv_layer=name_conv_layer,
+                                                                                    use_normalization=self.config["use_normalization_cnn_inputs"]),
+                                                        inputs_nwp])
 
     def get_training_metrics(self):
         metrics = self.config.get("metrics")
@@ -475,8 +542,10 @@ class CustomModel(StrategyInitializer):
         return [get_metric(metric) for metric in metrics]
 
     def add_intermediate_output(self):
+
         assert self.model_is_built
         inputs = self.model.input
+
         if self.config["global_architecture"] == "double_ann":
             if self.config["type_of_output"] == "output_speed":
                 str_name = "_speed_ann"
@@ -499,13 +568,15 @@ class CustomModel(StrategyInitializer):
                                   use_standardize: bool,
                                   use_final_relu: bool,
                                   name: Union[str, None],
-                                  input_shape_topo: Tuple[int, int, int] = (140, 140, 1),
+                                  input_shape_topo: MutableSequence = [140, 140, 1],
                                   print_: bool = True,
-                                  use_double_ann: bool = False
+                                  use_double_ann: bool = False,
+                                  use_input_cnn_dir: bool = False,
                                   ):
 
         # Inputs
-        topos = Input(shape=input_shape_topo, name="input_topos")
+        input_shape_topo[2] = len(self.config["map_variables"])
+        maps = Input(shape=input_shape_topo, name="input_maps")
         nwp_variables = Input(shape=(nb_input_variables,), name="input_nwp")
 
         # Standardize inputs
@@ -513,26 +584,72 @@ class CustomModel(StrategyInitializer):
             mean_norm = Input(shape=(nb_input_variables,), name="mean_norm")
             std_norm = Input(shape=(nb_input_variables,), name="std_norm")
             nwp_variables_norm = NormalizationInputs()(nwp_variables, mean_norm, std_norm)
-            inputs = (topos, nwp_variables, mean_norm, std_norm)
+            inputs = (maps, nwp_variables, mean_norm, std_norm)
         else:
-            inputs = (topos, nwp_variables)
-
-        # Input CNN
-        if use_input_cnn and use_standardize:
-            nwp_variables_norm = self.cnn_and_concatenate(topos, nwp_variables_norm)
-        elif use_input_cnn and not use_standardize:
-            nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
+            inputs = (maps, nwp_variables)
+            nwp_variables_norm = None
 
         # Dense network
         if use_double_ann:
-            d0 = self.get_dense_network(str_name="speed_ann")
-            d1 = self.get_dense_network(str_name="dir_ann")
+            d0 = self.get_dense_network(str_name="speed_ann", nb_units=self.config["nb_units_speed"])
+            d1 = self.get_dense_network(str_name="dir_ann", nb_units=self.config["nb_units_dir"])
             if use_standardize:
-                speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
-                dir = d1(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+
+                # Input CNN with standardization
+                if use_input_cnn:
+                    nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
+                                                                           nwp_variables,
+                                                                           nwp_variables_norm,
+                                                                           use_standardize,
+                                                                           name_conv_layer="speed_cnn")
+                    speed = d0(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
+                    nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
+                                                                           nwp_variables,
+                                                                           nwp_variables_norm,
+                                                                           use_standardize,
+                                                                           name_conv_layer="dir_cnn")
+                    dir = d1(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
+                elif use_input_cnn_dir:
+                    speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+                    nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
+                                                                           nwp_variables,
+                                                                           nwp_variables_norm,
+                                                                           use_standardize,
+                                                                           name_conv_layer="dir_cnn")
+                    dir = d1(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
+                else:
+                    speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+                    dir = d1(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+
             else:
-                speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
-                dir = d1(nwp_variables, nb_outputs=nb_outputs_dense_network)
+
+                # Input CNN without standardization
+                if use_input_cnn:
+                    nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
+                                                                      nwp_variables,
+                                                                      nwp_variables_norm,
+                                                                      use_standardize,
+                                                                      name_conv_layer="speed_cnn")
+                    speed = d0(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
+                    nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
+                                                                      nwp_variables,
+                                                                      nwp_variables_norm,
+                                                                      use_standardize,
+                                                                      name_conv_layer="dir_cnn")
+                    dir = d1(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
+
+                elif use_input_cnn_dir:
+                    speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
+                    nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
+                                                                      nwp_variables,
+                                                                      nwp_variables_norm,
+                                                                      use_standardize,
+                                                                      name_conv_layer="dir_cnn")
+                    dir = d1(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
+                else:
+                    speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
+                    dir = d1(nwp_variables, nb_outputs=nb_outputs_dense_network)
+
         else:
             dense_network = self.get_dense_network()
             if use_standardize:
@@ -557,7 +674,8 @@ class CustomModel(StrategyInitializer):
             x = concatenate([speed, dir], axis=-1)
 
         if use_devine:
-            bc_model = self.devine_builder.devine(topos, x, inputs)
+            # maps[:, 0] = topos
+            bc_model = self.devine_builder.devine(tf.expand_dims(maps[:, :, :, 0], axis=-1), x, inputs)
         else:
             bc_model = Model(inputs=inputs, outputs=(x[:, 0]), name=name)
 
@@ -576,7 +694,7 @@ class CustomModel(StrategyInitializer):
             use_standardize=self.config["standardize"],
             use_final_relu=False,
             name="bias_correction_temperature",
-            input_shape_topo=(140, 140, 1),
+            input_shape_topo=[140, 140, len(self.config["map_variables"])],
             use_double_ann=False
         )
 
@@ -591,7 +709,7 @@ class CustomModel(StrategyInitializer):
             use_standardize=self.config["standardize"],
             use_final_relu=True,
             name="bias_correction",
-            input_shape_topo=(140, 140, 1),
+            input_shape_topo=[140, 140, len(self.config["map_variables"])],
             use_double_ann=False
         )
 
@@ -623,7 +741,7 @@ class CustomModel(StrategyInitializer):
             use_standardize=self.config["standardize"],
             use_final_relu=True,
             name=None,
-            input_shape_topo=(140, 140, 1),
+            input_shape_topo=[140, 140, len(self.config["map_variables"])],
             print_=print_,
             use_double_ann=False
         )
@@ -639,9 +757,10 @@ class CustomModel(StrategyInitializer):
             use_standardize=self.config["standardize"],
             use_final_relu=True,
             name=None,
-            input_shape_topo=(140, 140, 1),
+            input_shape_topo=[140, 140, len(self.config["map_variables"])],
             print_=print_,
-            use_double_ann=True
+            use_double_ann=True,
+            use_input_cnn_dir=self.config["use_input_cnn_dir"]
         )
 
     def _build_model(self, print_=True):
@@ -655,12 +774,12 @@ class CustomModel(StrategyInitializer):
         methods_build[model_architecture](print_=print_)
         self.model_is_built = True
         if print_:
-            print(f"{model_architecture} is built", flush=True)
+            print(f"\n{model_architecture} is built", flush=True)
 
     def _build_compiled_model(self, print_=True):
         self._build_model(print_=print_)
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
-        print("model is compiled", flush=True)
+        print("\nmodel is compiled", flush=True)
         self.model_is_compiled = True
 
     def _build_mirrored_strategy(self, print_=True):
@@ -748,9 +867,9 @@ class CustomModel(StrategyInitializer):
         for batch_index, i in enumerate(inputs):
             print(f"Batch: {batch_index}")
             result = self.model.predict(i)
-            index_end = np.min([index+batch_size, 360])
+            index_end = np.min([index + batch_size, 360])
             results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
-            index += 3
+            index += batch_size
 
         return np.squeeze(results_test)
 

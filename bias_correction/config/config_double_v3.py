@@ -4,14 +4,14 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "double_ann"  # Str. Some details about the experiment
+config["details"] = "d_cnn_canyon"  # Str. Some details about the experiment
 config["global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
 config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]  # 25, 10
+config["nb_units"] = [25, 10, 50]  # 25, 10
 config["use_bias"] = True
 
 # General
@@ -27,11 +27,11 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 10  # Int.
-config["learning_rate"] = 0.005
+config["epochs"] = 5  # Int.
+config["learning_rate"] = 0.001
 
 # Optimizer
-config["optimizer"] = "Adam"  # Str.
+config["optimizer"] = "RMSprop"  # Str.
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
@@ -41,7 +41,8 @@ config["args_initializer"] = []  # List.
 config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
 # Input CNN
-config["input_cnn"] = False
+config["input_cnn"] = False  # input cnn for speed and direction
+config["use_input_cnn_dir"] = True  # input cnn for direction only
 
 # Inputs pre-processing
 config["standardize"] = True  # Bool. Apply standardization
@@ -54,7 +55,14 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
+                             'Wind90', 'Wind87', 'Wind84', 'Wind75',
+                             'dir_canyon_w0_1_w1_10',
+                             'dir_canyon_w0_5_w1_10',
+                             'dir_canyon_w0_1_w1_3_thresh5',
+                             'dir_canyon_w0_4_w1_20_thresh20']
+config["compute_product_with_wind_direction"] = True
+
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 

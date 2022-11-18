@@ -31,6 +31,7 @@ config["path_topos_pre_processed"] = config["path_root"] + f"Data/2_Pre_processe
 config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experiences/"
 config["path_to_devine"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
 config["path_to_analysis"] = config["path_root"] + "Data/2_Pre_processed/AROME_analysis/"
+config["path_to_topographic_parameters"] = config["path_root"] + "Data/1_Raw/topographic_parameters/"
 
 # Input data
 # Filename
@@ -40,3 +41,8 @@ config["stations"] = config["path_stations_pre_processed"] + "stations_bc.pkl"
 config["topos_near_station"] = config["path_topos_pre_processed"] + "dict_topo_near_station_2022_10_26.pickle"
 config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp.pickle"
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
+
+config["aspect_near_station"] = config["path_topos_pre_processed"] + "dict_aspect_near_station_2022_10_26.pickle"
+config["tan_slope_near_station"] = config["path_topos_pre_processed"] + "dict_tan_slope_near_station_2022_10_26.pickle"
+config["tpi_300_near_station"] = config["path_topos_pre_processed"] + "dict_tpi_300_near_station_2022_10_26.pickle"
+config["tpi_600_near_station"] = config["path_topos_pre_processed"] + "dict_tpi_600_near_station_2022_10_26.pickle"

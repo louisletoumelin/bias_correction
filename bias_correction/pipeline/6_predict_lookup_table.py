@@ -1,4 +1,8 @@
-import rioxarray # for the extension to load
+try:
+    import rioxarray # for the extension to load
+    _rioxarray = True
+except ModuleNotFoundError:
+    _rioxarray = False
 import xarray as xr
 import numpy as np
 import pandas as pd
@@ -19,10 +23,16 @@ from bias_correction.train.model import CustomModel
 from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.utils_bc.context_manager import timer_context
 from bias_correction.train.wind_utils import comp2dir, comp2speed, wind2comp
-
+"""
+On GPU: 
+2.88 min for prediction
+5.24 min for saving
+"""
 # config
 path = config["path_root"] + "Data/1_Raw/Himalaya/"
-path = os.getcwd()  # todo warning change path
+#path = os.getcwd()  # todo warning change path
+# Unique identifier
+config["uuid_str"] = str(uuid.uuid4())[:4]
 config["use_scaling"] = False
 config["type_of_output"] = "map"
 config["batch_size"] = 3
@@ -32,16 +42,14 @@ crs_nwp = "EPSG:4326"
 name_era5_u = "ERA5Land_TJK_u10_2021.nc"
 name_era5_v = "ERA5Land_TJK_v10_2021.nc"
 name_large_dem = "KYZYLSU_DEM_larger_finer.tif"
+name_large_dem = "large_dem.nc" #todo change here
 name_small_dem = "KYZYLSU_DEM_T_C.tif"
 name_wind_direction_small_dem = f"wind_direction_small_dem_{config['uuid_str']}.nc"
 name_acceleration_small_dem = f"acceleration_small_dem_{config['uuid_str']}.nc"
 
-# Unique identifier
-config["uuid_str"] = str(uuid.uuid4())[:4]
-
 # Predict with DEVINE
-large_dem = xr.open_dataarray(path + name_large_dem)
-small_dem = xr.open_dataarray(path + name_small_dem)
+# shared between both parts
+large_dem = xr.open_dataset(path + name_large_dem)
 
 try:
     print("Initial large_dem shape:")
@@ -104,23 +112,34 @@ with timer_context("cnn_outputs[0, :, :, :] = cnn_outputs[0, :, :, :]/3"):
 
 # Reduce output type
 with timer_context("Change dtype"):
+    # saving in float16 and loading in float32 induces an error of approximately 0.0009763241 in terms of speed
+    # saving in float16 and loading in float32 induces an error of approximately 0.125 in terms of direction
+    # saving in int16 and loading in float32 induces an error of approximately 0.99 in terms of direction
+    # file in float16: 5Go, file in float32: 12Go
     cnn_outputs[0, :, :, :] = np.float16(cnn_outputs[0, :, :, :])
-    cnn_outputs[1, :, :, :] = np.int16(cnn_outputs[1, :, :, :])
+    cnn_outputs[1, :, :, :] = np.float16(cnn_outputs[1, :, :, :])
 
 gc.collect()
 
 with timer_context("Save cnn_outputs"):
-    ds = xr.Dataset(
-        data_vars={"acceleration": (("angle", "y", "x"), cnn_outputs[0, :, :, :]),
-                   "Wind_DIR": (("angle", "y", "x"), cnn_outputs[1, :, :, :])}
-    )
+    ds = xr.Dataset(data_vars={"acceleration": (("angle", "y", "x"), cnn_outputs[0, :, :, :]),
+                               "Wind_DIR": (("angle", "y", "x"), cnn_outputs[1, :, :, :])})
     comp = dict(zlib=True, complevel=3)
     encoding = {"acceleration": comp, "Wind_DIR": comp}
     name_cnn_outputs = f"cnn_outputs_{config['name_cnn_outputs']}_{config['uuid_str']}.nc"
     ds.to_netcdf(path + name_cnn_outputs, encoding=encoding)
+    print(f"cnn_outputs saved to netcdf: {path + name_cnn_outputs}")
+
+"""
+name_cnn_outputs = "cnn_outputs_himalaya_aac7.nc"
+
+try:
+    large_dem = xr.open_dataset(path + name_large_dem).band_data
+except AttributeError:
+    large_dem = xr.open_dataset(path + name_large_dem)
 
 # Load predictions
-results = xr.open_dataset(name_cnn_outputs)
+cnn_outputs = xr.open_dataset(name_cnn_outputs)
 
 # Replace prediction on large_dem
 shape_large_dem = large_dem.values.shape
@@ -150,10 +169,9 @@ large_dem = large_dem.expand_dims({"angles": 360})
 
 # Put acceleration in large_dem
 large_dem["acceleration"] = (("angles", "y", "x"), np.zeros((360, length_y, length_x + 1), dtype=np.float32))
-large_dem["acceleration"].values[:, y_offset_left:y_offset_right, x_offset_left:x_offset_right] = np.float32(
-    results.acceleration.values)
+large_dem["acceleration"].values[:, y_offset_left:y_offset_right, x_offset_left:x_offset_right] = np.float32(cnn_outputs.acceleration.values)
 
-del results
+del cnn_outputs
 gc.collect()
 
 # Reduce size of large_dem to save memory
@@ -165,7 +183,8 @@ large_dem = large_dem.rio.clip_box(
 
 gc.collect()
 
-# Reproject and march small_dem
+# Reproject and match small_dem
+small_dem = xr.open_dataarray(path + name_small_dem)
 large_dem = large_dem.rio.reproject_match(small_dem, resampling=1)
 
 # Save file acceleration
@@ -197,6 +216,8 @@ large_dem = large_dem.rio.clip_box(
     maxy=4341368 + 100)
 
 gc.collect()
+
+# Reproject and match small_dem
 large_dem = large_dem.rio.reproject_match(small_dem, resampling=1)
 
 # Save file acceleration
@@ -209,7 +230,7 @@ gc.collect()
 era5_u = xr.open_dataarray(path+name_era5_u)
 era5_v = xr.open_dataarray(path+name_era5_v)
 
-# Be ure both files have CRS
+# Be sure both files have CRS
 if era5_u.rio.crs is None:
     era5_u.rio.write_crs(crs_nwp, inplace=True)
 
@@ -255,6 +276,7 @@ for direction in unique_wind_directions:
                              downscaled_uv)
 
 """
+"""
 # test for lookup function
 
 cnn_outputs = np.ones((2, 25, 5, 5))
@@ -279,4 +301,3 @@ for direction in range(25):
 
 """
 
-# Tester avant d'envoyer

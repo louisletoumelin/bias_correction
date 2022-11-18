@@ -111,6 +111,7 @@ class ExperienceManager(AllExperiences):
             # Define later
             self.path_to_current_experience = None
             self.path_to_logs = None
+            self.path_to_logs_dir = None
             self.path_to_best_model = None
             self.path_to_last_model = None
             self.path_to_tensorboard_logs = None
@@ -122,6 +123,7 @@ class ExperienceManager(AllExperiences):
             path_to_current_experience = self._get_path_to_current_experience()
             self.dict_paths = {"path_to_current_experience": path_to_current_experience,
                                "path_to_logs": path_to_current_experience + "logs/",
+                               "path_to_logs_dir": path_to_current_experience + "logs_dir/",
                                "path_to_best_model": path_to_current_experience + "best_model/",
                                "path_to_last_model": path_to_current_experience + "last_model/",
                                "path_to_tensorboard_logs": path_to_current_experience + "tensorboard_logs/",
