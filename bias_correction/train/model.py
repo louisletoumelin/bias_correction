@@ -380,7 +380,7 @@ class ArtificialNeuralNetwork(StrategyInitializer):
                 x = Dropout(dropout_rate)(x)
 
         x = Dense(nb_outputs,
-                  activation="linear",
+                  activation="relu",
                   kernel_initializer=initializer,
                   name=f"D_output_{str_name}",
                   use_bias=use_bias)(x)
@@ -465,11 +465,27 @@ class CustomModel(StrategyInitializer):
         self.cnn_input = CNNInput(config)
         self.devine_builder = DevineBuilder(config)
 
+        # Model characteristics
+        self.has_intermediate_outputs = config["get_intermediate_output"]
+        self.type_of_output = config["type_of_output"]
+
         # Defined later
         self.model = None
         self.model_version = None
         self.model_is_built = None
         self.model_is_compiled = None
+
+    def __repr__(self):
+        return f"\nCustom model. " \
+               f"type_of_output={self.type_of_output}," \
+               f" intermediate_outputs={self.has_intermediate_outputs}, " \
+               f"model_is_built={self.model_is_built}, " \
+               f"model_is_compiled={self.model_is_compiled}"
+
+    def load_weights(self):
+        print("Launch load_weights")
+        self.model.load_weights(self.exp.path_to_last_model)
+        print(f"Restore weights from {self.exp.path_to_last_model}")
 
     def get_optimizer(self):
         name_optimizer = self.config.get("optimizer")
@@ -577,10 +593,12 @@ class CustomModel(StrategyInitializer):
         # Inputs
         input_shape_topo[2] = len(self.config["map_variables"])
         maps = Input(shape=input_shape_topo, name="input_maps")
+        # todo split this part into nwp_variables_dir and nwp_variables_speed
         nwp_variables = Input(shape=(nb_input_variables,), name="input_nwp")
 
         # Standardize inputs
         if use_standardize:
+            # todo normalize speed and direction
             mean_norm = Input(shape=(nb_input_variables,), name="mean_norm")
             std_norm = Input(shape=(nb_input_variables,), name="std_norm")
             nwp_variables_norm = NormalizationInputs()(nwp_variables, mean_norm, std_norm)
@@ -618,6 +636,7 @@ class CustomModel(StrategyInitializer):
                                                                            name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
                 else:
+                    # todo change nwp_variables_norm to nwp_variables_norm_sped and nwp_variables_norm_dir
                     speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
                     dir = d1(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
 
@@ -647,10 +666,12 @@ class CustomModel(StrategyInitializer):
                                                                       name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
                 else:
+                    # todo change nwp_variables to nwp_variables_sped and nwp_variables_dir
                     speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
                     dir = d1(nwp_variables, nb_outputs=nb_outputs_dense_network)
 
         else:
+            # todo no need to different inputs when using the same dene network
             dense_network = self.get_dense_network()
             if use_standardize:
                 x = dense_network(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
@@ -658,12 +679,14 @@ class CustomModel(StrategyInitializer):
                 x = dense_network(nwp_variables, nb_outputs=nb_outputs_dense_network)
 
         # Final skip connection
+        # todo adapt the skip connection with nwp_variables_speed and nwp_variables_speed
         if use_final_skip_connection and not use_double_ann:
             x = Add(name="Add_dense_output")([x, nwp_variables[:, -nb_var_for_skip_connection:]])
         if use_final_skip_connection and use_double_ann:
             speed = Add(name="Add_dense_output_speed_ann")([speed, nwp_variables[:, -2]])
             dir = Add(name="Add_dense_output_dir_ann")([dir, nwp_variables[:, -1]])
 
+        # todo adapt the skip connection with nwp_variables_speed and nwp_variables_speed
         if use_final_relu and not use_double_ann:
             x = tf.keras.activations.relu(x)
         if use_final_relu and use_double_ann:
@@ -894,6 +917,27 @@ class CustomModel(StrategyInitializer):
             self.model_version = "best"
         else:
             self.model_version = "last"
+
+    def freeze_layers(self,
+                      layers_to_freeze=["speed_ann", "speed_ann"],
+                      layers_to_train=["dir_ann", "dir_cnn"]):
+        for layer in self.model.layers:
+
+            for layer_to_freeze in layers_to_freeze:
+                if layer_to_freeze in layer.name:
+                    self.model.get_layer(layer.name).trainable = False
+
+            for layer_to_train in layers_to_train:
+                if layer_to_train in layer.name:
+                    self.model.get_layer(layer.name).trainable = True
+
+    def freeze_layers_direction(self):
+        self.freeze_layers(layers_to_freeze=["dir_ann", "dir_cnn"],
+                           layers_to_train=["speed_ann", "speed_cnn"])
+
+    def freeze_layers_speed(self):
+        self.freeze_layers(layers_to_freeze=["speed_ann", "speed_cnn"],
+                           layers_to_train=["dir_ann", "dir_cnn"])
 
     @classmethod
     def from_previous_experience(cls,

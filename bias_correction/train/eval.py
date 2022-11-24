@@ -235,6 +235,21 @@ class CustomEvaluation(VizualizationResults):
               ) -> list:
         return self._df2metric(self.df_results, "mean_abs_bias_direction", self.key_obs, self.keys, print_=print_)
 
+    def df2mean(self):
+        return
+
+    def print_means(self,
+                    keys=("UV_AROME", "UV_nn"),
+                    ):
+        results = []
+        for key in keys:
+            mean = self.df_results[key].mean()
+            print("\nMean observations:", flush=True)
+            print(mean, flush=True)
+            results.append(mean)
+
+        return results
+
     def print_stats(self
                     ) -> Tuple[list, list, list, list]:
 
