@@ -23,10 +23,12 @@ config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
-config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
+#config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
 config["activation_dense_speed"] = "relu"  # Bool. Activation in dense network, before selu
 config["activation_dense_dir"] = "gelu"  # Bool. Activation in dense network, before selu
-config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
+c#onfig["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
+config["dropout_rate_speed"] = 0.25  # Int. or False. Dropout rate or no dropout
+config["dropout_rate_dir"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int

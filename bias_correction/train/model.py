@@ -426,17 +426,26 @@ class ArtificialNeuralNetwork(StrategyInitializer):
 
         return y
 
-    def get_func_dense_network(self, config: dict, str_name="", nb_units=[], activation_dense=None) -> Callable:
+    def get_func_dense_network(self,
+                               config: dict,
+                               str_name="",
+                               nb_units=[],
+                               activation_dense=None,
+                               dropout_rate=None
+                               ) -> Callable:
 
         if activation_dense is None:
             activation_dense = config["activation_dense"]
+
+        if dropout_rate is None:
+            dropout_rate = config["dropout_rate"]
 
         kwargs_dense = {
             "nb_units": nb_units,
             "activation_dense": load_activation(activation_dense),
             "initializer": config["initializer"],
             "batch_normalization": config["batch_normalization"],
-            "dropout_rate": config["dropout_rate"],
+            "dropout_rate": dropout_rate,
             "use_bias": config["use_bias"],
             "str_name": str_name}
 
@@ -528,8 +537,12 @@ class CustomModel(StrategyInitializer):
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
-    def get_dense_network(self, str_name="", nb_units=[], activation_dense=None):
-        return self.ann.get_func_dense_network(self.config, str_name, nb_units, activation_dense=activation_dense)
+    def get_dense_network(self, str_name="", nb_units=[], activation_dense=None, dropout_rate=None):
+        return self.ann.get_func_dense_network(self.config,
+                                               str_name,
+                                               nb_units,
+                                               activation_dense=activation_dense,
+                                               dropout_rate=dropout_rate)
 
     def cnn_and_concatenate(self, topos, inputs_nwp, inputs_nwp_norm, use_standardize, name_conv_layer=""):
         if ("aspect" in self.config["map_variables"]) and ("tan_slope" in self.config["map_variables"]):
@@ -616,10 +629,12 @@ class CustomModel(StrategyInitializer):
 
             d0 = self.get_dense_network(str_name="speed_ann",
                                         nb_units=self.config["nb_units_speed"],
-                                        activation_dense=self.config["activation_dense_speed'"])
+                                        activation_dense=self.config["activation_dense_speed'"],
+                                        dropout_rate=self.config["dropout_rate_speed"])
             d1 = self.get_dense_network(str_name="dir_ann",
                                         nb_units=self.config["nb_units_dir"],
-                                        activation_dense=self.config["activation_dense_dir'"])
+                                        activation_dense=self.config["activation_dense_dir'"],
+                                        dropout_rate=self.config["dropout_rate_dir"])
 
             if use_standardize:
 
