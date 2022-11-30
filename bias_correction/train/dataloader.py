@@ -826,6 +826,9 @@ class CustomDataHandler:
         if self.config.get("unbalanced_dataset", False):
             self.unbalance_training_dataset()
 
+        print("debug")
+        print(time_series_train.columns)
+        print(time_series_test.columns)
         self._set_is_prepared()
 
     def get_inputs(self,

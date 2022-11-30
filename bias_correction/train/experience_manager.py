@@ -6,9 +6,17 @@ from datetime import date
 import os
 import json
 from typing import Union, MutableSequence, Tuple, List
+from copy import copy
 
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.train.utils import create_folder_if_doesnt_exist
+from bias_correction.utils_bc.utils_config import assert_input_for_skip_connection, \
+    sort_input_variables,\
+    adapt_distribution_strategy_to_available_devices,\
+    init_learning_rate_adapted,\
+    detect_variable,\
+    get_idx_speed_and_dir_variables,\
+    define_input_variables
 
 
 def _is_full_path(path_to_previous_exp: str) -> bool:
@@ -271,8 +279,12 @@ class ExperienceManager(AllExperiences):
         tf.keras.models.save_model(custom_model.model, self.path_to_last_model)
 
     def save_config_json(self) -> None:
+        config_to_save = copy(self.config)
+        for key in config_to_save:
+            if isinstance(config_to_save[key], np.ndarray):
+                config_to_save[key] = config_to_save[key].tolist()
         with open(self.path_to_current_experience + 'config.json', 'w') as fp:
-            json.dump(self.config, fp, sort_keys=True, indent=4)
+            json.dump(config_to_save, fp, sort_keys=True, indent=4)
 
     def save_norm_param(self,
                         mean: MutableSequence[float],
@@ -342,6 +354,16 @@ class ExperienceManager(AllExperiences):
         if config["network"] == "local":
             config = labia2local(config)
 
+        config["restore_experience"] = True
+        config = define_input_variables(config)
+        config = assert_input_for_skip_connection(config)
+        config = sort_input_variables(config)
+        config = adapt_distribution_strategy_to_available_devices(config)
+        config = init_learning_rate_adapted(config)
+        config["nb_input_variables"] = len(config["input_variables"])
+        config = detect_variable(config)
+        config = get_idx_speed_and_dir_variables(config)
+
         inst = cls(config, override=False, restore_old_experience=True, create=False)
 
         # Load old experience csv file
@@ -355,8 +377,6 @@ class ExperienceManager(AllExperiences):
         # Add key of previous experience
         for key in dict_exp:
             setattr(inst, key, dict_exp[key])
-
-        config["restore_experience"] = True
 
         inst.config = config
 

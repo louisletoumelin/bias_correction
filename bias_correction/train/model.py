@@ -31,7 +31,10 @@ from bias_correction.train.layers import RotationLayer, \
     SimpleScaling, \
     MeanTopo, \
     SlidingMean, \
-    EParam
+    EParam, \
+    DispatchTrainingVariables, \
+    ReluActivationDoubleANN,\
+    ReluActivationSimpleANN
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
@@ -216,9 +219,7 @@ class DevineBuilder(StrategyInitializer):
                                x_offset=x_diff)(y)
 
         if not self.config.get("sliding_mean", False):
-
             y = Normalization(self.std_norm_cnn)(y)
-
 
         if self.config.get("custom_unet", False):
             unet = self.load_custom_unet((y_diff * 2 + 1, y_diff * 2 + 1, 1), self.config["unet_path"])
@@ -529,7 +530,7 @@ class CustomModel(StrategyInitializer):
 
     def cnn_and_concatenate(self, topos, inputs_nwp, inputs_nwp_norm, use_standardize, name_conv_layer=""):
         if ("aspect" in self.config["map_variables"]) and ("tan_slope" in self.config["map_variables"]):
-            # Here NOT standardized inputs are used, becase we need wind direction with it's real units to compute E
+            # Here NOT standardized inputs are used, because we need wind direction with it's real units to compute E
             topos = EParam()(topos, inputs_nwp)
         # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
         if use_standardize:
@@ -539,7 +540,8 @@ class CustomModel(StrategyInitializer):
                                                                                     activation=load_activation(
                                                                                         self.config["activation_cnn"]),
                                                                                     name_conv_layer=name_conv_layer,
-                                                                                    use_normalization=self.config["use_normalization_cnn_inputs"]),
+                                                                                    use_normalization=self.config[
+                                                                                        "use_normalization_cnn_inputs"]),
                                                         inputs_nwp_norm])
         else:
             return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos,
@@ -548,7 +550,8 @@ class CustomModel(StrategyInitializer):
                                                                                     activation=load_activation(
                                                                                         self.config["activation_cnn"]),
                                                                                     name_conv_layer=name_conv_layer,
-                                                                                    use_normalization=self.config["use_normalization_cnn_inputs"]),
+                                                                                    use_normalization=self.config[
+                                                                                        "use_normalization_cnn_inputs"]),
                                                         inputs_nwp])
 
     def get_training_metrics(self):
@@ -593,12 +596,10 @@ class CustomModel(StrategyInitializer):
         # Inputs
         input_shape_topo[2] = len(self.config["map_variables"])
         maps = Input(shape=input_shape_topo, name="input_maps")
-        # todo split this part into nwp_variables_dir and nwp_variables_speed
         nwp_variables = Input(shape=(nb_input_variables,), name="input_nwp")
 
         # Standardize inputs
         if use_standardize:
-            # todo normalize speed and direction
             mean_norm = Input(shape=(nb_input_variables,), name="mean_norm")
             std_norm = Input(shape=(nb_input_variables,), name="std_norm")
             nwp_variables_norm = NormalizationInputs()(nwp_variables, mean_norm, std_norm)
@@ -609,69 +610,75 @@ class CustomModel(StrategyInitializer):
 
         # Dense network
         if use_double_ann:
+
             d0 = self.get_dense_network(str_name="speed_ann", nb_units=self.config["nb_units_speed"])
             d1 = self.get_dense_network(str_name="dir_ann", nb_units=self.config["nb_units_dir"])
+
             if use_standardize:
+
+                speed_var_norm, dir_var_norm = DispatchTrainingVariables(self.config["idx_speed_var"],
+                                                                         self.config["idx_dir_var"])(nwp_variables_norm)
 
                 # Input CNN with standardization
                 if use_input_cnn:
+
                     nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
                                                                            nwp_variables,
-                                                                           nwp_variables_norm,
+                                                                           speed_var_norm,
                                                                            use_standardize,
                                                                            name_conv_layer="speed_cnn")
                     speed = d0(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
                     nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
                                                                            nwp_variables,
-                                                                           nwp_variables_norm,
+                                                                           dir_var_norm,
                                                                            use_standardize,
                                                                            name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
                 elif use_input_cnn_dir:
-                    speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+                    speed = d0(speed_var_norm, nb_outputs=nb_outputs_dense_network)
                     nwp_variables_norm_with_cnn = self.cnn_and_concatenate(maps,
                                                                            nwp_variables,
-                                                                           nwp_variables_norm,
+                                                                           dir_var_norm,
                                                                            use_standardize,
                                                                            name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_norm_with_cnn, nb_outputs=nb_outputs_dense_network)
-                else:
-                    # todo change nwp_variables_norm to nwp_variables_norm_sped and nwp_variables_norm_dir
-                    speed = d0(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
-                    dir = d1(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+                else:  # No cnn is used as inputs
+                    speed = d0(speed_var_norm, nb_outputs=nb_outputs_dense_network)
+                    dir = d1(dir_var_norm, nb_outputs=nb_outputs_dense_network)
 
             else:
+
+                speed_var, dir_var = DispatchTrainingVariables(self.config["idx_speed_var"],
+                                                               self.config["idx_dir_var"])(nwp_variables)
 
                 # Input CNN without standardization
                 if use_input_cnn:
                     nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
-                                                                      nwp_variables,
-                                                                      nwp_variables_norm,
+                                                                      speed_var,
+                                                                      None,
                                                                       use_standardize,
                                                                       name_conv_layer="speed_cnn")
                     speed = d0(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
                     nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
-                                                                      nwp_variables,
-                                                                      nwp_variables_norm,
+                                                                      dir_var,
+                                                                      None,
                                                                       use_standardize,
                                                                       name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
 
                 elif use_input_cnn_dir:
-                    speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
+                    speed = d0(speed_var, nb_outputs=nb_outputs_dense_network)
                     nwp_variables_with_cnn = self.cnn_and_concatenate(maps,
-                                                                      nwp_variables,
-                                                                      nwp_variables_norm,
+                                                                      dir_var,
+                                                                      None,
                                                                       use_standardize,
                                                                       name_conv_layer="dir_cnn")
                     dir = d1(nwp_variables_with_cnn, nb_outputs=nb_outputs_dense_network)
                 else:
-                    # todo change nwp_variables to nwp_variables_sped and nwp_variables_dir
-                    speed = d0(nwp_variables, nb_outputs=nb_outputs_dense_network)
-                    dir = d1(nwp_variables, nb_outputs=nb_outputs_dense_network)
+                    speed = d0(speed_var, nb_outputs=nb_outputs_dense_network)
+                    dir = d1(dir_var, nb_outputs=nb_outputs_dense_network)
 
         else:
-            # todo no need to different inputs when using the same dene network
             dense_network = self.get_dense_network()
             if use_standardize:
                 x = dense_network(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
@@ -679,19 +686,19 @@ class CustomModel(StrategyInitializer):
                 x = dense_network(nwp_variables, nb_outputs=nb_outputs_dense_network)
 
         # Final skip connection
-        # todo adapt the skip connection with nwp_variables_speed and nwp_variables_speed
-        if use_final_skip_connection and not use_double_ann:
-            x = Add(name="Add_dense_output")([x, nwp_variables[:, -nb_var_for_skip_connection:]])
-        if use_final_skip_connection and use_double_ann:
-            speed = Add(name="Add_dense_output_speed_ann")([speed, nwp_variables[:, -2]])
-            dir = Add(name="Add_dense_output_dir_ann")([dir, nwp_variables[:, -1]])
+        if use_final_skip_connection:
+            if use_double_ann:
+                speed = Add(name="Add_dense_output_speed_ann")([speed, nwp_variables[:, -2]])
+                dir = Add(name="Add_dense_output_dir_ann")([dir, nwp_variables[:, -1]])
+            else:
+                x = Add(name="Add_dense_output")([x, nwp_variables[:, -nb_var_for_skip_connection:]])
 
-        # todo adapt the skip connection with nwp_variables_speed and nwp_variables_speed
-        if use_final_relu and not use_double_ann:
-            x = tf.keras.activations.relu(x)
-        if use_final_relu and use_double_ann:
-            speed = tf.keras.activations.relu(speed)
-            dir = tf.keras.activations.relu(dir)
+        # Final relu to remove negative speeds or directions
+        if use_final_relu:
+            if use_double_ann:
+                speed, dir = ReluActivationDoubleANN()(speed, dir)
+            else:
+                x = ReluActivationSimpleANN()(x)
 
         if use_double_ann:
             x = concatenate([speed, dir], axis=-1)
@@ -704,6 +711,7 @@ class CustomModel(StrategyInitializer):
 
         if print_:
             print(bc_model.summary())
+
         self.model = bc_model
 
     def _build_dense_temperature(self, print_=True):
@@ -926,6 +934,7 @@ class CustomModel(StrategyInitializer):
             for layer_to_freeze in layers_to_freeze:
                 if layer_to_freeze in layer.name:
                     self.model.get_layer(layer.name).trainable = False
+                    print(f"Freezing {layer.name}")
 
             for layer_to_train in layers_to_train:
                 if layer_to_train in layer.name:

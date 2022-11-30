@@ -72,8 +72,8 @@ if not config["restore_experience"]:
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
                                  dataloader=data_loader,
                                  mode_callback="train")
-    # Save weights
-    exp.save_model(cm)
+        # Save weights
+        exp.save_model(cm)
 
     #
     #
@@ -125,9 +125,9 @@ zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
-for type_of_output, metrics, label in zip(["output_direction"],
-                                          [("bias_direction", "abs_bias_direction")],
-                                          [['winddir(deg)']]):
+for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
+                                          [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
+                                          [['vw10m(m/s)'], ['winddir(deg)']]):
 
     print_headline("Type of output", type_of_output)
 
@@ -148,7 +148,10 @@ for type_of_output, metrics, label in zip(["output_direction"],
 
     for model in ["last"]:  # "best"
         print_headline("Model", model)
-
+        if type_of_output == "output_speed":
+            cv = "UV"
+        else:
+            cv = "UV_DIR"
         # with tf.device('/GPU:0'):
         # Predict
         # with timer_context("Predict train set"):
@@ -239,7 +242,6 @@ for type_of_output, metrics, label in zip(["output_direction"],
     """
 
     if type_of_output == "output_speed":
-        cv = "UV"
         try:
             with timer_context("1-1 plots"):
                 c_eval.plot_1_1_all(c_eval.df_results,
@@ -254,7 +256,6 @@ for type_of_output, metrics, label in zip(["output_direction"],
             print(f"\nWARNING Exception for 1-1 plots: {e}", flush=True)
 
     if type_of_output == "output_direction":
-        cv = "UV_DIR"
         try:
             with timer_context("plot_wind_direction_all"):
                 c_eval.plot_wind_direction_all(c_eval.df_results,
