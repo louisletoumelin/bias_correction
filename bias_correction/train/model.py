@@ -426,11 +426,12 @@ class ArtificialNeuralNetwork(StrategyInitializer):
 
         return y
 
-    def get_func_dense_network(self, config: dict, str_name="", nb_units=[]) -> Callable:
-
+    def get_func_dense_network(self, config: dict, str_name="", nb_units=[], activation_dense=None) -> Callable:
+        if activation_dense is None:
+            activation_dense = config["activation_dense"]
         kwargs_dense = {
             "nb_units": nb_units,
-            "activation_dense": load_activation(config["activation_dense"]),
+            "activation_dense": load_activation(activation_dense),
             "initializer": config["initializer"],
             "batch_normalization": config["batch_normalization"],
             "dropout_rate": config["dropout_rate"],
