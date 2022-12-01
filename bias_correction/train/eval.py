@@ -244,7 +244,7 @@ class CustomEvaluation(VizualizationResults):
         results = []
         for key in keys:
             mean = self.df_results[key].mean()
-            print("\nMean observations:", flush=True)
+            print(f"\nMean {key}:", flush=True)
             print(mean, flush=True)
             results.append(mean)
 

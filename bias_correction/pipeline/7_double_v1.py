@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
+import os
 
 # matplotlib.use('Agg')
 
@@ -119,12 +120,13 @@ if config["get_intermediate_output"] and not cm.has_intermediate_outputs:
     cm.load_weights()
     cm.model_version = "last"
 
-exp.save_all(data_loader, cm)
+    exp.save_all(data_loader, cm)
 """
 zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
+
 for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']]):
@@ -191,6 +193,8 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                                       keys=("_AROME", "_nn"),
                                       other_models=("_D", "_A"),
                                       metrics=metrics)
+            print(os.path.join(exp.path_to_current_experience))
+            c_eval.df_results.to_pickle(os.path.join(exp.path_to_current_experience, f"df_results_{cv}.pkl"))
 
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):

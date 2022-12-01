@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 dict_activations = {"relu": "relu",
+		    "selu": "selu",
                     "LeakyRelu": tf.keras.layers.LeakyReLU,
                     "gelu": tf.keras.activations.gelu
                     }
