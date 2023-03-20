@@ -1,5 +1,10 @@
 import tensorflow as tf
-from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint
+from tensorflow.keras.callbacks import TensorBoard, \
+    ReduceLROnPlateau,\
+    EarlyStopping,\
+    CSVLogger,\
+    ModelCheckpoint,\
+    LearningRateScheduler
 
 try:
     import horovod.tensorflow as hvd
@@ -13,6 +18,14 @@ from copy import deepcopy
 
 from bias_correction.train.eval import Interpretability
 from bias_correction.train.utils import no_raise_on_key_error
+
+initial_learning_rate = 0.01
+epochs = 100
+decay = initial_learning_rate / epochs
+
+
+def learning_rate_time_decay(epoch, lr):
+    return lr * 1 / (1 + decay * epoch)
 
 
 class FeatureImportanceCallback(tf.keras.callbacks.Callback):
@@ -39,7 +52,10 @@ callbacks_dict = {"TensorBoard": TensorBoard,
                   "EarlyStopping": EarlyStopping,
                   "CSVLogger": CSVLogger,
                   "ModelCheckpoint": ModelCheckpoint,
-                  "FeatureImportanceCallback": FeatureImportanceCallback}
+                  "FeatureImportanceCallback": FeatureImportanceCallback,
+                  "learning_rate_decay": LearningRateScheduler(learning_rate_time_decay, verbose=1)
+                  }
+
 if _horovod:
     try:
         # Horovod: broadcast initial variable states from rank 0 to all other processes.
@@ -87,7 +103,8 @@ def load_callback_with_custom_model(cm, data_loader=None, mode_callback=None):
                            "BroadcastGlobalVariablesCallback": [0],
                            "FeatureImportanceCallback": [data_loader, cm, cm.exp, mode_callback],
                            "MetricAverageCallback": [],
-                           "LearningRateWarmupCallback": []
+                           "LearningRateWarmupCallback": [],
+                           "learning_rate_decay": []
                            }
 
     _tmp_kwargs_callbacks = {"TensorBoard": {"log_dir": cm.exp.path_to_tensorboard_logs},

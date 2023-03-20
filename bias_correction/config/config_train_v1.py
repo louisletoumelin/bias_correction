@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "dropout050"  # Str. Some details about the experiment
+config["details"] = "lr_decay"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  #  todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -17,7 +17,7 @@ config["use_bias"] = True
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
 config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.5  # Int. or False. Dropout rate or no dropout  #  todo sensibility
+config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout  #  todo sensibility
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -80,7 +80,9 @@ config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "FeatureImportanceCallback": [],
                             "BroadcastGlobalVariablesCallback": [],
                             "MetricAverageCallback": [],
+                            "learning_rate_decay": [],
                             }
+
 config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                                                     "factor": 0.5,  # new_lr = lr * factor
                                                     "patience": 3,
@@ -112,6 +114,8 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "MetricAverageCallback": {},
 
                               "CSVLogger": {},
+
+                              "learning_rate_decay": {},
                               }
 
 # Metrics

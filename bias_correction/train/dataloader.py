@@ -61,9 +61,9 @@ class Batcher:
     def batch_train(self,
                     dataset: tf.data.Dataset
                     ) -> DatasetV2:
+        # Before .cache before prefetch
         return dataset \
             .batch(batch_size=self.config["global_batch_size"]) \
-            .cache() \
             .prefetch(self._get_prefetch())
 
     def batch_test(self,
@@ -318,7 +318,8 @@ class CustomDataHandler:
 
         self.config = config
         self.variables_needed = copy(['name'] + self.config["input_variables"] + self.config["labels"])
-
+        if "alti-zs" in self.variables_needed:
+            self.variables_needed.extend(["alti", "ZS"])
         self.batcher = Batcher(config)
         self.splitter = Splitter(config)
         self.loader = Loader(config)
@@ -361,6 +362,10 @@ class CustomDataHandler:
                                      variables_needed: Union[bool, None] = None
                                      ) -> Union[pd.Series, pd.DataFrame]:
         variables_needed = self.variables_needed if variables_needed is None else variables_needed
+        if "alti-zs" in self.variables_needed:
+            df["alti-zs"] = df["alti"] - df["ZS"]
+            self.variables_needed.remove("alti")
+            self.variables_needed.remove("ZS")
         return df[variables_needed]
 
     def add_topo_carac_time_series(self,
@@ -630,6 +635,13 @@ class CustomDataHandler:
         self.dict_topos = dict_topo_custom
         self._set_is_prepared()
 
+    def add_month_and_hour_to_time_series(self,
+                                          time_series: pd.DataFrame
+                                          ) -> pd.DataFrame:
+        time_series["month"] = time_series.index.month
+        time_series["hour"] = time_series.index.hour
+        return time_series
+
     def prepare_train_test_data(self,
                                 _shuffle: bool = True,
                                 variables_needed: bool = None):
@@ -646,6 +658,10 @@ class CustomDataHandler:
 
         # Add country
         time_series = self.add_country_to_time_series(time_series, stations)
+
+        # Add month and hour
+        if "month" in self.variables_needed or "hour" in self.variables_needed:
+            time_series = self.add_month_and_hour_to_time_series(time_series)
 
         # Select variables
         time_series = self._select_all_variables_needed(time_series, variables_needed)
@@ -811,6 +827,35 @@ class CustomDataHandler:
         else:
             return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names, output_shapes=output_shapes),
                                         inputs))
+
+    def _get_all_zipped(self,
+                        mode: str
+                        ) -> tf.data.Dataset:
+        labels = self.get_labels(mode)
+
+        if hasattr(labels, "values"):
+            labels = labels.values
+
+        labels = tf.data.Dataset.from_tensor_slices(labels)
+
+        inputs = self.get_inputs(mode)
+
+        if hasattr(inputs, "values"):
+            inputs = inputs.values
+
+        inputs = tf.data.Dataset.from_tensor_slices(inputs)
+
+        if self.config["standardize"]:
+            mean, std = self.get_tf_mean_std(mode)
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode),
+                                        inputs,
+                                        mean,
+                                        std,
+                                        labels))
+        else:
+            return tf.data.Dataset.zip((self.get_tf_topos(mode=mode),
+                                        inputs,
+                                        labels))
 
     def get_tf_zipped_inputs_labels(self,
                                     mode: str

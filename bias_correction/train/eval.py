@@ -157,9 +157,9 @@ class CustomEvaluation(VizualizationResults):
         for key in keys:
             metric = metric_func(df[key_obs].values, df[key].values)
             if print_:
-                print(f"\n{metric_name}{key}")
-                print(metric)
-                print(f"\n{metric_name}{key} nb of obs: {len(df[key_obs].values)}")
+                print(f"\n{metric_name} {key}", flush=True)
+                print(metric, flush=True)
+                print(f"\n{metric_name}{key} nb of obs: {len(df[key_obs].values)}", flush=True)
             results.append(metric)
         return results
 
@@ -231,11 +231,14 @@ class CustomEvaluation(VizualizationResults):
         return self.df2metric("corr", print_=print_)
 
     def print_stats(self
-                    ) -> None:
-        self.df2mae(print_=True)
-        self.df2rmse(print_=True)
-        self.df2mbe(print_=True)
-        self.df2correlation(print_=True)
+                    ) -> Tuple[list, list, list, list]:
+
+        mae = self.df2mae(print_=True)
+        rmse = self.df2rmse(print_=True)
+        mbe = self.df2mbe(print_=True)
+        corr = self.df2correlation(print_=True)
+
+        return mae, rmse, mbe, corr
 
 
 class StaticEval(VizualizationResults):

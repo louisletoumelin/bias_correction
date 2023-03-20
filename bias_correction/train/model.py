@@ -189,11 +189,6 @@ class DevineBuilder(StrategyInitializer):
             x_diff = 69 // 2
 
         if use_crop:
-            print("debug")
-            print(length_x)
-            print(length_y)
-            print(y_diff)
-            print(x_diff)
             y = CropTopography(initial_length_x=length_x,
                                initial_length_y=length_y,
                                y_offset=y_diff,
