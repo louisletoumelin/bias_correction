@@ -19,9 +19,6 @@ dict_initializer = {"GlorotNormal": tf.keras.initializers.GlorotNormal,
 
 def load_initializer(name_initializer, *args, **kwargs):
 
-    if name_initializer is None:
-        return None
-
     if name_initializer == "Constant":
         if "seed" in kwargs:
             kwargs.pop("seed")

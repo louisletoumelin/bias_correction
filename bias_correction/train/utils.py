@@ -21,11 +21,14 @@ def plot_1_1_subplot(df, key_obs="vw10m(m/s)", key_model="Wind", min_=-1, max_=3
     plt.ylim(min_, max_)
 
 
-def save_figure(name_figure, save_path, format_="png", svg=False):
+def save_figure(name_figure, save_path, format_="png", svg=False, fig=None):
+    import matplotlib
+    #matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     import uuid
     ax = plt.gca()
-    fig = ax.get_figure()
+    if fig is None:
+        fig = ax.get_figure()
     uuid_str = str(uuid.uuid4())[:4]
     fig.savefig(save_path + f"/{name_figure}_{uuid_str}.{format_}")
     if svg:

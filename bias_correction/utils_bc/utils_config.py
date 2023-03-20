@@ -57,6 +57,8 @@ def detect_variable(config):
     if "temperature" in config["global_architecture"]:
         config["current_variable"] = "T2m"
     else:
-        config["current_variable"] = "UV"
-
+        if config["type_of_output"] != "output_direction":
+            config["current_variable"] = "UV"
+        else:
+            config["current_variable"] = "UV_DIR"
     return config

@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
-from typing import Union, List
+from typing import Union, List, MutableSequence, Tuple
 
 try:
     import seaborn as sns
@@ -12,7 +14,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     sns_ = False
 
-from bias_correction.train.visu import VizualizationResults
+from bias_correction.train.visu import VizualizationResults, save_figure
 from bias_correction.train.metrics import get_metric
 from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.train.experience_manager import ExperienceManager
@@ -25,9 +27,17 @@ class CustomEvaluation(VizualizationResults):
                  exp: ExperienceManager,
                  data: CustomDataHandler,
                  mode: str = "test",
-                 keys: List[str] = ["_AROME", "_nn"],
+                 keys: Tuple[str, ...] = ("_AROME", "_nn"),
                  stations_to_remove: Union[List[str], List] = [],
-                 other_models: Union[List[str], List] = [],
+                 other_models: Tuple[str, ...] = ("_D", "_A"),
+                 metrics: Tuple[str, ...] = ("bias", "n_bias", "ae", "n_ae"),
+                 topo_carac: Tuple[str, ...] = ('mu',
+                                                'curvature',
+                                                'tpi_500',
+                                                'tpi_2000',
+                                                'laplacian',
+                                                'alti',
+                                                'country'),
                  quick: bool = False):
 
         super().__init__(exp)
@@ -36,8 +46,9 @@ class CustomEvaluation(VizualizationResults):
         self.data = data
         self.current_variable = self.exp.get_config()["current_variable"]
         self.mode = mode
-
-        if self.exp.config["get_intermediate_output"]:
+        keys = list(keys)
+        other_models = list(other_models)
+        if self.exp.config.get("get_intermediate_output", False):
             keys.append("_int")
         self._set_key_attributes(keys)
         self._set_key_list(keys)
@@ -59,26 +70,23 @@ class CustomEvaluation(VizualizationResults):
             self.df_results = computer.add_metric_to_df(self.df_results,
                                                         self.keys,
                                                         self.key_obs,
-                                                        metrics=["bias", "n_bias", "ae", "n_ae"])
+                                                        metrics=metrics)
             self.df_results = computer.add_topo_carac_from_stations_to_df(self.df_results,
                                                                           self.data.get_stations(),
-                                                                          topo_carac=['mu', 'curvature', 'tpi_500',
-                                                                                      'tpi_2000', 'laplacian',
-                                                                                      'alti',
-                                                                                      'country'])
+                                                                          topo_carac=topo_carac)
             self.df_results = computer.classify_topo_carac(self.data.get_stations(), self.df_results)
             self.df_results = computer.classify_alti(self.df_results)
             self.df_results = computer.classify_forecast_term(self.df_results)
 
     def _set_key_attributes(self,
-                            keys: List[str]
+                            keys: MutableSequence[str]
                             ) -> None:
         self.key_obs = f"{self.current_variable}_obs"
         for key in keys:
             setattr(self, f"key{key}", f"{self.current_variable}{key}")
 
     def _set_key_list(self,
-                      keys: List[str]
+                      keys: MutableSequence[str]
                       ) -> None:
         self.keys = [f"{self.current_variable}{key}" for key in keys]
 
@@ -88,12 +96,12 @@ class CustomEvaluation(VizualizationResults):
         assert hasattr(self.data, f"predicted_{mode}")
         df = self.data.get_predictions(mode)
 
-        if self.current_variable == "UV":
+        if self.current_variable in ["UV", "UV_DIR"]:
 
-            if self.exp.config["get_intermediate_output"]:
+            if self.exp.config.get("get_intermediate_output", False):
                 df_int = self.data.get_predictions("int")
-                df["UV_int"] = df_int["UV_int"]
-            return self.create_df_speed(df)
+                df[f"{self.current_variable}_int"] = df_int[f"{self.current_variable}_int"]
+            return self.create_df_wind(df)
         else:
             return self.create_df_temp(df)
 
@@ -114,9 +122,9 @@ class CustomEvaluation(VizualizationResults):
         columns = ["name"] + self.keys
         return df[columns]
 
-    def create_df_speed(self,
-                        df: pd.DataFrame
-                        ) -> pd.DataFrame:
+    def create_df_wind(self,
+                       df: pd.DataFrame
+                       ) -> pd.DataFrame:
 
         labels = self.data.get_labels(self.mode)
         inputs = self.data.get_inputs(self.mode)
@@ -126,10 +134,13 @@ class CustomEvaluation(VizualizationResults):
             df.loc[:, "UV_obs"] = np.sqrt(labels["U_obs"] ** 2 + labels["V_obs"] ** 2)
             df.loc[:, "UV_AROME"] = inputs["Wind"].values
 
-        elif "speed" in self.data.config["type_of_output"]:
+        else:
 
-            df.loc[:, "UV_obs"] = labels.values
-            df.loc[:, "UV_AROME"] = inputs["Wind"].values
+            df.loc[:, f"{self.current_variable}_obs"] = labels.values
+            if self.current_variable == "UV":
+                df.loc[:, f"UV_AROME"] = inputs["Wind"].values
+            elif self.current_variable == "UV_DIR":
+                df.loc[:, f"UV_DIR_AROME"] = inputs["Wind_DIR"].values
 
         columns = ["name", f"{self.current_variable}_obs"] + self.keys
         return df[columns]
@@ -138,7 +149,7 @@ class CustomEvaluation(VizualizationResults):
     def _df2metric(df: pd.DataFrame,
                    metric_name: str,
                    key_obs: str,
-                   keys: List[str, ...],
+                   keys: MutableSequence[str],
                    print_: bool = False
                    ) -> list:
         metric_func = get_metric(metric_name)
@@ -148,6 +159,7 @@ class CustomEvaluation(VizualizationResults):
             if print_:
                 print(f"\n{metric_name}{key}")
                 print(metric)
+                print(f"\n{metric_name}{key} nb of obs: {len(df[key_obs].values)}")
             results.append(metric)
         return results
 
@@ -329,7 +341,7 @@ class Interpretability(VizualizationResults):
 
         # Calculate the new RMSE
         self.data.set_predictions(results, mode=mode)
-        c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=["_nn"], quick=True)
+        c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=("_nn"), quick=True)
         se = np.array(c_eval.df2bias()[0]) ** 2
         ae = np.array(c_eval.df2ae()[0])
 
@@ -352,7 +364,7 @@ class Interpretability(VizualizationResults):
 
             # Calculate the new metrics
             self.data.set_predictions(results_permutation, mode=mode)
-            c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=["_nn"], quick=True)
+            c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=("_nn"), quick=True)
             se_permuted = np.array(c_eval.df2bias()[0]) ** 2  # Vector
             ae_permuted = np.array(c_eval.df2ae()[0])  # Vector
 
@@ -385,7 +397,7 @@ class Interpretability(VizualizationResults):
         plt.figure(figsize=figsize)
         plt.bar(x, y0, width=width, yerr=yerr)
         plt.ylabel(y)
-        self.save_figure(name)
+        save_figure(name)
 
     def plot_feature_importance(self, mode, width=0.8, epsilon=0.01, figsize=(15, 12), name="Feature_importance"):
 
@@ -452,4 +464,4 @@ class Interpretability(VizualizationResults):
                              alpha=0.1)
             plt.ylim(0, 20)
             plt.title(predictor)
-            self.save_figure(f"Partial_dependence_plot/{name}_{predictor}")
+            save_figure(f"Partial_dependence_plot/{name}_{predictor}")

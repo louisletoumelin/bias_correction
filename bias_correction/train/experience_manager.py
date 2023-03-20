@@ -139,16 +139,8 @@ class ExperienceManager(AllExperiences):
                 self._update_experience_to_csv_file(name)
             self.save_config_json()
 
-
-
     def get_config(self):
         return self.config
-
-    def detect_variable(self) -> str:
-        if "temperature" in self.config["global_architecture"]:
-            return "T2m"
-        else:
-            return "UV"
 
     @staticmethod
     def list_physical_devices() -> None:

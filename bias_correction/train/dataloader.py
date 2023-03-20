@@ -251,7 +251,7 @@ class ResultsSetter:
     def has_intermediate_outputs(self,
                                  results: MutableSequence[float]
                                  ) -> Union[bool]:
-        return isinstance(results, tuple) and len(results) > 1 and self.config["get_intermediate_output"]
+        return isinstance(results, tuple) and len(results) > 1 and self.config.get("get_intermediate_output", False)
 
     def _nn_output2df(self,
                       result: MutableSequence[float],
@@ -262,11 +262,8 @@ class ResultsSetter:
         df = pd.DataFrame()
         df["name"] = names
         if "component" in self.config["type_of_output"]:
-
             df[name_uv] = np.sqrt(result[0] ** 2 + result[1] ** 2)
-
         else:
-
             df[name_uv] = np.squeeze(result)
 
         return df[["name", name_uv]]
@@ -277,10 +274,12 @@ class ResultsSetter:
 
         assert self.has_intermediate_outputs(results)
 
-        results = results[1][:, 0]
+        if self.config["current_variable"] == "UV":
+            results = results[1][:, 0]
+        elif self.config["current_variable"] == "UV_DIR":
+            results = results[1][:, 1]
         str_model = "_int"
         mode_str = "int"
-
         return results, str_model, mode_str
 
     def _prepare_final_outputs(self,
@@ -348,6 +347,7 @@ class CustomDataHandler:
         self.predicted_train = None
         self.predicted_test = None
         self.predicted_val = None
+        self.predicted_int = None
         self.predicted_other_countries = None
         self.inputs_custom = None
         self.length_custom = None
@@ -658,11 +658,11 @@ class CustomDataHandler:
             time_series = self._apply_quick_test(time_series)
 
         # Shuffle
-        if self.config["shuffle"]:
+        if self.config.get("shuffle", True):
             time_series = shuffle(time_series)
 
         # Split time_series with countries
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             time_series, time_series_other_countries = self.splitter.split_wrapper(time_series,
                                                                                    stations=stations,
                                                                                    split_strategy="country")
@@ -675,7 +675,7 @@ class CustomDataHandler:
         time_series_train, time_series_test, time_series_val = self.splitter.split_train_test_val(time_series,
                                                                                                   split_strategy=split_strategy)
         # Other countries
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             _, time_series_other_countries = self.splitter.split_wrapper(time_series_other_countries,
                                                                          mode="test",
                                                                          split_strategy="time")
@@ -684,35 +684,35 @@ class CustomDataHandler:
         self.inputs_train = time_series_train[self.config["input_variables"]]
         self.inputs_test = time_series_test[self.config["input_variables"]]
         self.inputs_val = time_series_val[self.config["input_variables"]]
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             self.inputs_other_countries = time_series_other_countries[self.config["input_variables"]]
 
         # Length
         self.length_train = len(self.inputs_train)
         self.length_test = len(self.inputs_test)
         self.length_val = len(self.inputs_val)
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             self.length_other_countries = len(self.inputs_other_countries)
 
         # labels
         self.labels_train = time_series_train[self.config["labels"]]
         self.labels_test = time_series_test[self.config["labels"]]
         self.labels_val = time_series_val[self.config["labels"]]
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             self.labels_other_countries = time_series_other_countries[self.config["labels"]]
 
         # names
         self.names_train = time_series_train["name"]
         self.names_test = time_series_test["name"]
         self.names_val = time_series_val["name"]
-        if self.config["country_to_reject_during_training"]:
+        if self.config.get("country_to_reject_during_training", False):
             self.names_other_countries = time_series_other_countries["name"]
 
-        if self.config["standardize"]:
+        if self.config.get("standardize", True):
             self.mean_standardize = self.inputs_train.mean()
             self.std_standardize = self.inputs_train.std()
 
-        if self.config["unbalanced_dataset"]:
+        if self.config.get("unbalanced_dataset", False):
             self.unbalance_training_dataset()
 
         self._set_is_prepared()
@@ -729,7 +729,7 @@ class CustomDataHandler:
 
     def get_labels(self,
                    mode: str
-                   ) -> MutableSequence:
+                   ) -> pd.DataFrame:
         return getattr(self, f"labels_{mode}")
 
     def get_names(self,
@@ -903,9 +903,9 @@ class CustomDataHandler:
         df, mode_str = self.results_setter.prepare_df_results(results, names, mode=mode, str_model=str_model)
         setattr(self, f"predicted_{mode_str}", df)
 
-        if self.config["get_intermediate_output"]:
-            df, mode_str = self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
-            setattr(self, f"predicted_{mode_str}", df)
+        if self.config.get("get_intermediate_output", False):
+            df, _ = self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
+            setattr(self, f"predicted_int", df)
 
     def _set_is_prepared(self) -> None:
         self.is_prepared = True
@@ -915,12 +915,18 @@ class CustomDataHandler:
                   mode: str = "test"
                   ) -> None:
 
-        path_to_files = {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
-                         "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
+        path_to_files = {"UV":
+                             {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
+                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"},
+                         "UV_DIR":
+                             {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}_dir.pkl",
+                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
+                         }
 
-        predictions = pd.read_pickle(path_to_files[model])
+        predictions = pd.read_pickle(path_to_files[self.config["current_variable"]][model])
 
         if model == "_A":
             predictions = predictions.rename(columns={"Wind": "UV_A"})
+            predictions = predictions.rename(columns={"Wind_DIR": "UV_DIR_A"})
 
         setattr(self, f"predicted{model}", predictions)

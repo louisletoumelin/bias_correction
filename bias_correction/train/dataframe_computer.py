@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from typing import List
+from typing import List, Tuple
 
 
 from bias_correction.train.metrics import get_metric
@@ -72,20 +72,25 @@ def classify_forecast_term(df: pd.DataFrame
 def add_metric_to_df(df: pd.DataFrame,
                      keys: List[str],
                      key_obs: str,
-                     metrics: List[str] = ["bias", "n_bias", "ae", "n_ae"]
+                     metrics: Tuple[str, ...] = ("bias", "n_bias", "ae", "n_ae")
                      ) -> pd.DataFrame:
     for metric in metrics:
         metric_func = get_metric(metric)
         for key in keys:
             result = metric_func(df[key_obs].values, df[key].values)
-            key = '_' + key.split('_')[1]
+            key = '_' + key.split('_')[-1]
             df[f"{metric}{key}"] = result
     return df
 
 
 def add_topo_carac_from_stations_to_df(df, stations,
-                                       topo_carac=['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti',
-                                                   'country']):
+                                       topo_carac=('mu',
+                                                   'curvature',
+                                                   'tpi_500',
+                                                   'tpi_2000',
+                                                   'laplacian',
+                                                   'alti',
+                                                   'country')):
     for station in df["name"].unique():
         filter_df = df["name"] == station
         filter_s = stations["name"] == station
