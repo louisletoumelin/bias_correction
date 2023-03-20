@@ -8,6 +8,8 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint
 
 import os
+from functools import partial
+from typing import Callable
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -27,6 +29,7 @@ from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
 from bias_correction.train.callbacks import FeatureImportanceCallback
+from bias_correction.train.callbacks import load_callback_with_custom_model
 
 try:
     import horovod.tensorflow as hvd
@@ -182,7 +185,130 @@ class CNNDevine(Initializer):
         return bc_model
 
 
-class CustomModel(CNNDevine):
+class BaseModel:
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def _dense_network(nwp_input,
+                       nb_outputs,
+                       nb_units=None,
+                       activation_dense=None,
+                       initializer=None,
+                       batch_normalization=None,
+                       dropout_rate=None,
+                       use_bias=None):
+
+        for index, nb_unit in enumerate(nb_units):
+
+            dense_layer = Dense(nb_unit,
+                                activation=activation_dense,
+                                kernel_initializer=initializer,
+                                name=f"D{index}",
+                                use_bias=use_bias)
+
+            # First layer using standardized inputs
+            if index == 0:
+                x = dense_layer(nwp_input)
+            else:
+                x = dense_layer(x)
+
+            if batch_normalization:
+                x = BatchNormalization()(x)
+
+            if dropout_rate:
+                x = Dropout(dropout_rate)(x)
+
+        x = Dense(nb_outputs,
+                  activation="linear",
+                  kernel_initializer=initializer,
+                  name=f"D_output",
+                  use_bias=use_bias)(x)
+
+        return x
+
+    @staticmethod
+    def _dense_network_with_skip_connections(nwp_input,
+                                             nb_outputs,
+                                             nb_units=None,
+                                             activation_dense=None,
+                                             initializer=None,
+                                             batch_normalization=None,
+                                             dropout_rate=None,
+                                             use_bias=None):
+        for index in range(nb_units):
+
+            dense_unit = Dense(nb_units,
+                               activation=activation_dense,
+                               kernel_initializer=initializer,
+                               name=f"D{index}",
+                               use_bias=use_bias)
+
+            # First layer using standardized inputs
+            if index == 0:
+                y = dense_unit(nwp_input) + nwp_input
+            else:
+                y = dense_unit(y) + y
+
+            if batch_normalization:
+                y = BatchNormalization()(y)
+
+            if dropout_rate:
+                y = Dropout(dropout_rate)(y)
+
+        y = Dense(nb_outputs,
+                  activation="linear",
+                  kernel_initializer=initializer,
+                  name=f"D_output",
+                  use_bias=use_bias)(y)
+
+        return y
+
+    @staticmethod
+    def _input_cnn(topos, kernel_size=(2, 2), filters=[32, 16, 8, 4], activation="relu", pool_size=(3, 3)):
+
+        topos_norm = NormalizationInputs()(topos, 1258.0, 791.0)
+        last_index = len(filters) - 1
+
+        for idx, filter in enumerate(filters):
+
+            conv_layer = Conv2D(filters=filter, kernel_size=kernel_size, activation=activation)
+
+            if idx == 0:
+                y = conv_layer(topos_norm)
+            else:
+                y = conv_layer(y)
+
+            if idx < last_index:
+                y = MaxPooling2D(pool_size=pool_size)(y)
+
+        y = Flatten()(y)
+        return y
+
+    def get_func_dense_network(self, config: dict) -> Callable:
+        kwargs_dense = {
+            "nb_units": config["nb_units"],
+            "activation_dense": config["activation_dense"],
+            "initializer": config["initializer"],
+            "batch_normalization": config["batch_normalization"],
+            "dropout_rate": config["dropout_rate"],
+            "use_bias": config["use_bias"],
+            "input_cnn": config["input_cnn"]}
+
+        if config["dense_with_skip_connection"]:
+
+            if kwargs_dense["input_cnn"]:
+                raise NotImplementedError("'input_cnn' option not implemented for dense network with skip connections")
+
+            assert len(set(config["nb_units"])) == 1, "Skip connections requires units of the same size."
+
+            return partial(self._dense_network_with_skip_connections, **kwargs_dense)
+        else:
+            return partial(self._dense_network, **kwargs_dense)
+
+
+class CustomModel(CNNDevine, BaseModel):
     _horovod = _horovod
 
     def __init__(self, experience, config):
@@ -196,6 +322,9 @@ class CustomModel(CNNDevine):
         self.initializer = self.get_initializer()
 
         self.exp = experience
+        # Defined later
+        self.model = None
+        self.model_version = None
         self.model_is_built = None
         self.model_is_compiled = None
 
@@ -233,17 +362,7 @@ class CustomModel(CNNDevine):
                                 **self.config["kwargs_initializer"])
 
     def get_callbacks(self, data_loader=None, mode_callback=None):
-        callbacks = []
-
-        if self.config["distribution_strategy"] == "Horovod" and _horovod:
-            callbacks = self._append_hvd_callbacks(callbacks)
-
-            if hvd.rank() == 0:
-                callbacks = self._append_regular_callbacks(callbacks)
-        else:
-            callbacks = self._append_regular_callbacks(callbacks, data_loader=data_loader, mode_callback=mode_callback)
-
-        return callbacks
+        return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
     def get_prefetch(self):
         if self.config["prefetch"] == "auto":
@@ -251,150 +370,19 @@ class CustomModel(CNNDevine):
         else:
             return self.config["prefetch"]
 
-    @staticmethod
-    def _append_hvd_callbacks(callbacks):
-
-        # Horovod: broadcast initial variable states from rank 0 to all other processes.
-        # This is necessary to ensure consistent initialization of all workers when
-        # training is started with random weights or restored from a checkpoint.
-        callbacks.append(hvd.keras.callbacks.BroadcastGlobalVariablesCallback(0))
-
-        # Horovod: average metrics among workers at the end of every epoch.
-        #
-        # Note: This callback must be in the list before the ReduceLROnPlateau,
-        # TensorBoard or other metrics-based callbacks.
-        callbacks.append(hvd.keras.callbacks.MetricAverageCallback())
-
-        # Horovod: using `lr = 1.0 * hvd.size()` from the very beginning leads to worse final
-        # accuracy. Scale the learning rate `lr = 1.0` ---> `lr = 1.0 * hvd.size()` during
-        # the first five epochs. See https://arxiv.org/abs/1706.02677 for details.
-        # str_callback = "HVDLearningRateWarmupCallback"
-        # callbacks.append(hvd.keras.callbacks.LearningRateWarmupCallback(initial_lr=self.config["learning_rate"],
-        #                                                                **self.config["kwargs_callbacks"][str_callback]))
-
-        return callbacks
-
-    def _append_regular_callbacks(self, callbacks, data_loader=None, mode_callback=None):
-
-        if "TensorBoard" in self.config["callbacks"]:
-            callbacks.append(TensorBoard(log_dir=self.path_to_tensorboard_logs,
-                                         **self.config["kwargs_callbacks"]["TensorBoard"]))
-
-        if "ReduceLROnPlateau" in self.config["callbacks"]:
-            callbacks.append(ReduceLROnPlateau(**self.config["kwargs_callbacks"]["ReduceLROnPlateau"]))
-
-        if "EarlyStopping" in self.config["callbacks"]:
-            callbacks.append(EarlyStopping(**self.config["kwargs_callbacks"]["EarlyStopping"]))
-
-        if "CSVLogger" in self.config["callbacks"]:
-            callbacks.append(CSVLogger(self.path_to_logs + "tf_logs.csv"))
-
-        if "ModelCheckpoint" in self.config["callbacks"]:
-            callbacks.append(ModelCheckpoint(filepath=self.path_to_best_model,
-                                             **self.config["kwargs_callbacks"]["ModelCheckpoint"]))
-
-        if "FeatureImportanceCallback" in self.config["callbacks"]:
-            callbacks.append(FeatureImportanceCallback(data_loader, self, self.exp, mode_callback))
-
-        return callbacks
-
-    @staticmethod
-    def _input_cnn(topos):
-        topos_norm = NormalizationInputs()(topos, 1258.0, 791.0)
-        y = Conv2D(filters=32,
-                   kernel_size=(2, 2),
-                   activation='relu')(topos_norm)
-        y = MaxPooling2D((3, 3))(y)
-        y = Conv2D(filters=16,
-                   kernel_size=(2, 2),
-                   activation='relu')(y)
-        y = MaxPooling2D((3, 3))(y)
-        y = Conv2D(filters=8,
-                   kernel_size=(2, 2),
-                   activation='relu')(y)
-        y = MaxPooling2D((3, 3))(y)
-        y = Conv2D(filters=4,
-                   kernel_size=(2, 2),
-                   activation='relu')(y)
-
-        y = Flatten()(y)
-        return y
-
-    def dense_network(self, nwp_input, nb_outputs=2):
-        for index, nb_unit in enumerate(self.config["nb_units"]):
-
-            # First layer using standardized inputs
-            if index == 0:
-                x = Dense(nb_unit, activation=self.config["activation_dense"], kernel_initializer=self.initializer,
-                          name=f"D{index}", use_bias=self.config["use_bias"])(nwp_input)
-
-            else:
-                x = Dense(nb_unit, activation=self.config["activation_dense"], kernel_initializer=self.initializer,
-                          name=f"D{index}", use_bias=self.config["use_bias"])(x)
-
-            if self.config["batch_normalization"]:
-                x = BatchNormalization()(x)
-
-            if self.config["dropout_rate"]:
-                x = Dropout(self.config["dropout_rate"])(x)
-
-        x = Dense(nb_outputs, activation="linear", kernel_initializer=self.initializer, name=f"D_output",
-                  use_bias=self.config["use_bias"])(x)
-
-        return x
-
-    def dense_network_with_skip_connections(self, nwp_input, nb_outputs=2):
-
-        if self.config["input_cnn"]:
-            raise NotImplementedError("'input_cnn' option not implemented for dense network with skip connections")
-
-        for index in range(self.config["nb_layers_skip_connection"]):
-
-            # First layer using standardized inputs
-            if index == 0:
-                x = Dense(self.config["nb_input_variables"], activation=self.config["activation_dense"],
-                          kernel_initializer=self.initializer,
-                          name=f"D{index}")(nwp_input)
-                x = x + nwp_input
-                if self.config["batch_normalization"]:
-                    x = BatchNormalization()(x)
-
-                if self.config["dropout_rate"]:
-                    x = Dropout(self.config["dropout_rate"])(x)
-
-            else:
-                y = Dense(self.config["nb_input_variables"], activation=self.config["activation_dense"],
-                          kernel_initializer=self.initializer,
-                          name=f"D{index}")(x)
-                y = y + x
-
-                if self.config["batch_normalization"]:
-                    y = BatchNormalization()(y)
-
-                if self.config["dropout_rate"]:
-                    y = Dropout(self.config["dropout_rate"])(y)
-
-        y = Dense(nb_outputs, activation="linear", kernel_initializer=self.initializer, name=f"D_output")(y)
-
-        return y
-
-    def select_dense_network(self):
-        if self.config["dense_with_skip_connection"]:
-            return self.dense_network_with_skip_connections
-        else:
-            return self.dense_network
+    def get_dense_network(self):
+        return self.get_func_dense_network(self.config)
 
     def cnn_and_concatenate(self, topos, inputs_nwp):
-        y = self._input_cnn(topos)
-
         if self.config["standardize"]:
-            # inputs_cnn must be after y to be sure speed and direction are latest in the list
-            return tf.keras.layers.Concatenate(axis=1)([y, inputs_nwp])
+            # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
+            return tf.keras.layers.Concatenate(axis=1)([self._input_cnn(topos), inputs_nwp])
 
     def add_intermediate_output(self):
-        XX = self.model.input
-        YY = self.model.get_layer("Add_dense_output").output
-        self.model = Model(inputs=XX, outputs=(self.model.outputs, YY))
+        inputs = self.model.input
+        intermediate_outputs = self.model.get_layer("Add_dense_output").output
+        self.model = Model(inputs=inputs, outputs=(self.model.outputs, intermediate_outputs))
+        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
 
     def _build_dense_temperature(self):
 
@@ -418,14 +406,13 @@ class CustomModel(CNNDevine):
             nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
 
         # Dense network
-        dense_network = self.select_dense_network()
-
+        dense_network = self.get_dense_network()
         if self.config["standardize"]:
             x = dense_network(nwp_variables_norm, nb_outputs=1)
         else:
             x = dense_network(nwp_variables, nb_outputs=1)
 
-        # Skip connection
+        # Final skip connection
         if self.config["final_skip_connection"]:
             x = Add(name="Add_dense_output")([x, nwp_variables[:, -1:]])
 
@@ -456,14 +443,13 @@ class CustomModel(CNNDevine):
             nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
 
         # Dense network
-        dense_network = self.select_dense_network()
-
+        dense_network = self.get_dense_network()
         if self.config["standardize"]:
             x = dense_network(nwp_variables_norm)
         else:
             x = dense_network(nwp_variables)
 
-        # Skip connection
+        # Final skip connection
         if self.config["final_skip_connection"]:
             x = Add(name="Add_dense_output")([x, nwp_variables[:, -2:]])
             x = tf.keras.activations.relu(x)
@@ -508,14 +494,14 @@ class CustomModel(CNNDevine):
             nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
 
         # Dense network
-        dense_network = self.select_dense_network()
+        dense_network = self.get_dense_network()
 
         if self.config["standardize"]:
             x = dense_network(nwp_variables_norm)
         else:
             x = dense_network(nwp_variables)
 
-        # Skip connection
+        # Final skip connection
         if self.config["final_skip_connection"]:
             x = Add(name="Add_dense_output")([x, nwp_variables[:, -2:]])
             x = tf.keras.activations.relu(x)
@@ -527,17 +513,16 @@ class CustomModel(CNNDevine):
         print(bc_model.summary())
         self.model = bc_model
 
-    def build_model(self):
+    def _build_model(self):
         """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
         model_architecture = self.config["global_architecture"]
         method_build = getattr(self, f"_build_{model_architecture}")
         method_build()
         self.model_is_built = True
 
-    def build_compiled_model(self):
-        self.build_model()
+    def _build_compiled_model(self):
+        self._build_model()
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
-        self.model_is_built = True
         self.model_is_compiled = True
 
     def _build_mirrored_strategy(self):
@@ -550,11 +535,10 @@ class CustomModel(CNNDevine):
         self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
 
         with self.strategy.scope():
-            self.build_compiled_model()
+            self._build_compiled_model()
             # todo change here
             if self.config["get_intermediate_output"]:
                 self.add_intermediate_output()
-                self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
 
     def _build_classic_strategy(self):
         if self.config["distribution_strategy"] is None:
@@ -563,10 +547,10 @@ class CustomModel(CNNDevine):
         # Do not modify batch size
         self.config["global_batch_size"] = self.config["batch_size"]
 
-        self.build_compiled_model()
+        self._build_compiled_model()
+
         if self.config["get_intermediate_output"]:
             self.add_intermediate_output()
-            self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
 
     def build_model_with_strategy(self):
         if self.config["distribution_strategy"] == "MirroredStrategy":
@@ -579,21 +563,26 @@ class CustomModel(CNNDevine):
         if build:
             self.build_model_with_strategy()
 
+        assert self.model_is_built
+
         if model_str == "last":
+            # For previous experiences, last model is not built, for current experience, last model is built
             if build:
                 self.model.load_weights(self.path_to_last_model)
-            pass
+                self.model_version = "last"
+                print("last model weights loaded")
+            else:
+                print("last model is already built and weights are loaded")
 
         elif "best":
             self.model.load_weights(self.path_to_best_model)
+            self.model_version = "best"
+            print("best model weights loaded")
 
     def predict_with_batch(self, inputs_test, model_str="last"):
 
         if model_str:
             self.select_model_version(model_str)
-
-        if not self.model_is_built:
-            self.build_model()
 
         for index, i in enumerate(inputs_test):
             results_test = self.model.predict(i)
@@ -610,6 +599,14 @@ class CustomModel(CNNDevine):
         dataset = dataset.batch(batch_size=self.config["global_batch_size"])
         return dataset
 
+    def _set_model_version_after_training(self):
+        has_earlystopping = "EarlyStopping" in self.config["callback"]
+        restore_best_weights = self.config["kwargs_callbacks"]["EarlyStopping"]["restore_best_weights"] is True
+        if has_earlystopping and restore_best_weights:
+            self.model_version = "best"
+        else:
+            self.model_version = "last"
+
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
 
         if not self.model_is_built and not self.model_is_compiled:
@@ -623,6 +620,8 @@ class CustomModel(CNNDevine):
                                  validation_data=validation_data,
                                  epochs=self.config["epochs"],
                                  callbacks=self.get_callbacks(dataloader, mode_callback))
+
+        self._set_model_version_after_training()
 
         return results
 

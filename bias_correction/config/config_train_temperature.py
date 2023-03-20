@@ -88,7 +88,6 @@ config["prefetch"] = "auto"                                                # Def
 
 # Skip connections in dense network
 config["dense_with_skip_connection"] = False
-config["nb_layers_skip_connection"] = 3
 
 # Hyperparameters
 config["batch_size"] = 32                                                # Int.
@@ -152,7 +151,7 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "TensorBoard": {"profile_batch": '20, 50',
                                               "histogram_freq": 1},
 
-                              "HVDLearningRateWarmupCallback": {"warmup_epochs": 5,
+                              "LearningRateWarmupCallback": {"warmup_epochs": 5,
                                                                 "verbose": 1}
                               }
 

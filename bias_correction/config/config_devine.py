@@ -86,7 +86,6 @@ config["prefetch"] = "auto"                                                # Def
 
 # Skip connections in dense network
 config["dense_with_skip_connection"] = "n/a"
-config["nb_layers_skip_connection"] = "n/a"
 
 # Hyperparameters
 config["batch_size"] = "n/a"                                                # Int.

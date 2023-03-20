@@ -37,6 +37,16 @@ def _get_full_path_to_previous_exp(path_to_previous_exp):
         return _get_path_with_root(path_to_previous_exp, network)
 
 
+def labia2local(config: dict) -> dict:
+    for key in config:
+        if isinstance(config[key], str):
+            if "//scratch/mrmn" in config[key]:
+                config[key] = config[key].replace("//scratch/mrmn", "//home")
+            if "//home/mrmn" in config[key]:
+                config[key] = config[key].replace("//home/mrmn", "//home")
+    return config
+
+
 class FolderShouldNotExistError(Exception):
     pass
 
@@ -85,24 +95,20 @@ class ExperienceManager(AllExperiences):
             self.is_finished = 0
 
             # Paths
-            self.path_to_current_experience = self._get_path_to_current_experience()
-            self.path_to_logs = self.path_to_current_experience+"logs/"
-            self.path_to_best_model = self.path_to_current_experience+"best_model/"
-            self.path_to_last_model = self.path_to_current_experience+"last_model/"
-            self.path_to_tensorboard_logs = self.path_to_current_experience+"tensorboard_logs/"
-            self.path_to_figures = self.path_to_current_experience+"figures/"
-            self.path_to_feature_importance = self.path_to_current_experience+"feature_importance/"
-            self.path_to_predictions = self.path_to_current_experience+"predictions/"
+            path_to_current_experience = self._get_path_to_current_experience()
+            self.dict_paths = {"path_to_current_experience": path_to_current_experience,
+                               "path_to_logs": path_to_current_experience+"logs/",
+                               "path_to_best_model": path_to_current_experience+"best_model/",
+                               "path_to_last_model": path_to_current_experience+"last_model/",
+                               "path_to_tensorboard_logs": path_to_current_experience+"tensorboard_logs/",
+                               "path_to_figures": path_to_current_experience+"figures/",
+                               "path_to_feature_importance": path_to_current_experience+"feature_importance/",
+                               "path_to_predictions": path_to_current_experience+"predictions/"}
 
-            # Folders
-            self._create_folder_current_experience()
-            self._create_folder_logs()  # inside folder current experience
-            self._create_folder_best_model()
-            self._create_folder_last_model()
-            self._create_folder_tensorboard_logs()
-            self._create_folder_figures()
-            self._create_folder_feature_importance()
-            self._create_folder_predictions()
+            # Attributes and create folders
+            for key in self.dict_paths:
+                setattr(self, key, self.dict_paths[key])
+                self.create_folder_if_doesnt_exist(self.dict_paths[key])
 
             # Update csv files
             for name in ["experiences", "metrics", "hyperparameters"]:
@@ -161,30 +167,6 @@ class ExperienceManager(AllExperiences):
                 print(f"{path} already exists")
             pass
 
-    def _create_folder_current_experience(self):
-        self.create_folder_if_doesnt_exist(self.path_to_current_experience)
-
-    def _create_folder_logs(self):
-        self.create_folder_if_doesnt_exist(self.path_to_logs)
-
-    def _create_folder_best_model(self):
-        self.create_folder_if_doesnt_exist(self.path_to_best_model)
-
-    def _create_folder_last_model(self):
-        self.create_folder_if_doesnt_exist(self.path_to_last_model)
-
-    def _create_folder_tensorboard_logs(self):
-        self.create_folder_if_doesnt_exist(self.path_to_tensorboard_logs)
-
-    def _create_folder_figures(self):
-        self.create_folder_if_doesnt_exist(self.path_to_figures)
-
-    def _create_folder_feature_importance(self):
-        self.create_folder_if_doesnt_exist(self.path_to_feature_importance)
-
-    def _create_folder_predictions(self):
-        self.create_folder_if_doesnt_exist(self.path_to_predictions)
-
     def _update_experience_to_csv_file(self, name):
         df = pd.read_csv(self.path_experiences+f"{name}.csv")
 
@@ -242,24 +224,13 @@ class ExperienceManager(AllExperiences):
     def save_experience_json(self):
 
         if hasattr(self, "is_finished"):
-            is_finished = 0 if self.is_finished is None else self.is_finished
+            if self.is_finished is None:
+                self.is_finished = 0
         else:
-            is_finished = 0
+            self.is_finished = 0
 
-        dict_exp = {"current_date": self.current_date,
-                    "current_id": int(self.current_id),
-                    "name_current_experience": self.name_current_experience,
-                    "is_finished": int(is_finished),
-                    "path_to_current_experience": self.path_to_current_experience,
-                    "path_to_logs": self.path_to_logs,
-                    "path_to_best_model": self.path_to_best_model,
-                    "path_to_last_model": self.path_to_last_model,
-                    "path_to_tensorboard_logs": self.path_to_tensorboard_logs,
-                    "path_to_figures": self.path_to_figures,
-                    "path_to_feature_importance": self.path_to_feature_importance,
-                    "path_to_predictions": self.path_to_predictions,
-                    "path_experiences": self.path_experiences
-                    }
+        dict_exp = self.__dict__
+
         # Paths
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
@@ -282,31 +253,28 @@ class ExperienceManager(AllExperiences):
 
         path_to_previous_exp = _get_full_path_to_previous_exp(path_to_previous_exp)
 
+        # Load old config csv file
         with open(path_to_previous_exp + "/config.json", 'r') as fp:
             config = json.load(fp)
 
+        # Detect current network (might be different from previous experience network)
         config["network"] = detect_network()
+
+        # Update data paths if the network has change
         if config["network"] == "local":
-            for key in config:
-                if isinstance(config[key], str):
-                    if "//scratch/mrmn" in config[key]:
-                        config[key] = config[key].replace("//scratch/mrmn", "//home")
-                    if "//home/mrmn" in config[key]:
-                        config[key] = config[key].replace("//home/mrmn", "//home")
+            config = labia2local(config)
 
         inst = cls(config, override=False, restore_old_experience=True, create=False)
 
+        # Load old experience csv file
         with open(path_to_previous_exp + "/exp.json", 'r') as fp:
             dict_exp = json.load(fp)
 
+        # Update experience paths if the network has changed
         if config["network"] == "local":
-            for key in dict_exp:
-                if isinstance(dict_exp[key], str):
-                    if "//scratch/mrmn" in dict_exp[key]:
-                        dict_exp[key] = dict_exp[key].replace("//scratch/mrmn", "//home")
-                    if "//home/mrmn" in dict_exp[key]:
-                        dict_exp[key] = dict_exp[key].replace("//home/mrmn", "//home")
+            dict_exp = labia2local(dict_exp)
 
+        # Add key of previous experience
         for key in dict_exp:
             setattr(inst, key, dict_exp[key])
 

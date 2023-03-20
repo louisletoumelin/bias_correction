@@ -5,7 +5,7 @@ mse = tf.keras.losses.MeanSquaredError()
 
 class PenalizedMSE(tf.keras.losses.Loss):
 
-    def __init__(self, penalty, speed_threshold):
+    def __init__(self, penalty=10, speed_threshold=5):
         super().__init__()
         self.penalty = tf.convert_to_tensor(penalty, dtype=tf.float32)
         self.speed_threshold = tf.convert_to_tensor(speed_threshold, dtype=tf.float32)
@@ -21,7 +21,7 @@ class PenalizedMSE(tf.keras.losses.Loss):
 
 class Pinball(tf.keras.losses.Loss):
 
-    def __init__(self, tho):
+    def __init__(self, tho=0.85):
         super().__init__()
         self.tho = tho
 
@@ -36,7 +36,7 @@ class Pinball(tf.keras.losses.Loss):
 
 class PinballWeight(tf.keras.losses.Loss):
 
-    def __init__(self, tho):
+    def __init__(self, tho=0.95):
         super().__init__()
         self.tho = tho
 
@@ -52,7 +52,7 @@ class PinballWeight(tf.keras.losses.Loss):
 
 class PinballProportional(tf.keras.losses.Loss):
 
-    def __init__(self, tho):
+    def __init__(self, tho=0.6):
         super().__init__()
         self.tho = tho
 
@@ -92,59 +92,64 @@ class MSEpower(tf.keras.losses.Loss):
         return result
 
 
-def load_loss(name_loss, *args, **kwargs):
+dict_loss = {"mse": "mse",
+             "penalized_mse": PenalizedMSE,
+             "mse_proportional": MSEProportionalInput,
+             "mse_power": MSEpower,
+             "pinball": Pinball,
+             "pinball_proportional": PinballProportional,
+             "pinball_weight": PinballWeight}
+
+
+def load_loss(name_loss: str, args: dict, kwargs: dict):
 
     if name_loss == "mse":
         return name_loss
 
+    if isinstance(name_loss, str):
+        return name_loss
+    else:
+        args = args[name_loss]
+        kwargs = kwargs[name_loss]
+        return dict_loss[name_loss](*args, **kwargs)
+
+
+"""
     elif name_loss == "penalized_mse":
 
         penalty = kwargs["penalized_mse"].get("penalty")
         speed_threshold = kwargs["penalized_mse"].get("speed_threshold")
-        assert penalty is not None, "Penalty keyword argument (int) must be provided for penalized loss"
-        assert speed_threshold is not None, "Speed threshold (int) must be provided for penalized loss"
-
         return PenalizedMSE(penalty, speed_threshold)
 
     elif name_loss == "mse_proportional":
 
         penalty = kwargs["mse_proportional"].get("penalty", 1)
-
         return MSEProportionalInput(penalty)
 
     elif name_loss == "mse_power":
 
         penalty = kwargs["mse_proportional"].get("penalty", 1)
         power = kwargs["mse_proportional"].get("power", 2)
-        assert penalty is not None, "Penalty keyword argument (int) must be provided for penalized loss"
-        assert power is not None, "Speed threshold (int) must be provided for penalized loss"
-
         return MSEpower(penalty, power)
 
     elif name_loss == "pinball":
 
         tho = kwargs["pinball"].get("tho", 0.75)
-        assert tho is not None, "Penalty keyword argument (int) must be provided for penalized loss"
-
         return Pinball(tho)
 
     elif name_loss == "pinball_proportional":
 
         tho = kwargs["pinball_proportional"].get("tho")
-        assert tho is not None, "Penalty keyword argument (int) must be provided for penalized loss"
-
         return PinballProportional(tho)
 
     elif name_loss == "pinball_weight":
 
         tho = kwargs["pinball_weight"].get("tho", 0.75)
-        assert tho is not None, "Penalty keyword argument (int) must be provided for penalized loss"
-
         return PinballWeight(tho) #PinballProportional before
 
     else:
         raise NotImplementedError(f"Loss {name_loss} not implemented")
-
+"""
 
 """
 def custom_loss(y_true, y_pred):
