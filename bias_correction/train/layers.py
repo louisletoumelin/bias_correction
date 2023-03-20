@@ -172,12 +172,22 @@ class EParam(Layer):
         """Convert input in radian to degrees"""
         return tf.convert_to_tensor(57.2957795, dtype=tf.float32) * inputs
 
+    @staticmethod
+    def tf_deg2rad(angle):
+        """
+        Converts angles in degrees to radians
+
+        Note: pi/180 = 0.01745329
+        """
+
+        return angle * tf.convert_to_tensor(0.01745329)
+
     def call(self, topos, inputs_nwp):
         # topos[:, 2] = tan_slope
         # topos[:, 1] = aspect
+        # inputs_nwp[:, -1] = winddir(deg)
         delta = tf.expand_dims(tf.expand_dims(inputs_nwp[:, -1], axis=-1), axis=-1) - topos[:, :, :, 1]
-
-        cos_delta = tf.math.cos(delta)
+        cos_delta = tf.math.cos(self.tf_deg2rad(delta))
         E = tf.expand_dims(self.tf_rad2deg(tf.math.atan(topos[:, :, :, 2] * cos_delta)), axis=-1)
         return tf.concat([topos, E], axis=-1)
 

@@ -4,16 +4,16 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "d_epoch05"  # Str. Some details about the experiment
+config["details"] = "d_dir_20_5"  # Str. Some details about the experiment
 config["global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = False  # todo warning
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
 config["nb_units"] = [25, 10, 50]  # 25, 10
 config["nb_units_speed"] = [25, 10, 50]  # 25, 10
-config["nb_units_dir"] = [512, 256, 32]  # 25, 10
+config["nb_units_dir"] = [20, 5]  # 25, 10 or 1024, 256, 32
 config["use_bias"] = True
 
 # General
@@ -29,7 +29,7 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 10  # Int.
+config["epochs"] = 5  # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
@@ -44,8 +44,8 @@ config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
 # Input CNN
 config["input_cnn"] = False
-config["use_input_cnn_dir"] = True
-config["use_batch_norm_cnn"] = True
+config["use_input_cnn_dir"] = False
+config["use_batch_norm_cnn"] = False
 config["activation_cnn"] = "gelu"
 config["threshold_null_speed"] = 1
 config["use_normalization_cnn_inputs"] = True
@@ -62,7 +62,8 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
                              "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                             'Wind90', 'Wind87', 'Wind84', 'Wind75']
+                             'Wind90', 'Wind87', 'Wind84', 'Wind75',
+                             "tpi_500", "curvature", "mu", "laplacian", 'aspect', 'tan(slope)']
 
 # todo write a test that checks that topos, aspect and tan_slope are in the correct order
 config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
@@ -79,7 +80,8 @@ config["compute_product_with_wind_direction"] = True
 #                              'diag_7', 'diag_13', 'diag_21', 'diag_31',
 #                              'diag_7_r', 'diag_13_r', 'diag_21_r', 'diag_31_r',
 #                              'side_7', 'side_13', 'side_21', 'side_31',
-#                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r']
+#                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r',
+#                              'aspect', 'tan(slope)']
 
 #list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
 #                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',

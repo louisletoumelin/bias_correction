@@ -21,15 +21,12 @@ from bias_correction.train.model import CustomModel
 from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.eval import CustomEvaluation, Interpretability
+from bias_correction.train.config_handler import PersistentConfig
 from bias_correction.utils_bc.context_manager import timer_context
 from bias_correction.utils_bc.print_functions import print_intro, print_headline
-from bias_correction.utils_bc.utils_config import detect_variable
 
 # Initialization
-get_intermediate_output = config["get_intermediate_output"]
-quick_test = config["quick_test"]
-quick_test_stations = config["quick_test_stations"]
-initial_loss = config["loss"]
+persistent_config = PersistentConfig(config)
 if config["restore_experience"]:
     print_headline("Restore experience", "")
     exp, config = ExperienceManager.from_previous_experience(config["restore_experience"])
@@ -38,8 +35,7 @@ else:
     print_headline("Create a new experience", "")
     exp = ExperienceManager(config)
 
-config["quick_test"] = quick_test
-config["quick_test_stations"] = quick_test_stations
+config = persistent_config.restore_persistent_data(("quick_test", "quick_test_stations"), config)
 
 print("\nCurrent experience:", flush=True)
 print(exp.path_to_current_experience)
@@ -53,83 +49,57 @@ if not config["restore_experience"]:
     # First fit
     #
     #
-    config["labels"] = ['winddir(deg)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
-    config["type_of_output"] = "output_direction"
-    config["loss"] = "cosine_distance"
-    config["remove_null_speeds"] = True
-    cm = CustomModel(exp, config)
+    print_headline("Launch training direction", "")
 
-    # Load inputs and outputs
+    # Config
+    config_dir = persistent_config.config_fit_dir(config)
+
+    # Model
+    cm = CustomModel(exp, config_dir)
+    cm.build_model_with_strategy()
+    print(cm)
+
+    # Freeze speed layers
+    cm.freeze_layers_speed()
+
+    # Data
     with timer_context("Prepare data"):
-        data_loader = CustomDataHandler(config)
+        data_loader = CustomDataHandler(config_dir)
         data_loader.prepare_train_test_data()
 
-    print_headline("Launch training direction", "")
-    print(config["labels"], config["type_of_output"], config["loss"])
-    print(config["input_variables"])
-
-    # We don't fit a model with two outputs because it cause error in the loss function
-    config["get_intermediate_output"] = False
-    data_loader.config["get_intermediate_output"] = False
-    cm.config["get_intermediate_output"] = False
-    exp.config["get_intermediate_output"] = False
-
-    cm.build_model_with_strategy()
-
-    for layer in cm.model.layers:
-        # selecting layer by name
-        if "speed_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = False
-            print(f"Freezing: {layer.name}")
-        if "dir_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = True
-            print(f"Training == True on: {layer.name}")
-
+    # Fit
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
                                  dataloader=data_loader,
                                  mode_callback="train")
-        exp.save_model(cm)
+    # Save weights
+    exp.save_model(cm)
+
     #
     #
     # Second fit
     #
     #
-    config["labels"] = ["vw10m(m/s)"]  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
-    config["type_of_output"] = "output_speed"
-    config["loss"] = initial_loss
-    config["remove_null_speeds"] = False
-
-    # Load inputs and outputs
-    with timer_context("Prepare data"):
-        data_loader = CustomDataHandler(config)
-        data_loader.prepare_train_test_data()
-
-    cm = CustomModel(exp, config)
     print_headline("Launch training speed", "")
-    print(config["labels"], config["type_of_output"], config["loss"])
 
-    # We don't fit a model with two outputs because it cause error in the loss function
-    config["get_intermediate_output"] = False
-    data_loader.config["get_intermediate_output"] = False
-    cm.config["get_intermediate_output"] = False
-    exp.config["get_intermediate_output"] = False
+    # Config
+    config_speed = persistent_config.config_fit_speed(config)
 
+    # Model
+    cm = CustomModel(exp, config_speed)
     cm.build_model_with_strategy()
-
-    print("Launch load_weights")
-    cm.model.load_weights(cm.exp.path_to_last_model)
-    print(f"Restore weights from {cm.exp.path_to_last_model}")
+    cm.load_weights()
     cm.model_version = "last"
+    print(cm)
 
-    for layer in cm.model.layers:
-        # selecting layer by name
-        if "speed_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = True
-            print(f"Training == True on: {layer.name}")
-        if "dir_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = False
-            print(f"Freezing: {layer.name}")
+    # Freeze direction layers
+    with timer_context("Detect layers to freeze"):
+        cm.freeze_layers_direction()
+
+    # Data
+    with timer_context("Prepare data"):
+        data_loader = CustomDataHandler(config_speed)
+        data_loader.prepare_train_test_data()
 
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
@@ -142,15 +112,11 @@ else:
         data_loader = CustomDataHandler(config)
         data_loader.prepare_train_test_data()
 
-config["get_intermediate_output"] = get_intermediate_output
-exp.config["get_intermediate_output"] = get_intermediate_output
-cm.config["get_intermediate_output"] = get_intermediate_output
-data_loader.config["get_intermediate_output"] = get_intermediate_output
-if config["get_intermediate_output"]:
+config = persistent_config.restore_persistent_data(keys=("get_intermediate_output",), config=config)
+if config["get_intermediate_output"] and not cm.has_intermediate_outputs:
+    cm = CustomModel(exp, config)
     cm.build_model_with_strategy(print_=False)
-    print("Launch load_weights")
-    cm.model.load_weights(cm.exp.path_to_last_model)
-    print(f"Restore weights from {cm.exp.path_to_last_model}")
+    cm.load_weights()
     cm.model_version = "last"
 
 exp.save_all(data_loader, cm)
@@ -159,46 +125,27 @@ zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
-for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
-                                          [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
-                                          [['vw10m(m/s)'], ['winddir(deg)']]):
+for type_of_output, metrics, label in zip(["output_direction"],
+                                          [("bias_direction", "abs_bias_direction")],
+                                          [['winddir(deg)']]):
 
     print_headline("Type of output", type_of_output)
 
-    if config["type_of_output"] != type_of_output:
-        config["type_of_output"] = type_of_output
-        config = detect_variable(config)
+    if cm.type_of_output != type_of_output:
+        config_predict_speed = persistent_config.config_predict_parser(type_of_output, config)
 
-        current_var = config["current_variable"]
-        exp.config["current_variable"] = current_var
-        cm.config["current_variable"] = current_var
-        data_loader.config["current_variable"] = current_var
-
-        config["labels"] = label  # ["vw10m(m/s)"]
-        exp.config["labels"] = label
-        cm.config["labels"] = label
-        data_loader.config["labels"] = label
-
-        if type_of_output == "output_speed":
-            remove_null_speeds = False
-        else:
-            remove_null_speeds = True
-
-        config["remove_null_speeds"] = remove_null_speeds
-        exp.config["remove_null_speeds"] = remove_null_speeds
-        cm.config["remove_null_speeds"] = remove_null_speeds
-        # Load inputs and outputs
-        with timer_context("Prepare data"):
-            data_loader = CustomDataHandler(config)
-            data_loader.prepare_train_test_data()
-
-        print("debug")
-        print(data_loader.get_inputs("test")[["Wind"]].describe())
+        # Model
+        cm = CustomModel(exp, config)
         cm.build_model_with_strategy(print_=False)
         cm.model.load_weights(cm.exp.path_to_last_model)
         cm.model_version = "last"
+        print(cm)
 
-    cv = config["current_variable"]
+        # Data
+        with timer_context("Prepare data"):
+            data_loader = CustomDataHandler(config_predict_speed)
+            data_loader.prepare_train_test_data()
+
     for model in ["last"]:  # "best"
         print_headline("Model", model)
 
@@ -244,20 +191,8 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
 
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):
-                print("\nMean observations:", flush=True)
-                print(c_eval.df_results[f"{cv}_obs"].mean(), flush=True)
-                print("\nMean AROME", flush=True)
-                print(c_eval.df_results[f"{cv}_AROME"].mean(), flush=True)
-                print("\nMean int", flush=True)
-                print(c_eval.df_results[f"{cv}_int"].mean(), flush=True)
-                print("\nMean NN", flush=True)
-                print(c_eval.df_results[f"{cv}_nn"].mean(), flush=True)
-                print("\nMean D", flush=True)
-                print(c_eval.df_results[f"{cv}_D"].mean(), flush=True)
-                print("\nMean A", flush=True)
-                print(c_eval.df_results[f"{cv}_A"].mean(), flush=True)
+                c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'))
                 mae, rmse, mbe, corr = c_eval.print_stats()
-
             exp.save_results(c_eval, mae, rmse, mbe, corr)
             exp.save_metrics_current_experience((mae, rmse, mbe, corr),
                                                 ("mae", "rmse", "mbe", "corr"),
@@ -303,7 +238,8 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                             linewidth=1)
     """
 
-    if cv == "UV":
+    if type_of_output == "output_speed":
+        cv = "UV"
         try:
             with timer_context("1-1 plots"):
                 c_eval.plot_1_1_all(c_eval.df_results,
@@ -317,7 +253,8 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
         except Exception as e:
             print(f"\nWARNING Exception for 1-1 plots: {e}", flush=True)
 
-    if cv == "UV_DIR":
+    if type_of_output == "output_direction":
+        cv = "UV_DIR"
         try:
             with timer_context("plot_wind_direction_all"):
                 c_eval.plot_wind_direction_all(c_eval.df_results,

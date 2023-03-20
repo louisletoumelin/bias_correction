@@ -8,6 +8,7 @@ import pickle
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from typing import Optional, Tuple, Union, Any, List, MutableSequence, Generator
+from dataclasses import dataclass
 
 from bias_correction.train.metrics import get_metric
 
@@ -334,11 +335,19 @@ class ResultsSetter:
         return df, mode_str
 
 
+class DataHolder:
+
+    def __init__(self):
+        inputs: Union[pd.DataFrame, pd.Series]
+        length: int
+        labels: Union[pd.DataFrame, pd.Series]
+        names: MutableSequence[str]
+        predicted: Union[pd.DataFrame, pd.Series] = None
+
+
 class CustomDataHandler:
 
-    def __init__(self,
-                 config: dict,
-                 load_dict_topo: bool = True) -> None:
+    def __init__(self, config: dict) -> None:
 
         self.config = config
         self.variables_needed = copy(['name'] + self.config["input_variables"] + self.config["labels"])
@@ -417,7 +426,8 @@ class CustomDataHandler:
                            'diag_7', 'diag_13', 'diag_21', 'diag_31',
                            'diag_7_r', 'diag_13_r', 'diag_21_r', 'diag_31_r',
                            'side_7', 'side_13', 'side_21', 'side_31',
-                           'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r'
+                           'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r',
+                           'aspect', 'tan(slope)'
                            ]:
             if topo_carac in self.config["input_variables"]:
                 time_series[topo_carac] = np.nan
@@ -436,6 +446,11 @@ class CustomDataHandler:
                 if topo_carac in self.config["input_variables"]:
                     time_series[topo_carac] = np.abs(
                         np.sin(np.deg2rad(time_series[topo_carac] - time_series["Wind_DIR"])))
+
+            if 'tan(slope)' in self.config["input_variables"]:
+                print("Transform tan(slope) into E.")
+                cos_delta = np.cos(np.deg2rad(time_series["winddir(deg)"] - time_series["aspect"]))
+                time_series['tan(slope)'] = np.rad2deg(np.arctan(time_series['tan(slope)']*cos_delta))
 
         return time_series
 
@@ -717,8 +732,7 @@ class CustomDataHandler:
 
         # Remove null wind speed (to fit direction, which is not defined for null speeds)
         if self.config.get("remove_null_speeds", False):
-            print("\ndebug")
-            print("removed null speeds\n")
+            print("\nRemoved null speeds.\n")
 
             time_series = self.remove_null_speeds_time_series(time_series)
 

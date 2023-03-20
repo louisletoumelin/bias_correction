@@ -27,7 +27,7 @@ print("\nConfig")
 print(pprint(config))
 
 exp = ExperienceManager(config)
-data_loader = CustomDataHandler(config, load_dict_topo=False)
+data_loader = CustomDataHandler(config)
 s_eval = StaticEval(exp=exp)
 data_loader.prepare_train_test_data()
 
