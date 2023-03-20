@@ -103,6 +103,47 @@ class SelectCenter(Layer):
             return inputs[:, self.len_y//2, self.len_x//2, :]
 
 
+class DispatchTrainingVariables(Layer):
+    def __init__(self,
+                 indices_speed,
+                 indices_dir,
+                 ):
+
+        super(DispatchTrainingVariables, self).__init__()
+        self.indices_speed = indices_speed
+        self.indices_dir = indices_dir
+
+    def build(self, input_shape):
+        super(DispatchTrainingVariables, self).build(input_shape)
+
+    def call(self, inputs):
+        variables_speed = tf.gather(inputs, indices=self.indices_speed, axis=-1)
+        variables_dir = tf.gather(inputs, indices=self.indices_dir, axis=-1)
+        return variables_speed, variables_dir
+
+
+class ReluActivationDoubleANN(Layer):
+    def __init__(self):
+        super(ReluActivationDoubleANN, self).__init__()
+
+    def build(self, input_shape):
+        super(ReluActivationDoubleANN, self).build(input_shape)
+
+    def call(self, speed, dir_):
+        return tf.keras.activations.relu(speed), tf.keras.activations.relu(dir_)
+
+
+class ReluActivationSimpleANN(Layer):
+    def __init__(self):
+        super(ReluActivationSimpleANN, self).__init__()
+
+    def build(self, input_shape):
+        super(ReluActivationSimpleANN, self).build(input_shape)
+
+    def call(self, inputs):
+        return tf.keras.activations.relu(inputs)
+
+
 class MeanTopo(Layer):
     def __init__(self):
         super(MeanTopo, self).__init__()

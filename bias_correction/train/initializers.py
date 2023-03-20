@@ -22,6 +22,8 @@ def load_initializer(name_initializer, *args, **kwargs):
     if name_initializer == "Constant":
         if "seed" in kwargs:
             kwargs.pop("seed")
-
+    if isinstance(args, tuple):
+        print("to debug isinstance(args, tuple)")
+        args = []
     return dict_initializer[name_initializer](*args, **kwargs)
 

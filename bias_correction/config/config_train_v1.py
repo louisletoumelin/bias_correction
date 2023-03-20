@@ -1,12 +1,17 @@
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.utils_bc.utils_config import assert_input_for_skip_connection, \
-    sort_input_variables, adapt_distribution_strategy_to_available_devices, init_learning_rate_adapted, detect_variable
+    sort_input_variables,\
+    adapt_distribution_strategy_to_available_devices,\
+    init_learning_rate_adapted,\
+    detect_variable,\
+    get_idx_speed_and_dir_variables,\
+    define_input_variables
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "restore_input8_for_direction"  # Str. Some details about the experiment
+config["details"] = "d_var_dir_var_speed"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = "2022_10_27_labia_v4"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
@@ -53,8 +58,12 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
+#config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+#                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
+config["input_speed"] = ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+                         "LWnet", "SWnet", 'CC_cumul', 'BLH',  'Wind90', 'Wind87', 'Wind84', 'Wind75']
+config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
+
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -202,13 +211,17 @@ config["kwargs_loss"] = {"mse": {},
                          "pinball_weight": {"tho": 0.95}}
 
 # Do not modify: assert inputs are correct
+config = define_input_variables(config)
 config = assert_input_for_skip_connection(config)
 config = sort_input_variables(config)
 config = adapt_distribution_strategy_to_available_devices(config)
 config = init_learning_rate_adapted(config)
 config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
+config = get_idx_speed_and_dir_variables(config)
 
+#idx_speed_var
+#idx_dir_var
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
                   'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
                   'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',
