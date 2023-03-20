@@ -1,6 +1,7 @@
 import matplotlib
 
 from contextlib import contextmanager
+import os
 
 #matplotlib.use('Agg')
 
@@ -36,4 +37,22 @@ def no_raise_on_key_error():
     try:
         yield
     except KeyError:
+        pass
+
+
+class FolderShouldNotExistError(Exception):
+    pass
+
+
+def create_folder_if_doesnt_exist(path: str,
+                                  _raise: bool = True,
+                                  verbose: bool = False
+                                  ) -> None:
+    if not os.path.exists(path):
+        os.makedirs(path)
+    elif _raise:
+        raise FolderShouldNotExistError(path)
+    else:
+        if verbose:
+            print(f"{path} already exists")
         pass

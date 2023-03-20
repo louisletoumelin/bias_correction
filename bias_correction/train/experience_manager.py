@@ -48,10 +48,6 @@ def labia2local(config: dict) -> dict:
     return config
 
 
-class FolderShouldNotExistError(Exception):
-    pass
-
-
 class AllExperiences:
 
     def __init__(self,
@@ -125,7 +121,7 @@ class ExperienceManager(AllExperiences):
             # Attributes and create folders
             for key in self.dict_paths:
                 setattr(self, key, self.dict_paths[key])
-                self.create_folder_if_doesnt_exist(self.dict_paths[key])
+                create_folder_if_doesnt_exist(self.dict_paths[key])
 
             # Update csv files
             for name in ["experiences", "metrics", "hyperparameters"]:
@@ -173,20 +169,6 @@ class ExperienceManager(AllExperiences):
 
     def _get_path_to_current_experience(self) -> str:
         return self.path_experiences + self.name_current_experience
-
-    @staticmethod
-    def create_folder_if_doesnt_exist(path: str,
-                                      _raise: bool = True,
-                                      verbose: bool = False
-                                      ) -> None:
-        if not os.path.exists(path):
-            os.makedirs(path)
-        elif _raise:
-            raise FolderShouldNotExistError(path)
-        else:
-            if verbose:
-                print(f"{path} already exists")
-            pass
 
     def _update_experience_to_csv_file(self, name: str
                                        ) -> None:

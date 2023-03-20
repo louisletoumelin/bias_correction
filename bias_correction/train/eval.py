@@ -3,6 +3,7 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+from typing import Union
 
 try:
     import seaborn as sns
@@ -14,6 +15,7 @@ except (ImportError, ModuleNotFoundError):
 from bias_correction.train.visu import VizualizationResults
 from bias_correction.train.metrics import get_metric
 from bias_correction.train.dataloader import CustomDataHandler
+from bias_correction.train.experience_manager import ExperienceManager
 
 
 class DataFrameComputer:
@@ -145,8 +147,15 @@ class DataFrameComputer:
 
 class CustomEvaluation(VizualizationResults):
 
-    def __init__(self, exp, data, mode="test", keys=["_AROME", "_nn"], stations_to_remove=[], other_models=[],
-                 quick=False):
+    def __init__(self,
+                 exp: ExperienceManager,
+                 data: CustomDataHandler,
+                 mode: str = "test",
+                 keys: list[str] = ["_AROME", "_nn"],
+                 stations_to_remove: Union[list[str], list] = [],
+                 other_models: Union[list[str], list] = [],
+                 quick: bool = False):
+
         super().__init__(exp)
 
         self.exp = exp
@@ -189,12 +198,16 @@ class CustomEvaluation(VizualizationResults):
             self.df_results = self.computer.classify_alti(self.df_results)
             self.df_results = self.computer.classify_forecast_term(self.df_results)
 
-    def _set_key_attributes(self, keys):
+    def _set_key_attributes(self,
+                            keys: list[str]
+                            ) -> None:
         self.key_obs = f"{self.current_variable}_obs"
         for key in keys:
             setattr(self, f"key{key}", f"{self.current_variable}{key}")
 
-    def _set_key_list(self, keys):
+    def _set_key_list(self,
+                      keys: list[str]
+                      ) -> None:
         self.keys = [f"{self.current_variable}{key}" for key in keys]
 
     def create_df_results(self):
@@ -208,7 +221,9 @@ class CustomEvaluation(VizualizationResults):
         else:
             return self.create_df_temp(df)
 
-    def create_df_temp(self, df):
+    def create_df_temp(self,
+                       df: pd.DataFrame
+                       ) -> pd.DataFrame:
         """
         Select variables for temperature predictions
 
@@ -223,7 +238,9 @@ class CustomEvaluation(VizualizationResults):
         columns = ["name"] + self.keys
         return df[columns]
 
-    def create_df_speed(self, df):
+    def create_df_speed(self,
+                        df: pd.DataFrame
+                        ) -> pd.DataFrame:
 
         labels = self.data.get_labels(self.mode)
         inputs = self.data.get_inputs(self.mode)
@@ -242,7 +259,12 @@ class CustomEvaluation(VizualizationResults):
         return df[columns]
 
     @staticmethod
-    def _df2metric(df, metric_name, key_obs, keys, print_=False):
+    def _df2metric(df: pd.DataFrame,
+                   metric_name: str,
+                   key_obs: str,
+                   keys: list[str],
+                   print_: bool = False
+                   ) -> list:
         metric_func = get_metric(metric_name)
         results = []
         for key in keys:
@@ -253,27 +275,47 @@ class CustomEvaluation(VizualizationResults):
             results.append(metric)
         return results
 
-    def df2metric(self, metric_name, print_=False):
-        return self._df2metric(self.df_results, metric_name,
-                               self.key_obs, self.keys, print_=print_)
+    def df2metric(self,
+                  metric_name: str,
+                  print_: bool = False
+                  ) -> list:
+        return self._df2metric(self.df_results,
+                               metric_name,
+                               self.key_obs,
+                               self.keys,
+                               print_=print_)
 
-    def df2mae(self, print_=False):
+    def df2mae(self,
+               print_: bool = False
+               ) -> list:
         return self.df2metric("mae", print_=print_)
 
-    def df2rmse(self, print_=False):
+    def df2rmse(self,
+                print_: bool = False
+                ) -> list:
         return self.df2metric("rmse", print_=print_)
 
-    def df2mbe(self, print_=False):
+    def df2mbe(self,
+               print_: bool = False
+               ) -> list:
         return self.df2metric("mbe", print_=print_)
 
-    def df2m_n_be(self, min_obs, min_model, print_=False):
+    def df2m_n_be(self,
+                  min_obs: float,
+                  min_model: float,
+                  print_: bool = False
+                  ) -> None:
         for key in self.keys:
             filter_obs = self.df_results[self.key_obs] >= min_obs
             filter_model = self.df_results[key] >= min_model
             df = self.df_results[filter_obs & filter_model]
             self._df2metric(df, "m_n_be", self.key_obs, self.keys, print_=print_)
 
-    def df2m_n_ae(self, min_obs, min_model, print_=False):
+    def df2m_n_ae(self,
+                  min_obs: float,
+                  min_model: float,
+                  print_: bool = False
+                  ) -> None:
         for key in self.keys:
             key_model = f"{self.current_variable}{key}"
             filter_obs = self.df_results[self.key_obs] >= min_obs
@@ -281,20 +323,27 @@ class CustomEvaluation(VizualizationResults):
             df = self.df_results[filter_obs & filter_model]
             self._df2metric(df, "m_n_ae", self.key_obs, self.keys, print_=print_)
 
-    def df2ae(self, print_=False):
+    def df2ae(self,
+              print_: bool = False
+              ) -> list:
         return self._df2metric(self.df_results, "ae", self.key_obs, self.keys, print_=print_)
 
-    def df2bias(self, print_=False):
+    def df2bias(self,
+                print_: bool = False
+                ) -> list:
         return self._df2metric(self.df_results, "bias", self.key_obs, self.keys, print_=print_)
 
-    def df2correlation(self, print_=False):
+    def df2correlation(self,
+                       print_: bool = False
+                       ) -> list:
         for station in self.df_results["name"].unique():
             filter_station = self.df_results["name"] == station
             self.df_results.loc[filter_station, :] = self.df_results.loc[filter_station, :].sort_index()
 
         return self.df2metric("corr", print_=print_)
 
-    def print_stats(self):
+    def print_stats(self
+                    ) -> None:
         self.df2mae(print_=True)
         self.df2rmse(print_=True)
         self.df2mbe(print_=True)
