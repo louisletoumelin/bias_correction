@@ -21,12 +21,9 @@ def _is_full_path(path_to_previous_exp):
 
 
 def _get_path_with_root(path_to_previous_exp, network):
-    if network == "local":
-        return "/home/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp
-    elif network == "labia":
-        return "//scratch/mrmn/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp
-    else:
-        raise NotImplementedError("Network supported: local and labia")
+    pt = {"local": "/home/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp,
+          "labia": "//scratch/mrmn/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp}
+    return pt[network]
 
 
 def _get_full_path_to_previous_exp(path_to_previous_exp):

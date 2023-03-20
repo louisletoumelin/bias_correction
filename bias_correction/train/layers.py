@@ -42,15 +42,9 @@ class RotationLayer(Layer):
         return angle * tf.convert_to_tensor(0.01745329)
 
     def call(self, inputs, wind_dir):
-        #print("\ndebug0 RotationLayer")
-        #print(inputs)
-        #print(wind_dir)
         # Convert to degrees
         if self.unit_input == "degree":
             wind_dir = self.tf_deg2rad(wind_dir)
-        #print("\ndebug1 RotationLayer")
-        #print(inputs)
-        #print(wind_dir)
 
         # Select direction of the rotation
         if self.clockwise:
@@ -58,21 +52,14 @@ class RotationLayer(Layer):
         else:
             angles = np.pi / 2 + wind_dir
 
-        #print("\ndebug2 RotationLayer")
-        #print(inputs)
-        #print(angles)
         result = tfa.image.rotate(inputs,
                                   angles,
                                   interpolation=self.interpolation,
                                   fill_mode=self.fill_mode,
                                   fill_value=self.fill_value)
         tf.convert_to_tensor(result)
-        #print("\ndebug3 RotationLayer")
-        #print(result)
 
         result = tf.keras.backend.reshape(result, tf.shape(inputs))
-        #print("\ndebug4 RotationLayer")
-        #print(result)
         return result
 
 
@@ -93,8 +80,6 @@ class CropTopography(Layer):
         super(CropTopography, self).build(input_shape)
 
     def call(self, topos):
-        #print("\ndebug CropTopography")
-        #print(topos)
         return topos[:, self.y_offset_left:self.y_offset_right, self.x_offset_left:self.x_offset_right, :]
 
 
@@ -113,15 +98,9 @@ class SelectCenter(Layer):
 
     def call(self, inputs):
         if len(inputs.shape) == 3:
-            #print("\ndebug SelectCenter")
-            #print(inputs)
             return inputs[:, self.len_y//2, self.len_x//2]
-            #return tf.squeeze(inputs[:, self.len_y//2, self.len_x//2])
         elif len(inputs.shape) == 4:
-            #print("\ndebug SelectCenter")
-            #print(inputs)
             return inputs[:, self.len_y//2, self.len_x//2, :]
-            #return tf.squeeze(inputs[:, self.len_y//2, self.len_x//2, :])
 
 
 class NormalizationInputs(Layer):
@@ -136,16 +115,8 @@ class NormalizationInputs(Layer):
         super(NormalizationInputs, self).build(input_shape)
 
     def call(self, inputs, mean, std):
-        #print("debug NormalizationInputs call0")
-        #print(inputs)
-        #print(mean)
-        #print(std)
         num = tf.convert_to_tensor(inputs - mean, dtype=tf.float32)
         den = tf.convert_to_tensor(std + tf.keras.backend.epsilon(), dtype=tf.float32)
-        #print("debug NormalizationInputs call1")
-        #print(num)
-        #print(den)
-        #print(num / den)
 
         return num / den
 
@@ -166,8 +137,6 @@ class Normalization(Layer):
         super(Normalization, self).build(input_shape)
 
     def call(self, inputs):
-        #print("\ndebug NormalizationCNN")
-        #print(inputs)
         return (inputs-self.mean) / self.std
 
 
@@ -190,17 +159,10 @@ class ActivationArctan(Layer):
         return outputs
 
     def call(self, output_cnn, wind_nwp):
-        #print("\ndebug ActivationArctan")
-        #print(output_cnn)
-        #print(wind_nwp)
         wind_nwp = tf.expand_dims(tf.expand_dims(tf.expand_dims(wind_nwp, axis=-1), axis=-1), axis=-1)
         scaled_wind = wind_nwp * output_cnn / tf.convert_to_tensor(3.)  # 3 = ARPS initialization speed
         outputs = self.alpha * tf.math.atan(scaled_wind/self.alpha)
-        #print("\ndebug1 ActivationArctan")
-        #print(scaled_wind)
-        #print(outputs)
         result = self.reshape_as_inputs(output_cnn, outputs)
-        #print(result)
         return result
 
 
@@ -269,10 +231,7 @@ class SpeedDirection2Components(Layer):
     @staticmethod
     def reshape_as_inputs(inputs, outputs):
         if outputs.shape[-1] is None:
-            #print("debug reshape_as_inputs")
-            #print(outputs)
             outputs = tf.keras.backend.reshape(outputs, tf.shape(inputs))
-            #print(outputs)
         return outputs
 
     @staticmethod
@@ -286,32 +245,20 @@ class SpeedDirection2Components(Layer):
         return angle * tf.convert_to_tensor(0.01745329)
 
     def call(self, speed, direction):
-        #print("\ndebug0 SpeedDirection2Components")
-        #print(speed)
-        #print(direction)
+
         if self.unit_input == "degree":
             direction = self.tf_deg2rad(direction)
-        #print("\ndebug1 SpeedDirection2Components")
-        #print(speed)
-        #print(direction)
+
         U_zonal = - tf.math.sin(direction) * speed
         V_meridional = - tf.math.cos(direction) * speed
 
-        #print("\ndebug2 SpeedDirection2Components")
-        #print(U_zonal)
-        #print(V_meridional)
         U_zonal = self.reshape_as_inputs(speed, U_zonal)
         V_meridional = self.reshape_as_inputs(speed, V_meridional)
-        #print("\ndebug3 SpeedDirection2Components")
-        #print(U_zonal)
-        #print(V_meridional)
+
         if len(U_zonal.shape) == 3:
             U_zonal = tf.expand_dims(U_zonal, -1)
         if len(U_zonal.shape) == 3:
             V_meridional = tf.expand_dims(V_meridional, -1)
-        #print("\ndebug4 SpeedDirection2Components")
-        #print(U_zonal)
-        #print(V_meridional)
         return U_zonal, V_meridional
 
 
@@ -342,14 +289,11 @@ class Components2Alpha(Layer):
             return tf.expand_dims(output, -1)
 
     def call(self, inputs):
-        #print("debug")
-        #print(inputs)
         result = tf.where(inputs[:, :, :, 0] == 0.,
                           tf.where(inputs[:, :, :, 1] == 0.,
                                    0.,
                                    tf.sign(inputs[:, :, :, 1]) * tf.cast(3.14159 / 2., dtype=tf.float32)),
                           tf.math.atan(inputs[:, :, :, 1] / inputs[:, :, :, 0]))
-        #print(self.reshape_output(result))
         return self.reshape_output(result)
 
 
@@ -388,22 +332,12 @@ class Alpha2Direction(Layer):
         return outputs
 
     def call(self, direction, alpha):
-        #print("\ndebug0 Alpha2Direction")
-        #print(direction)
-        #print(alpha)
         if self.unit_direction == "radian":
             direction = self.tf_rad2deg(direction)
 
         if self.unit_alpha == "radian":
             alpha = self.tf_rad2deg(alpha)
-        #print("\ndebug1 Alpha2Direction")
         direction = tf.expand_dims(tf.expand_dims(tf.expand_dims(direction, axis=-1), axis=-1), axis=-1)
-        #print(direction)
-        #print(alpha)
         outputs = tf.math.mod(direction - alpha, 360)
-        #print("\ndebug2 Alpha2Direction")
-        #print(outputs)
         result = self.reshape_as_inputs(alpha, outputs)
-        #print("\ndebug3 Alpha2Direction")
-        #print(outputs)
         return result

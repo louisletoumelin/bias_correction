@@ -18,7 +18,7 @@ from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.utils_bc.context_manager import timer_context
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.eval import CustomEvaluation, Interpretability
-from bias_correction.utils_bc.print_functions import print_intro
+from bias_correction.utils_bc.print_functions import print_intro, print_headline
 
 # Initialization
 if config["restore_experience"]:
@@ -39,18 +39,15 @@ data_loader = CustomDataHandler(config)
 data_loader.prepare_train_test_data()
 
 if not config["restore_experience"]:
-    with tf.device('/GPU:0'):
-        with timer_context("fit"):
-            _ = cm.fit_with_strategy(data_loader.get_tf_zipped_inputs_labels(mode="train"),
-                                     validation_data=data_loader.get_tf_zipped_inputs_labels(mode="val"),
-                                     dataloader=data_loader,
-                                     mode_callback="test")
+    with tf.device('/GPU:0'), timer_context("fit"):
+        _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
+                                 validation_data=data_loader.get_tf_zipped_inputs_labels(mode="val"),
+                                 dataloader=data_loader,
+                                 mode_callback="test")
 exp.save_all(data_loader, cm)
 
 for model in ["last", "best"]:
-    print(f"\n\n_______________________")
-    print(f"_____Model:{model}_____")
-    print(f"_______________________\n\n")
+    print_headline("Model", model)
 
     # with tf.device('/GPU:0'):
     # Predict
@@ -68,16 +65,13 @@ for model in ["last", "best"]:
     # c_eval_train.print_stats()
 
     # Predict
-    with tf.device('/GPU:0'):
-        with timer_context("Predict test set"):
-            inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-            results_test = cm.predict_with_batch(inputs_test, model_str=model)
-            del inputs_test
+    with tf.device('/GPU:0'), timer_context("Predict test set"):
+        inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
+        results_test = cm.predict_with_batch(inputs_test, model_version=model)
+        del inputs_test
 
     # Test
-    print(f"\n\n_______________________")
-    print(f"Test statistics: model={model}")
-    print(f"_______________________\n\n")
+    print_headline("Test statistics", model)
     data_loader.set_predictions(results_test, mode="test")
     del results_test
     data_loader.add_model("_D", mode="test")
@@ -87,17 +81,14 @@ for model in ["last", "best"]:
     exp.save_results(c_eval)
 
     # Predict
-    with tf.device('/GPU:0'):
-        with timer_context("Predict Pyrénées and Corsica"):
-            inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries") \
-                .batch(data_loader.length_other_countries)
-            results_other_countries = cm.predict_with_batch(inputs_other_countries, model_str=model)
-            del inputs_other_countries
+    with tf.device('/GPU:0'), timer_context("Predict Pyrénées and Corsica"):
+        inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries") \
+            .batch(data_loader.length_other_countries)
+        results_other_countries = cm.predict_with_batch(inputs_other_countries, model_version=model)
+        del inputs_other_countries
 
     # Other countries
-    print(f"\n\n_______________________")
-    print(f"Other countries statistics: model={model}")
-    print(f"_______________________\n\n")
+    print_headline("Other countries statistics", model)
     data_loader.set_predictions(results_other_countries, mode="other_countries")
     del results_other_countries
     data_loader.add_model("_D", mode="other_countries")

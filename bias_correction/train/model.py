@@ -5,8 +5,10 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Model, \
     load_model
 from tensorflow.keras import backend as K
+
 try:
     import horovod.tensorflow as hvd
+
     _horovod = True
 except ModuleNotFoundError:
     _horovod = False
@@ -30,12 +32,13 @@ from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
 from bias_correction.train.callbacks import load_callback_with_custom_model
+from bias_correction.train.experience_manager import ExperienceManager
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
-class Initializer:
+class StrategyInitializer:
     _horovod = _horovod
 
     def __init__(self, config):
@@ -107,10 +110,20 @@ class Initializer:
         os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
 
 
-class CNNDevine(Initializer):
+class DevineBuilder(StrategyInitializer):
 
     def __init__(self, config):
         super().__init__(config)
+
+        # Get norm
+        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
+
+        # Load cnn
+        self.cnn_devine = self.load_cnn(config["model_path"])
+
+        # Freeze CNN weights
+        if config["disable_training_cnn"]:
+            self.cnn_devine = self.disable_training(self.cnn_devine)
 
     @staticmethod
     def load_cnn(model_path):
@@ -127,7 +140,6 @@ class CNNDevine(Initializer):
     def load_norm_cnn(model_path):
         """Load normalization parameters: mean and std"""
 
-        model_path = model_path
         dict_norm = pd.read_csv(model_path + "dict_norm.csv")
         mean = dict_norm["0"].iloc[0]
         std = dict_norm["0"].iloc[1]
@@ -139,11 +151,12 @@ class CNNDevine(Initializer):
         model.trainable = False
         return model
 
-    def devine(self, topos, x, inputs):
+    def devine(self, topos, x, inputs, use_crop=True):
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
         y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-1)(topos, x[:, 1])
-        y = CropTopography(initial_length=140, y_offset=79 // 2, x_offset=69 // 2)(y)
+        if use_crop:
+            y = CropTopography(initial_length=140, y_offset=79 // 2, x_offset=69 // 2)(y)
         y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
         y = self.cnn_devine(y)
 
@@ -180,10 +193,37 @@ class CNNDevine(Initializer):
         return bc_model
 
 
-class BaseModel:
+class CNNInput(StrategyInitializer):
 
-    def __init__(self):
-        pass
+    def __init__(self, config):
+        super().__init__(config)
+
+    @staticmethod
+    def tf_input_cnn(topos, kernel_size=(2, 2), filters=[32, 16, 8, 4], activation="relu", pool_size=(3, 3)):
+
+        topos_norm = NormalizationInputs()(topos, 1258.0, 791.0)
+        last_index = len(filters) - 1
+
+        for idx, filter in enumerate(filters):
+
+            conv_layer = Conv2D(filters=filter, kernel_size=kernel_size, activation=activation)
+
+            if idx == 0:
+                y = conv_layer(topos_norm)
+            else:
+                y = conv_layer(y)
+
+            if idx < last_index:
+                y = MaxPooling2D(pool_size=pool_size)(y)
+
+        y = Flatten()(y)
+        return y
+
+
+class ArtificialNeuralNetwork(StrategyInitializer):
+
+    def __init__(self, config):
+        super().__init__(config)
 
     @staticmethod
     def _dense_network(nwp_input,
@@ -260,27 +300,6 @@ class BaseModel:
 
         return y
 
-    @staticmethod
-    def _input_cnn(topos, kernel_size=(2, 2), filters=[32, 16, 8, 4], activation="relu", pool_size=(3, 3)):
-
-        topos_norm = NormalizationInputs()(topos, 1258.0, 791.0)
-        last_index = len(filters) - 1
-
-        for idx, filter in enumerate(filters):
-
-            conv_layer = Conv2D(filters=filter, kernel_size=kernel_size, activation=activation)
-
-            if idx == 0:
-                y = conv_layer(topos_norm)
-            else:
-                y = conv_layer(y)
-
-            if idx < last_index:
-                y = MaxPooling2D(pool_size=pool_size)(y)
-
-        y = Flatten()(y)
-        return y
-
     def get_func_dense_network(self, config: dict) -> Callable:
         kwargs_dense = {
             "nb_units": config["nb_units"],
@@ -302,7 +321,7 @@ class BaseModel:
             return partial(self._dense_network, **kwargs_dense)
 
 
-class CustomModel(CNNDevine, BaseModel):
+class CustomModel(StrategyInitializer):
     _horovod = _horovod
 
     def __init__(self, experience, config):
@@ -313,23 +332,16 @@ class CustomModel(CNNDevine, BaseModel):
 
         # Get initializer
         self.initializer = self.get_initializer()
-
         self.exp = experience
+        self.ann = ArtificialNeuralNetwork(config)
+        self.cnn_input = CNNInput(config)
+        self.devine_builder = DevineBuilder(config)
+
         # Defined later
         self.model = None
         self.model_version = None
         self.model_is_built = None
         self.model_is_compiled = None
-
-        # Load cnn
-        self.cnn_devine = self.load_cnn(config["model_path"])
-
-        # Freeze CNN weights
-        if config["disable_training_cnn"]:
-            self.cnn_devine = self.disable_training(self.cnn_devine)
-
-        # Get norm
-        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
 
     def get_optimizer(self):
         optimizer = load_optimizer(self.config["optimizer"],
@@ -356,19 +368,13 @@ class CustomModel(CNNDevine, BaseModel):
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
-    def get_prefetch(self):
-        if self.config["prefetch"] == "auto":
-            return tf.data.AUTOTUNE
-        else:
-            return self.config["prefetch"]
-
     def get_dense_network(self):
-        return self.get_func_dense_network(self.config)
+        return self.ann.get_func_dense_network(self.config)
 
     def cnn_and_concatenate(self, topos, inputs_nwp):
         if self.config["standardize"]:
             # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
-            return tf.keras.layers.Concatenate(axis=1)([self._input_cnn(topos), inputs_nwp])
+            return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos), inputs_nwp])
 
     def add_intermediate_output(self):
         assert self.model_is_built
@@ -424,7 +430,7 @@ class CustomModel(CNNDevine, BaseModel):
             x = tf.keras.activations.relu(x)
 
         if use_devine:
-            bc_model = self.devine(topos, x, inputs)
+            bc_model = self.devine_builder.devine(topos, x, inputs)
         else:
             bc_model = Model(inputs=inputs, outputs=(x[:, 0]), name=name)
 
@@ -465,7 +471,7 @@ class CustomModel(CNNDevine, BaseModel):
         wind_field = Input(shape=(2,), name="input_wind_field")
         inputs = (topos, wind_field)
 
-        bc_model = self.devine(topos, wind_field, inputs)
+        bc_model = self.devine_builder.devine(topos, wind_field, inputs)
 
         print(bc_model.summary())
         self.model = bc_model
@@ -487,8 +493,11 @@ class CustomModel(CNNDevine, BaseModel):
     def _build_model(self):
         """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
         model_architecture = self.config["global_architecture"]
-        method_build = getattr(self, f"_build_{model_architecture}")
-        method_build()
+        methods_build = {"ann_v0": self._build_ann_v0,
+                         "dense_only": self._build_dense_only,
+                         "dense_temperature": self._build_dense_temperature,
+                         "devine_only": self._build_devine_only}
+        methods_build[model_architecture]()
         self.model_is_built = True
 
     def _build_compiled_model(self):
@@ -507,7 +516,6 @@ class CustomModel(CNNDevine, BaseModel):
 
         with self.strategy.scope():
             self._build_compiled_model()
-            # todo change here
             if self.config["get_intermediate_output"]:
                 self.add_intermediate_output()
 
@@ -529,14 +537,25 @@ class CustomModel(CNNDevine, BaseModel):
         else:
             self._build_classic_strategy()
 
-    def select_model_version(self, model_str, build=False):
+    def select_model(self, force_build=False, model_version="last"):
 
-        if build:
+        has_model_version = {"ann_v0": True,
+                             "dense_only": True,
+                             "dense_temperature": True,
+                             "devine_only": False}
+
+        if force_build:
             self.build_model_with_strategy()
 
         assert self.model_is_built
 
-        if model_str == "last":
+        model_architecture = self.config["global_architecture"]
+        if has_model_version[model_architecture]:
+            self.select_model_version(model_version, force_build)
+
+    def select_model_version(self, model_version, build=False):
+
+        if model_version == "last":
             # For previous experiences, last model is not built, for current experience, last model is built
             if build:
                 self.model.load_weights(self.exp.path_to_last_model)
@@ -550,41 +569,21 @@ class CustomModel(CNNDevine, BaseModel):
             self.model_version = "best"
             print("best model weights loaded")
 
-    def predict_with_batch(self, inputs_test, model_str="last"):
+    def predict_with_batch(self, inputs_test, model_version="last", force_build=False):
 
-        if model_str:
-            self.select_model_version(model_str)
+        if model_version:
+            self.select_model(force_build=force_build, model_version=model_version)
+
         for index, i in enumerate(inputs_test):
             results_test = self.model.predict(i)
             print("WARNING: multi batch prediction not supported")
 
         return results_test
 
-    def prepare_train_dataset(self, dataset):
-        dataset = dataset.batch(batch_size=self.config["global_batch_size"]) \
-            .cache() \
-            .prefetch(self.get_prefetch())
-        return dataset
-
-    def prepare_val_dataset(self, dataset):
-        return dataset.batch(batch_size=self.config["global_batch_size"])
-
-    def _set_model_version_after_training(self):
-        has_earlystopping = "EarlyStopping" in self.config["callbacks"]
-        restore_best_weights = self.config["kwargs_callbacks"]["EarlyStopping"]["restore_best_weights"] is True
-        if has_earlystopping and restore_best_weights:
-            self.model_version = "best"
-        else:
-            self.model_version = "last"
-
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
 
         if not self.model_is_built and not self.model_is_compiled:
             self.build_model_with_strategy()
-
-        dataset = self.prepare_train_dataset(dataset)
-
-        validation_data = self.prepare_val_dataset(validation_data)
 
         results = self.model.fit(dataset,
                                  validation_data=validation_data,
@@ -595,12 +594,23 @@ class CustomModel(CNNDevine, BaseModel):
 
         return results
 
+    def _set_model_version_after_training(self):
+        has_earlystopping = "EarlyStopping" in self.config["callbacks"]
+        restore_best_weights = self.config["kwargs_callbacks"]["EarlyStopping"]["restore_best_weights"] is True
+        if has_earlystopping and restore_best_weights:
+            self.model_version = "best"
+        else:
+            self.model_version = "last"
+
     @classmethod
-    def from_previous_experience(cls, exp, config, model_str):
+    def from_previous_experience(cls,
+                                 exp: ExperienceManager,
+                                 config: dict,
+                                 model_str: str):
 
         inst = cls(exp, config)
 
-        inst.select_model_version(model_str, build=True)
+        inst.select_model(model_version=model_str, force_build=True)
 
         return inst
 

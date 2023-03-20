@@ -38,7 +38,7 @@ with tf.device('/GPU:0'):
     # Predict
     with timer_context("Predict test set"):
         inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-        results_test = cm.predict_with_batch(inputs_test)
+        results_test = cm.predict_with_batch(inputs_test, force_build=True)
 
     # Predict
     #with timer_context("Predict Pyrénées and Corsica"):
