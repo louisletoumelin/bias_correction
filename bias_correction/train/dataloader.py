@@ -5,6 +5,7 @@ from copy import copy
 import pickle
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
+from typing import Optional, Tuple, Union, Any
 
 from bias_correction.train.metrics import get_metric
 
@@ -48,7 +49,7 @@ class Batcher:
             return self.config["prefetch"]
 
     def batch_train(self, dataset):
-        return dataset\
+        return dataset \
             .batch(batch_size=self.config["global_batch_size"]) \
             .cache() \
             .prefetch(self._get_prefetch())
@@ -60,25 +61,45 @@ class Batcher:
         return dataset.batch(batch_size=self.config["global_batch_size"])
 
 
-class SplitTrainTestVal:
+class Splitter:
 
     def __init__(self, config):
         self.config = config
 
-    def _split_by_time(self, time_series, mode):
+    def _split_by_time(self,
+                       time_series: pd.DataFrame,
+                       mode: Union[str, None] = None,
+                       **kwargs: Any
+                       ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+        assert mode is not None, "mode must be specified"
+
         time_series_train = time_series[time_series.index < self.config[f"date_split_train_{mode}"]]
         time_series_test = time_series[time_series.index >= self.config[f"date_split_train_{mode}"]]
 
         return time_series_train, time_series_test
 
-    def _split_by_space(self, time_series, mode):
+    def _split_by_space(self,
+                        time_series: pd.DataFrame,
+                        mode: Union[str, None] = None,
+                        **kwargs: Any
+                        ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+        assert mode is not None, "mode must be specified"
 
         time_series_train = time_series[time_series["name"].isin(self.config[f"stations_train"])]
         time_series_test = time_series[time_series["name"].isin(self.config[f"stations_{mode}"])]
 
         return time_series_train, time_series_test
 
-    def _split_random(self, time_series, mode):
+    def _split_random(self,
+                      time_series: pd.DataFrame,
+                      mode: Union[str, None] = None,
+                      **kwargs: Any
+                      ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+        assert mode is not None, "mode must be specified"
+
         str_test_size = f"random_split_test_size_{mode}"
         str_random_state = f"random_split_state_{mode}"
 
@@ -91,27 +112,54 @@ class SplitTrainTestVal:
 
         return train_test_split(time_series, test_size=test_size, random_state=self.config[str_random_state])
 
-    def _split_time_and_space(self, time_series, mode):
+    def _split_time_and_space(self,
+                              time_series: pd.DataFrame,
+                              mode: Union[str, None] = None,
+                              **kwargs: Any
+                              ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+        assert mode is not None, "mode must be specified"
+
         time_series_train, time_series_test = self._split_by_space(time_series, mode)
         time_series_train, _ = self._split_by_time(time_series_train, mode)
         _, time_series_test = self._split_by_time(time_series_test, mode)
 
         return time_series_train, time_series_test
 
-    def _split_wrapper(self, time_series, mode="test", split_strategy=None):
+    def _split_by_country(self,
+                          time_series: pd.DataFrame,
+                          stations: Union[pd.DataFrame, None] = None,
+                          **kwargs: Any
+                          ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+        assert stations is not None, "stations pd.DataFrame must be specified"
+
+        countries_to_reject = self.config["country_to_reject_during_training"]
+        names_country_to_reject = stations["name"][stations["country"].isin(countries_to_reject)].values
+        time_series_other_countries = time_series[time_series["name"].isin(names_country_to_reject)]
+        time_series = time_series[~time_series["name"].isin(names_country_to_reject)]
+        return time_series, time_series_other_countries
+
+    def split_wrapper(self,
+                      time_series: pd.DataFrame,
+                      mode: str = "test",
+                      stations: Union[pd.DataFrame, None] = None,
+                      split_strategy: Union[str, None] = None,
+                      ) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
         split_strategy = self.config[f"split_strategy_{mode}"] if split_strategy is None else split_strategy
 
         strategies = {"time": self._split_by_time,
                       "space": self._split_by_space,
                       "time_and_space": self._split_time_and_space,
-                      "random": self._split_random}
+                      "random": self._split_random,
+                      "country": self._split_by_country}
 
-        time_series_train, time_series_test = strategies[split_strategy](time_series, mode)
+        time_series_train, time_series_test = strategies[split_strategy](time_series, mode=mode, stations=stations)
 
         return time_series_train, time_series_test
 
-    def _check_split_strategy_is_correct(self):
+    def _check_split_strategy_is_correct(self) -> None:
         not_implemented_strategies_test = ["time", "space", "time", "random", "random", "random", "time", "space"]
         not_implemented_strategies_val = ["time", "time", "space", "space", "time", "time_and_space",
                                           "time_and_space", "time_and_space"]
@@ -129,37 +177,69 @@ class SplitTrainTestVal:
         else:
             raise NotImplementedError("Split strategy not referenced")
 
-    def split_time_series(self, time_series, split_strategy=None):
+    def split_train_test_val(self,
+                             time_series: pd.DataFrame,
+                             split_strategy: Union[str, None] = None
+                             ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
         self._check_split_strategy_is_correct()
 
         strat_t = self.config["split_strategy_test"]
         strat_v = self.config["split_strategy_val"]
 
-        time_series_train, time_series_test = self._split_wrapper(time_series,
-                                                                  mode="test",
-                                                                  split_strategy=split_strategy)
+        time_series_train, time_series_test = self.split_wrapper(time_series,
+                                                                 mode="test",
+                                                                 split_strategy=split_strategy)
 
         if "time_and_space" == strat_t and "time_and_space" == strat_v:
             ts = time_series
         else:
             ts = time_series_train
 
-        time_series_train, time_series_val = self._split_wrapper(ts,
-                                                                 mode="val",
-                                                                 split_strategy=split_strategy)
+        time_series_train, time_series_val = self.split_wrapper(ts,
+                                                                mode="val",
+                                                                split_strategy=split_strategy)
         return time_series_train, time_series_test, time_series_val
 
 
-class CustomDataHandler(SplitTrainTestVal):
+class Loader:
+
+    def __init__(self, config):
+        self.config = config
+
+    def load_dict_topo(self):
+        with open(self.config["topos_near_station"], 'rb') as f:
+            dict_topos = pickle.load(f)
+
+        y_l = 140 - 70
+        y_r = 140 + 70
+        x_l = 140 - 70
+        x_r = 140 + 70
+        for station in dict_topos:
+            dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"][y_l:y_r, x_l:x_r], (140, 140, 1))
+
+        return dict_topos
+
+    def open_time_series_pkl(self):
+        return pd.read_pickle(self.config["time_series"])
+
+    def open_stations_pkl(self):
+        return pd.read_pickle(self.config["stations"])
+
+
+class CustomDataHandler:
 
     def __init__(self, config, load_dict_topo=True):
-        super().__init__(config)
-        if load_dict_topo:
-            self.dict_topos = self._load_dict_topo()
+
+        self.config = config
         self.variables_needed = copy(['name'] + self.config["input_variables"] + self.config["labels"])
 
         self.batcher = Batcher(config)
+        self.splitter = Splitter(config)
+        self.loader = Loader(config)
+
+        if load_dict_topo:
+            self.dict_topos = self.loader.load_dict_topo()
 
         # Attributes defined later
         self.inputs_train = None
@@ -186,25 +266,6 @@ class CustomDataHandler(SplitTrainTestVal):
         self.predicted_val = None
         self.predicted_other_countries = None
 
-    def _load_dict_topo(self):
-        with open(self.config["topos_near_station"], 'rb') as f:
-            dict_topos = pickle.load(f)
-
-        y_l = 140-70
-        y_r = 140+70
-        x_l = 140-70
-        x_r = 140+70
-        for station in dict_topos:
-            dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"][y_l:y_r, x_l:x_r], (140, 140, 1))
-
-        return dict_topos
-
-    def _open_time_series_pkl(self):
-        return pd.read_pickle(self.config["time_series"])
-
-    def _open_stations_pkl(self):
-        return pd.read_pickle(self.config["stations"])
-
     def _select_all_variables_needed(self, df, variables_needed=None):
         variables_needed = self.variables_needed if variables_needed is None else variables_needed
         return df[variables_needed]
@@ -214,7 +275,7 @@ class CustomDataHandler(SplitTrainTestVal):
             if topo_carac in self.config["input_variables"]:
                 time_series.loc[:, topo_carac] = np.nan
                 for station in time_series["name"].unique():
-                    value_topo_carac = stations.loc[stations["name"] == station, topo_carac+"_NN_0"].values[0]
+                    value_topo_carac = stations.loc[stations["name"] == station, topo_carac + "_NN_0"].values[0]
                     time_series.loc[time_series["name"] == station, topo_carac] = value_topo_carac
         return time_series
 
@@ -287,7 +348,8 @@ class CustomDataHandler(SplitTrainTestVal):
         while i < patience:
             station_name = np.random.choice(station["name"].values)
             _is_aiguille_du_midi = station_name == "AGUIL. DU MIDI"
-            station_already_selected = (station_name in list_stations) or (station_name in stations_to_exclude) or _is_aiguille_du_midi
+            station_already_selected = (station_name in list_stations) or (
+                    station_name in stations_to_exclude) or _is_aiguille_du_midi
             print(station_name)
             print(station_name in list_stations)
             print(station_name in stations_to_exclude)
@@ -417,7 +479,8 @@ class CustomDataHandler(SplitTrainTestVal):
             self.config["stations_val"] = self._select_randomly_test_val_stations(time_series,
                                                                                   stations,
                                                                                   mode="val",
-                                                                                  stations_to_exclude=self.config["stations_test"])
+                                                                                  stations_to_exclude=self.config[
+                                                                                      "stations_test"])
 
             col_du_lac_blanc_not_in_test = "Col du Lac Blanc" not in self.config["stations_test"]
             aiguille_du_midi_in_test = "AGUIL. DU MIDI" in self.config["stations_test"]
@@ -434,18 +497,11 @@ class CustomDataHandler(SplitTrainTestVal):
         else:
             return time_series
 
-    def split_time_series_with_countries(self, stations, time_series):
-        countries_to_reject = self.config["country_to_reject_during_training"]
-        names_country_to_reject = stations["name"][stations["country"].isin(countries_to_reject)].values
-        time_series_other_countries = time_series[time_series["name"].isin(names_country_to_reject)]
-        time_series = time_series[~time_series["name"].isin(names_country_to_reject)]
-        return time_series, time_series_other_countries
-
     def prepare_train_test_data(self, _shuffle=True, variables_needed=None):
 
         # Pre-processing time_series
-        time_series = self._open_time_series_pkl()
-        stations = self._open_stations_pkl()
+        time_series = self.loader.open_time_series_pkl()
+        stations = self.loader.open_stations_pkl()
 
         # Reject stations
         time_series, stations = self.reject_stations(time_series, stations)
@@ -475,20 +531,22 @@ class CustomDataHandler(SplitTrainTestVal):
 
         # Split time_series with countries
         if self.config["country_to_reject_during_training"]:
-            time_series, time_series_other_countries = self.split_time_series_with_countries(stations, time_series)
+            time_series, time_series_other_countries = self.splitter.split_wrapper(time_series,
+                                                                                   stations=stations,
+                                                                                   split_strategy="country")
 
         # Stations train
         self.config[f"stations_train"] = self._get_train_stations(time_series)
 
         # train/test split
         split_strategy = "random" if self.config[f"quick_test"] else None
-        time_series_train, time_series_test, time_series_val = self.split_time_series(time_series,
-                                                                                      split_strategy=split_strategy)
+        time_series_train, time_series_test, time_series_val = self.splitter.split_train_test_val(time_series,
+                                                                                                  split_strategy=split_strategy)
         # Other countries
         if self.config["country_to_reject_during_training"]:
-            _, time_series_other_countries = self._split_wrapper(time_series_other_countries,
-                                                                 mode="test",
-                                                                 split_strategy="time")
+            _, time_series_other_countries = self.splitter.split_wrapper(time_series_other_countries,
+                                                                         mode="test",
+                                                                         split_strategy="time")
 
         # Input variables
         self.inputs_train = time_series_train[self.config["input_variables"]]
@@ -601,8 +659,10 @@ class CustomDataHandler(SplitTrainTestVal):
 
         return tf.data.Dataset.zip((inputs, labels))
 
-    def get_time_series(self, prepared=False, mode=True):
-        time_series = self._open_time_series_pkl()
+    def get_time_series(self,
+                        prepared=False,
+                        mode=True):
+        time_series = self.loader.open_time_series_pkl()
         if prepared:
 
             assert self.is_prepared
@@ -631,13 +691,15 @@ class CustomDataHandler(SplitTrainTestVal):
         else:
             return time_series
 
-    def get_stations(self, mode=False):
-        stations = self._open_stations_pkl()
-        if mode:
+    def get_stations(self,
+                     add_mode: Optional[bool] = False):
+        stations = self.loader.open_stations_pkl()
+        if add_mode:
             stations = self.add_mode_to_df(stations)
         return stations
 
-    def get_predictions(self, mode):
+    def get_predictions(self,
+                        mode: str):
         try:
             return getattr(self, f"predicted_{mode}")
         except AttributeError:
@@ -646,7 +708,9 @@ class CustomDataHandler(SplitTrainTestVal):
             except AttributeError:
                 raise NotImplementedError("We only support modes train/test/val/other_countries/devine")
 
-    def get_topos(self, mode=None, names=None):
+    def get_topos(self,
+                  mode=None,
+                  names=None):
         if names is None:
             names = self.get_names(mode)
 
@@ -657,8 +721,8 @@ class CustomDataHandler(SplitTrainTestVal):
 
         return topos_generator()
 
-    def get_batched_inputs_labels(self, mode: str):
-
+    def get_batched_inputs_labels(self,
+                                  mode: str):
         dataset = self.get_tf_zipped_inputs_labels(mode)
 
         batch_func = {"train": self.batcher.batch_train,
@@ -680,12 +744,6 @@ class CustomDataHandler(SplitTrainTestVal):
             df[name_uv] = np.squeeze(result)
 
         return df[["name", name_uv]]
-
-    def detect_variable(self):
-        if "temperature" in self.config["global_architecture"]:
-            return "T2m"
-        else:
-            return "UV"
 
     def _set_predictions(self, results, mode="test", str_model="_nn"):
         filter_int = isinstance(results, tuple) and len(results) > 1
