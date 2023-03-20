@@ -497,7 +497,8 @@ class CustomModel(StrategyInitializer):
 
     def load_weights(self):
         print("Launch load_weights")
-        self.model.load_weights(self.exp.path_to_last_model)
+        #self.model.load_weights(self.exp.path_to_last_model)
+        self.model.load_weights(self.exp.path_to_last_weights + 'model_weights.h5')
         print(f"Restore weights from {self.exp.path_to_last_model}")
 
     def get_optimizer(self):
@@ -629,11 +630,11 @@ class CustomModel(StrategyInitializer):
 
             d0 = self.get_dense_network(str_name="speed_ann",
                                         nb_units=self.config["nb_units_speed"],
-                                        activation_dense=self.config["activation_dense_speed'"],
+                                        activation_dense=self.config["activation_dense_speed"],
                                         dropout_rate=self.config["dropout_rate_speed"])
             d1 = self.get_dense_network(str_name="dir_ann",
                                         nb_units=self.config["nb_units_dir"],
-                                        activation_dense=self.config["activation_dense_dir'"],
+                                        activation_dense=self.config["activation_dense_dir"],
                                         dropout_rate=self.config["dropout_rate_dir"])
 
             if use_standardize:

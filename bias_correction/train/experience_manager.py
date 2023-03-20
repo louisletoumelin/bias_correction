@@ -122,6 +122,7 @@ class ExperienceManager(AllExperiences):
             self.path_to_logs_dir = None
             self.path_to_best_model = None
             self.path_to_last_model = None
+            self.path_to_last_weights = None
             self.path_to_tensorboard_logs = None
             self.path_to_figures = None
             self.path_to_feature_importance = None
@@ -134,6 +135,7 @@ class ExperienceManager(AllExperiences):
                                "path_to_logs_dir": path_to_current_experience + "logs_dir/",
                                "path_to_best_model": path_to_current_experience + "best_model/",
                                "path_to_last_model": path_to_current_experience + "last_model/",
+                               "path_to_last_weights": path_to_current_experience + "last_weights/",
                                "path_to_tensorboard_logs": path_to_current_experience + "tensorboard_logs/",
                                "path_to_figures": path_to_current_experience + "figures/",
                                "path_to_feature_importance": path_to_current_experience + "feature_importance/",
@@ -277,6 +279,7 @@ class ExperienceManager(AllExperiences):
                    custom_model
                    ) -> None:
         tf.keras.models.save_model(custom_model.model, self.path_to_last_model)
+        custom_model.model.save_weights(self.path_to_last_weights + 'model_weights.h5')
 
     def save_config_json(self) -> None:
         config_to_save = copy(self.config)

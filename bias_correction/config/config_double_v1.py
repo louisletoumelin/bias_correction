@@ -1,17 +1,18 @@
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.utils_bc.utils_config import assert_input_for_skip_connection, \
-    sort_input_variables,\
-    adapt_distribution_strategy_to_available_devices,\
-    init_learning_rate_adapted,\
-    detect_variable,\
-    get_idx_speed_and_dir_variables,\
+    sort_input_variables, \
+    adapt_distribution_strategy_to_available_devices, \
+    init_learning_rate_adapted, \
+    detect_variable, \
+    get_idx_speed_and_dir_variables, \
     define_input_variables
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "d_speed_dir_v0"  # Str. Some details about the experiment
-config["global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = "2022_11_29_labia_v5"
+config["details"] = "fit_0"  # Str. Some details about the experiment
+config[
+    "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
@@ -23,10 +24,10 @@ config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
-#config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
-config["activation_dense_speed"] = "relu"  # Bool. Activation in dense network, before selu
+# config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
+config["activation_dense_speed"] = "selu"  # Bool. Activation in dense network, before selu
 config["activation_dense_dir"] = "gelu"  # Bool. Activation in dense network, before selu
-c#onfig["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
+# config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["dropout_rate_speed"] = 0.25  # Int. or False. Dropout rate or no dropout
 config["dropout_rate_dir"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
@@ -69,13 +70,27 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-#config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+# config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
 #                             'Wind90', 'Wind87', 'Wind84', 'Wind75',
 #                             "tpi_500", "curvature", "mu", "laplacian", 'aspect', 'tan(slope)']
-config["input_speed"] = ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', "Tair",
-                         "LWnet", "SWnet", 'CC_cumul', 'BLH',  'Wind90', 'Wind87', 'Wind84', 'Wind75',
-                         'Wind', 'Wind_DIR']
+config["input_speed"] = ["alti",
+                         "ZS",
+                         "Tair",
+                         "LWnet",
+                         "SWnet",
+                         "CC_cumul",
+                         "BLH",
+                         "Wind90",
+                         "Wind87",
+                         "Wind84",
+                         "Wind75",
+                         "tpi_500",
+                         "curvature",
+                         "mu",
+                         "laplacian",
+                         "Wind",
+                         "Wind_DIR"]
 config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
 # todo write a test that checks that topos, aspect and tan_slope are in the correct order
 config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
@@ -95,7 +110,7 @@ config["compute_product_with_wind_direction"] = True
 #                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r',
 #                              'aspect', 'tan(slope)']
 
-#list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
+# list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
 #                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
 #                  'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',
 #                  'LWdown', 'LWnet', 'DIR_SWdown', 'SCA_SWdown', 'SWnet', 'SWD', 'SWU',
