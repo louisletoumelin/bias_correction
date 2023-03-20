@@ -602,6 +602,17 @@ class CustomDataHandler(SplitTrainTestVal):
             except AttributeError:
                 raise NotImplementedError("We only support modes train/test/val/other_countries/devine")
 
+    def get_topos(self, mode=None, names=None):
+        if names is None:
+            names = self.get_names(mode)
+
+        try:
+            topos_generator = TopoGenerator(self.dict_topos, names.values)
+        except AttributeError:
+            topos_generator = TopoGenerator(self.dict_topos, names)
+
+        return topos_generator()
+
     def _nn_output2df(self, result, mode, name_uv="UV_nn"):
 
         df = pd.DataFrame()
@@ -650,14 +661,15 @@ class CustomDataHandler(SplitTrainTestVal):
     def _set_is_prepared(self):
         self.is_prepared = True
 
-    def add_other_model(self, model):
+    def add_other_model(self, model, mode="test"):
         if model == "_D":
-            path_to_file = self.config["path_to_devine_test"] + "devine_test.pkl"
+            path_to_file = self.config["path_to_devine"] + f"devine_{mode}.pkl"
             predictions = pd.read_pickle(path_to_file)
         if model == "_A":
-            path_to_file = self.config["path_to_devine_test"] + "time_series_bc_a.pkl"
+            path_to_file = self.config["path_to_analysis"] + "time_series_bc_a.pkl"
             predictions = pd.read_pickle(path_to_file)
-            predictions = predictions.rename({"Wind": "UV_A"})
+            predictions = predictions.rename(columns={"Wind": "UV_A"})
+            predictions = predictions.dropna()
         setattr(self, f"predicted{model}", predictions)
 
 

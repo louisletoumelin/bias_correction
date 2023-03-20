@@ -98,14 +98,14 @@ class CustomEvaluation(VizualizationResults):
         columns = ["name", f"{self.current_variable}_obs"] + self.keys
         return df[columns]
 
-    def add_other_models(self, models):
+    def add_models(self, models):
 
         for model_str in models:
 
             assert hasattr(self.data, f"predicted{model_str}")
             results = []
 
-            self.df_results[self.current_variable+model_str] = np.nan
+            self.df_results.loc[:, self.current_variable+model_str] = np.nan
 
             for station in self.df_results["name"].unique():
 
@@ -195,61 +195,63 @@ class CustomEvaluation(VizualizationResults):
         self.df_results.loc[:, "lead_time"] = compute_lead_time(self.df_results.index.hour.values)
 
     @staticmethod
-    def _df2metric(df, metric_name, current_variable, key_obs, keys):
+    def _df2metric(df, metric_name, current_variable, key_obs, keys, print_=False):
         metric_func = get_metric(metric_name)
         results = []
         for key in keys:
             metric = metric_func(df[key_obs].values, df[key].values)
-            print(f"\n{metric_name}{key}")
-            print(metric)
+            if print_:
+                print(f"\n{metric_name}{key}")
+                print(metric)
             results.append(metric)
         return results
 
-    def df2metric(self, metric_name):
-        return self._df2metric(self.df_results, metric_name, self.current_variable, self.key_obs, self.keys)
+    def df2metric(self, metric_name, print_=False):
+        return self._df2metric(self.df_results, metric_name, self.current_variable,
+                               self.key_obs, self.keys, print_=print_)
 
-    def df2mae(self):
-        return self.df2metric("mae")
+    def df2mae(self, print_=False):
+        return self.df2metric("mae", print_=print_)
 
-    def df2rmse(self):
-        return self.df2metric("rmse")
+    def df2rmse(self, print_=False):
+        return self.df2metric("rmse", print_=print_)
 
-    def df2mbe(self):
-        return self.df2metric("mbe")
+    def df2mbe(self, print_=False):
+        return self.df2metric("mbe", print_=print_)
 
-    def df2m_n_be(self, min_obs, min_model):
+    def df2m_n_be(self, min_obs, min_model, print_=False):
         for key in self.keys:
             filter_obs = self.df_results[self.key_obs] >= min_obs
             filter_model = self.df_results[key] >= min_model
             df = self.df_results[filter_obs & filter_model]
-            self._df2metric(df, "m_n_be", self.current_variable, self.key_obs, self.keys)
+            self._df2metric(df, "m_n_be", self.current_variable, self.key_obs, self.keys, print_=print_)
 
-    def df2m_n_ae(self, min_obs, min_model):
+    def df2m_n_ae(self, min_obs, min_model, print_=False):
         for key in self.keys:
             key_model = f"{self.current_variable}{key}"
             filter_obs = self.df_results[self.key_obs] >= min_obs
             filter_model = self.df_results[key_model] >= min_model
             df = self.df_results[filter_obs & filter_model]
-            self._df2metric(df, "m_n_ae", self.current_variable, self.key_obs, self.keys)
+            self._df2metric(df, "m_n_ae", self.current_variable, self.key_obs, self.keys, print_=print_)
 
-    def df2ae(self):
-        return self._df2metric(self.df_results, "ae", self.current_variable, self.key_obs, self.keys)
+    def df2ae(self, print_=False):
+        return self._df2metric(self.df_results, "ae", self.current_variable, self.key_obs, self.keys, print_=print_)
 
-    def df2bias(self):
-        return self._df2metric(self.df_results, "bias", self.current_variable, self.key_obs, self.keys)
+    def df2bias(self, print_=False):
+        return self._df2metric(self.df_results, "bias", self.current_variable, self.key_obs, self.keys, print_=print_)
 
-    def df2correlation(self):
+    def df2correlation(self, print_=False):
         for station in self.df_results["name"].unique():
             filter_station = self.df_results["name"] == station
             self.df_results.loc[filter_station, :] = self.df_results.loc[filter_station, :].sort_index()
 
-        return self.df2metric("corr")
+        return self.df2metric("corr", print_=print_)
 
-    def print_stats_model(self):
-        self.df2mae()
-        self.df2rmse()
-        self.df2mbe()
-        self.df2correlation()
+    def print_stats(self):
+        self.df2mae(print_=True)
+        self.df2rmse(print_=True)
+        self.df2mbe(print_=True)
+        self.df2correlation(print_=True)
 
 
 class StaticEval(VizualizationResults):
@@ -403,7 +405,7 @@ class Interpretability(VizualizationResults):
         plt.ylabel(y)
         self.save_figure(name)
 
-    def plot_feature_importance(self, mode, width=0.8, epsilon=0.01, figsize=(15, 12)):
+    def plot_feature_importance(self, mode, width=0.8, epsilon=0.01, figsize=(15, 12), name="Feature_importance"):
 
         df_rmse, df_ae, str_rmse, str_ae = self.compute_feature_importance(mode, epsilon=epsilon)
 
@@ -412,7 +414,7 @@ class Interpretability(VizualizationResults):
                                   "Predictor",
                                   str_rmse,
                                   "std",
-                                  "Feature_importance/Feature_importance_rmse",
+                                  f"Feature_importance/{name}_rmse",
                                   width=width,
                                   figsize=figsize)
 
@@ -421,11 +423,11 @@ class Interpretability(VizualizationResults):
                                   "Predictor",
                                   str_ae,
                                   "std",
-                                  "Feature_importance/Feature_importance_ae",
+                                  f"Feature_importance/{name}_ae",
                                   width=width,
                                   figsize=figsize)
 
-    def plot_partial_dependence(self, mode):
+    def plot_partial_dependence(self, mode, name="Partial_dependence_plot"):
         inputs = self.data.get_inputs(mode)
         c = cm.viridis(np.linspace(0, 1, len(inputs.keys())))
         for idx_pred, predictor in enumerate(inputs):
@@ -468,4 +470,4 @@ class Interpretability(VizualizationResults):
                              alpha=0.1)
             plt.ylim(0, 20)
             plt.title(predictor)
-            self.save_figure(f"Partial_dependence_plot/Partial_dependence_plot_{predictor}")
+            self.save_figure(f"Partial_dependence_plot/{name}_{predictor}")

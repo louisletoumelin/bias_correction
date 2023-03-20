@@ -64,8 +64,8 @@ config["path_stations_pre_processed"] = config["path_root"] + f"Data/2_Pre_proce
 config["path_time_series_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/time_series/{config['folder_obs']}/"
 config["path_topos_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/topos/{config['folder_obs']}/"
 config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experiences/"
-config["path_to_devine_test"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
-config["path_to_analysis_test"] = config["path_root"] + "Data/2_Pre_processed/AROME_analysis/"
+config["path_to_devine"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
+config["path_to_analysis"] = config["path_root"] + "Data/2_Pre_processed/AROME_analysis/"
 
 # Filename inputs and labels data
 config["time_series"] = config["path_time_series_pre_processed"] + "time_series_bc.pkl"
@@ -78,6 +78,7 @@ config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_n
 # Architecture
 config["details"] = "pp_50_20"                                            # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
+config["restore_experience"] = False #"2022_7_27_labia_v4"
 
 # ann_v0
 config["disable_training_cnn"] = True                                   # Bool. Default=True
@@ -120,7 +121,7 @@ config["standardize"] = True                                            # Bool. 
 config["shuffle"] = True                                                # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = True                                             # Bool. Quicktest case (fast training)
+config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
