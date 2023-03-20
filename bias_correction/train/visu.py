@@ -8,6 +8,7 @@ from typing import Union, Tuple
 from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module
 from bias_correction.train.utils import create_folder_if_doesnt_exist
 from bias_correction.train.experience_manager import ExperienceManager
+import bias_correction.train.dataframe_computer as computer
 
 try:
     import seaborn as sns
@@ -71,7 +72,7 @@ def save_figure(name_figure: str,
         pass
 
     if exp_is_provided:
-        exp.create_folder_if_doesnt_exist(save_path, _raise=False)
+        create_folder_if_doesnt_exist(save_path, _raise=False)
 
     subfolder_in_filename = check_if_subfolder_in_filename(name_figure)
     if subfolder_in_filename:
@@ -383,7 +384,7 @@ class Leadtime:
 
 
 def plot_boxplot_models(df,
-                        carac="laplacian",
+                        carac="class_laplacian",
                         metric="bias",
                         models_names=["Neural Network", "AROME"],
                         showfliers=False,
@@ -391,7 +392,7 @@ def plot_boxplot_models(df,
                         figsize=(15, 12),
                         ):
 
-    df_melted = df.melt(id_vars=["name", f"class_{carac}"],
+    df_melted = df.melt(id_vars=["name", carac],
                         value_vars=models_names,
                         var_name='Model',
                         value_name=metric.capitalize())
@@ -400,7 +401,7 @@ def plot_boxplot_models(df,
 
     sns.boxplot(data=df_melted,
                 y=metric.capitalize(),
-                x=f"class_{carac}",
+                x=carac,
                 hue='Model',
                 orient=orient,
                 showfliers=showfliers)
@@ -422,6 +423,10 @@ class Boxplots:
                                 showfliers=False,
                                 figsize=(15, 10),
                                 name="Boxplot_topo_carac"):
+        for carac in topo_carac:
+            assert f"class_{carac}" in df, f"class_{carac} should be in input DataFrame. " \
+                                           f"Dataframe columns are {df.columns}"
+
         for metric in metrics:
             for carac in topo_carac:
 
@@ -431,7 +436,7 @@ class Boxplots:
                 df = df.rename(columns=new_columns)
 
                 plot_boxplot_models(df,
-                                    carac=carac,
+                                    carac=f"class_{carac}",
                                     metric=metric,
                                     models_names=list(dict_keys.values()),
                                     showfliers=showfliers,

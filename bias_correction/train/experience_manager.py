@@ -5,10 +5,11 @@ import tensorflow as tf
 from datetime import date
 import os
 import json
-from typing import Union, MutableSequence, Tuple
+from typing import Union, MutableSequence, Tuple, List
 
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.train.utils import create_folder_if_doesnt_exist
+
 
 def _is_full_path(path_to_previous_exp: str) -> bool:
     if len(path_to_previous_exp.split("/")) == 1:
@@ -73,7 +74,7 @@ class AllExperiences:
 
     def create_csv_file_if_doesnt_exists(self,
                                          name: str,
-                                         columns: list[str],
+                                         columns: List[str],
                                          override: bool = False
                                          ) -> None:
         df = pd.DataFrame(columns=columns)
@@ -93,6 +94,11 @@ class ExperienceManager(AllExperiences):
                  ) -> None:
 
         super().__init__(config, override=override, create=create)
+
+        self.config = config
+        print("debug ExperienceManager")
+        print(self.config)
+
         self.list_physical_devices()
 
         if not restore_old_experience:
@@ -124,6 +130,9 @@ class ExperienceManager(AllExperiences):
             for name in ["experiences", "metrics", "hyperparameters"]:
                 self._update_experience_to_csv_file(name)
             self.save_config_json()
+
+    def get_config(self):
+        return self.config
 
     def detect_variable(self) -> str:
         if "temperature" in self.config["global_architecture"]:
@@ -248,18 +257,17 @@ class ExperienceManager(AllExperiences):
         dict_exp = self.__dict__
 
         # Remove dict, list... etc that are can not be (easily) transformed into a json file
-        for key in ["dict_paths", "other_experiences_created_today", "config"]:
-            if key in dict_exp:
-                dict_exp.pop(key)
+        keys_to_remove = ["dict_paths", "other_experiences_created_today", "config"]
+        dict_to_save = {k: v for k, v in dict_exp.items() if k not in keys_to_remove}
 
         # Numbers are converted to str
-        for key in dict_exp:
-            if not isinstance(dict_exp[key], str):
-                dict_exp[key] = str(dict_exp[key])
+        for key in dict_to_save:
+            if not isinstance(dict_to_save[key], str):
+                dict_to_save[key] = str(dict_to_save[key])
 
         # Paths
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
-            json.dump(dict_exp, fp, sort_keys=True, indent=4)
+            json.dump(dict_to_save, fp, sort_keys=True, indent=4)
 
     def save_all(self,
                  data,

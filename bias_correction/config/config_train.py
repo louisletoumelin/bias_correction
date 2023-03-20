@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "test_station"  # Str. Some details about the experiment
+config["details"] = "relaunch_exp"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # "2022_7_27_labia_v4"
 
@@ -49,7 +49,6 @@ config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
 config["quick_test"] = True  # Bool. Quicktest case (fast training)
-config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables

@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 import os
 from functools import partial
-from typing import Callable, Union
+from typing import Callable, Union, Tuple
 
 from bias_correction.train.layers import RotationLayer, \
     CropTopography, \
@@ -164,13 +164,14 @@ class DevineBuilder(StrategyInitializer):
                topos,
                x,
                inputs,
-               use_crop=True):
+               use_crop=True,
+               fill_value=-9999):
 
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
-        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-9999)(topos, x[:, 1])
+        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=fill_value)(topos, x[:, 1])
 
-        if self.config["custom_unet"]:
+        if self.config.get("custom_unet", False):
             length_y = self.config["custom_input_shape"][0]
             length_x = self.config["custom_input_shape"][1]
             min_length = np.min([self.config["custom_input_shape"][0], self.config["custom_input_shape"][1]])
@@ -195,7 +196,7 @@ class DevineBuilder(StrategyInitializer):
 
         y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
 
-        if self.config["custom_unet"]:
+        if self.config.get("custom_unet", False):
             print("debug shape custom devine")
             print((y_diff*2+1, y_diff*2+1, 1))
             unet = self.load_custom_unet((y_diff*2+1, y_diff*2+1, 1), self.config["unet_path"])
@@ -213,7 +214,7 @@ class DevineBuilder(StrategyInitializer):
                 w = tf.expand_dims(w, -1)
             w = RotationLayer(clockwise=True,
                               unit_input="degree",
-                              fill_value=np.nan)(w, x[:, 1])
+                              fill_value=fill_value)(w, x[:, 1])
             w = SimpleScaling()(w, x[:, 0])
 
         if self.config["type_of_output"] in ["output_components", "map", "map_components", "map_u_v_w"]:
@@ -222,11 +223,11 @@ class DevineBuilder(StrategyInitializer):
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
-                                               fill_value=np.nan)(alpha_or_direction, x[:, 1])
+                                               fill_value=fill_value)(alpha_or_direction, x[:, 1])
 
         # Speed
         y = Components2Speed()(y)
-        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=np.nan)(y, x[:, 1])
+        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=fill_value)(y, x[:, 1])
         y = ActivationArctan(alpha=38.2)(y, x[:, 0])
 
         if self.config["type_of_output"] == "output_components":
@@ -453,7 +454,7 @@ class CustomModel(StrategyInitializer):
                                   use_standardize: bool,
                                   use_final_relu: bool,
                                   name: Union[str, None],
-                                  input_shape_topo: tuple[int, int, int] = (140, 140, 1),
+                                  input_shape_topo: Tuple[int, int, int] = (140, 140, 1),
                                   ):
 
         # Inputs
@@ -527,7 +528,7 @@ class CustomModel(StrategyInitializer):
 
     def _build_devine_only(self):
 
-        if self.config["custom_unet"]:
+        if self.config.get("custom_unet", False):
             input_shape = self.config["custom_input_shape"]
         else:
             input_shape = (140, 140, 1)
