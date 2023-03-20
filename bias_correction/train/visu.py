@@ -382,37 +382,36 @@ class Leadtime:
                 save_figure(f"Lead_time/Lead_time_{station}")
 
 
-class VizualizationResults(Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots):
+def plot_boxplot_models(df,
+                        carac="laplacian",
+                        metric="bias",
+                        models_names=["Neural Network", "AROME"],
+                        showfliers=False,
+                        orient="v",
+                        figsize=(15, 12),
+                        ):
 
-    def __init__(self, exp=None):
-        super().__init__(exp)
+    df_melted = df.melt(id_vars=["name", f"class_{carac}"],
+                        value_vars=models_names,
+                        var_name='Model',
+                        value_name=metric.capitalize())
 
-    @staticmethod
-    def _plot_boxplot_topo_carac(df,
-                                 carac,
-                                 metric,
-                                 dict_keys={"_nn": "Neural Network", "_AROME": "AROME"},
-                                 showfliers=False,
-                                 figsize=(15, 10)
-                                 ):
-        keys = dict_keys.keys()
-        values = dict_keys.values()
-        new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(keys, values)}
-        df = df.rename(columns=new_columns)
-        df_melted = df.melt(id_vars=["name", f"class_{carac}"],
-                            value_vars=list(dict_keys.values()),
-                            var_name='Model',
-                            value_name=metric.capitalize())
+    plt.figure(figsize=figsize)
 
-        plt.figure(figsize=figsize)
+    sns.boxplot(data=df_melted,
+                y=metric.capitalize(),
+                x=f"class_{carac}",
+                hue='Model',
+                orient=orient,
+                showfliers=showfliers)
 
-        sns.boxplot(data=df_melted,
-                    y=metric.capitalize(),
-                    x=f"class_{carac}",
-                    hue='Model',
-                    orient="v",
-                    showfliers=showfliers)
-        sns.despine(trim=True, left=True)
+    sns.despine(trim=True, left=True)
+
+
+class Boxplots:
+
+    def __init__(self, exp):
+        self.exp = exp
 
     @pass_if_doesnt_has_module()
     def plot_boxplot_topo_carac(self,
@@ -425,10 +424,27 @@ class VizualizationResults(Leadtime, SeasonalEvolution, ModelVersusObsPlots, Sta
                                 name="Boxplot_topo_carac"):
         for metric in metrics:
             for carac in topo_carac:
-                self._plot_boxplot_topo_carac(df,
-                                              carac,
-                                              metric,
-                                              dict_keys=dict_keys,
-                                              figsize=figsize,
-                                              showfliers=showfliers)
+
+                keys = dict_keys.keys()
+                values = dict_keys.values()
+                new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(keys, values)}
+                df = df.rename(columns=new_columns)
+
+                plot_boxplot_models(df,
+                                    carac=carac,
+                                    metric=metric,
+                                    models_names=list(dict_keys.values()),
+                                    showfliers=showfliers,
+                                    orient="v",
+                                    figsize=figsize,
+                                    )
+
                 save_figure(f"Boxplots/{name}")
+
+
+class VizualizationResults(Boxplots, Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots):
+
+    def __init__(self, exp=None):
+        super().__init__(exp)
+
+
