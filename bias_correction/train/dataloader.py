@@ -595,7 +595,10 @@ class CustomDataHandler(SplitTrainTestVal):
         try:
             return getattr(self, f"predicted_{mode}")
         except AttributeError:
-            raise NotImplementedError("We only support modes train/test/val/other_countries")
+            try:
+                return getattr(self, f"predicted{mode}")
+            except AttributeError:
+                raise NotImplementedError("We only support modes train/test/val/other_countries/devine")
 
     def _nn_output2df(self, result, mode, name_uv="UV_nn"):
 
@@ -644,6 +647,13 @@ class CustomDataHandler(SplitTrainTestVal):
 
     def _set_is_prepared(self):
         self.is_prepared = True
+
+    def add_other_model(self, model):
+        if model == "_D":
+            path_to_file = self.config["path_to_devine_test"] + "devine_test.pkl"
+            predictions = pd.read_pickle(path_to_file)
+        setattr(self, f"predicted{model}", predictions)
+
 
 """
 # second option

@@ -42,3 +42,8 @@ for station in test["name"].unique():
     else:
         save_path = os.path.join(os.getcwd(), "train")
     save_figure(f"Wind_{station}", save_path)
+
+"""
+with open(path_to_previous_exp + "config.json", 'w') as fp:
+    config = json.loads(fp)
+"""
