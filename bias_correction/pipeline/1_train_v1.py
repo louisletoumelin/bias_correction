@@ -74,9 +74,8 @@ cm.config["get_intermediate_output"] = get_intermediate_output
 data_loader.config["get_intermediate_output"] = get_intermediate_output
 if config["get_intermediate_output"]:
     cm.build_model_with_strategy(print_=False)
-    print("Launch load_weights")
     cm.model.load_weights(cm.exp.path_to_last_model)
-    print(f"Restore weights from {cm.exp.path_to_last_model}")
+    print(f"\nRestore weights from {cm.exp.path_to_last_model}")
     cm.model_version = "last"
 
 exp.save_all(data_loader, cm)
@@ -86,9 +85,9 @@ zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
-for type_of_output, metrics, label in zip(["output_speed"],
-                                          [("bias", "n_bias", "ae", "n_ae")],
-                                          [['vw10m(m/s)']]):
+for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
+                                          [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
+                                          [['vw10m(m/s)'], ['winddir(deg)']]):
 
     print_headline("Type of output", type_of_output)
 
@@ -105,6 +104,16 @@ for type_of_output, metrics, label in zip(["output_speed"],
         exp.config["labels"] = label
         cm.config["labels"] = label
         data_loader.config["labels"] = label
+
+        if type_of_output == "output_speed":
+            remove_null_speeds = False
+        else:
+            remove_null_speeds = True
+
+        config["remove_null_speeds"] = remove_null_speeds
+        exp.config["remove_null_speeds"] = remove_null_speeds
+        cm.config["remove_null_speeds"] = remove_null_speeds
+
         with timer_context("Prepare data"):
             data_loader = CustomDataHandler(config)
             data_loader.prepare_train_test_data()
@@ -156,21 +165,23 @@ for type_of_output, metrics, label in zip(["output_speed"],
                                       keys=("_AROME", "_nn"),
                                       other_models=("_D", "_A"),
                                       metrics=metrics)
-
-        with timer_context("Print statistics"):
-            print("\nMean observations:", flush=True)
-            print(c_eval.df_results[f"{cv}_obs"].mean(), flush=True)
-            print("\nMean AROME", flush=True)
-            print(c_eval.df_results[f"{cv}_AROME"].mean(), flush=True)
-            print("\nMean int", flush=True)
-            print(c_eval.df_results[f"{cv}_int"].mean(), flush=True)
-            print("\nMean NN", flush=True)
-            print(c_eval.df_results[f"{cv}_nn"].mean(), flush=True)
-            print("\nMean D", flush=True)
-            print(c_eval.df_results[f"{cv}_D"].mean(), flush=True)
-            print("\nMean A", flush=True)
-            print(c_eval.df_results[f"{cv}_A"].mean(), flush=True)
-            mae, rmse, mbe, corr = c_eval.print_stats()
+        if type_of_output == "output_speed":
+            with timer_context("Print statistics"):
+                print("\nMean observations:", flush=True)
+                print(c_eval.df_results[f"{cv}_obs"].mean(), flush=True)
+                print("\nMean AROME", flush=True)
+                print(c_eval.df_results[f"{cv}_AROME"].mean(), flush=True)
+                print("\nMean int", flush=True)
+                print(c_eval.df_results[f"{cv}_int"].mean(), flush=True)
+                print("\nMean NN", flush=True)
+                print(c_eval.df_results[f"{cv}_nn"].mean(), flush=True)
+                print("\nMean D", flush=True)
+                print(c_eval.df_results[f"{cv}_D"].mean(), flush=True)
+                print("\nMean A", flush=True)
+                print(c_eval.df_results[f"{cv}_A"].mean(), flush=True)
+                mae, rmse, mbe, corr = c_eval.print_stats()
+        else:
+            c_eval.df2ae_dir(print_=True)
 
         if type_of_output == "output_speed":
             exp.save_results(c_eval, mae, rmse, mbe, corr)

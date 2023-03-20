@@ -4,20 +4,22 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "double_ann"  # Str. Some details about the experiment
+config["details"] = "d_epoch1"  # Str. Some details about the experiment
 config["global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = False
+config["restore_experience"] = False  # todo warning
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]  # 25, 10
+config["nb_units"] = [25, 10, 50]  # 25, 10
+config["nb_units_speed"] = [25, 10, 50]  # 25, 10
+config["nb_units_dir"] = [512, 256, 32]  # 25, 10
 config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
-config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout
+config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
+config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -27,11 +29,11 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 10  # Int.
-config["learning_rate"] = 0.005
+config["epochs"] = 2  # Int.
+config["learning_rate"] = 0.001
 
 # Optimizer
-config["optimizer"] = "Adam"  # Str.
+config["optimizer"] = "RMSprop"  # Str.
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
@@ -42,6 +44,11 @@ config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
 # Input CNN
 config["input_cnn"] = False
+config["use_input_cnn_dir"] = True
+config["use_batch_norm_cnn"] = True
+config["activation_cnn"] = "gelu"
+config["threshold_null_speed"] = 1
+config["use_normalization_cnn_inputs"] = True
 
 # Inputs pre-processing
 config["standardize"] = True  # Bool. Apply standardization
@@ -54,9 +61,25 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
-# ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-#                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
+                             'Wind90', 'Wind87', 'Wind84', 'Wind75']
+
+# todo write a test that checks that topos, aspect and tan_slope are in the correct order
+config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
+config["compute_product_with_wind_direction"] = True
+
+# ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+#                              "LWnet", "SWnet", 'CC_cumul', 'BLH',
+#                              'Wind90', 'Wind87', 'Wind84', 'Wind75',
+#                              "tpi_500", "curvature", "mu", "laplacian",
+#                              'dir_canyon_w0_1_w1_10',
+#                              'dir_canyon_w0_5_w1_10',
+#                              'dir_canyon_w0_1_w1_3_thresh5',
+#                              'dir_canyon_w0_4_w1_20_thresh20',
+#                              'diag_7', 'diag_13', 'diag_21', 'diag_31',
+#                              'diag_7_r', 'diag_13_r', 'diag_21_r', 'diag_31_r',
+#                              'side_7', 'side_13', 'side_21', 'side_31',
+#                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r']
 
 #list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
 #                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
@@ -79,13 +102,13 @@ config["unbalanced_threshold"] = 2
 
 # Callbacks
 config["callbacks"] = ["TensorBoard",
-                       "CSVLogger",
                        "ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
 config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "EarlyStopping": [],
                             "ModelCheckpoint": [],
                             "TensorBoard": [],
                             "CSVLogger": [],
+                            "CSVLogger_dir": [],
                             "LearningRateWarmupCallback": [],
                             "FeatureImportanceCallback": [],
                             "BroadcastGlobalVariablesCallback": [],
@@ -124,6 +147,8 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "MetricAverageCallback": {},
 
                               "CSVLogger": {},
+
+                              "CSVLogger_dir": {},
 
                               "learning_rate_decay": {},
                               }

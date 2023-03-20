@@ -51,6 +51,7 @@ callbacks_dict = {"TensorBoard": TensorBoard,
                   "ReduceLROnPlateau": ReduceLROnPlateau,
                   "EarlyStopping": EarlyStopping,
                   "CSVLogger": CSVLogger,
+                  "CSVLogger_dir": CSVLogger,
                   "ModelCheckpoint": ModelCheckpoint,
                   "FeatureImportanceCallback": FeatureImportanceCallback,
                   "learning_rate_decay": LearningRateScheduler(learning_rate_time_decay, verbose=1)
@@ -100,6 +101,7 @@ def get_callbacks(callbacks_str: List[str], distribution_strategy: str, args_cal
 
 def load_callback_with_custom_model(cm, data_loader=None, mode_callback=None):
     _tmp_args_callbacks = {"CSVLogger": [cm.exp.path_to_logs + "tf_logs.csv"],
+                           "CSVLogger_dir": [cm.exp.path_to_logs_dir + "tf_logs.csv"],
                            "BroadcastGlobalVariablesCallback": [0],
                            "FeatureImportanceCallback": [data_loader, cm, cm.exp, mode_callback],
                            "MetricAverageCallback": [],

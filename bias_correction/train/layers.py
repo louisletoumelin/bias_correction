@@ -136,17 +136,66 @@ class Normalization(Layer):
     """
     Normalization of inputs before calling the CNN
     """
-    def __init__(self, std):
+    def __init__(self, std=None, use_own_std=False):
 
         super(Normalization, self).__init__()
-        self.std = tf.convert_to_tensor(std, tf.float32)
+        if std is not None:
+            self.std = tf.convert_to_tensor(std, tf.float32)
+        self.use_own_std = use_own_std
 
     def build(self, input_shape):
         super(Normalization, self).build(input_shape)
 
     def call(self, inputs):
-        mean = tf.expand_dims(tf.expand_dims(tf.math.reduce_mean(inputs, axis=[-2, -3]), axis=-1), axis=-1)
-        return (inputs-mean) / self.std
+        if not self.use_own_std:
+            mean = tf.expand_dims(tf.expand_dims(tf.math.reduce_mean(inputs, axis=[-2, -3]), axis=-1), axis=-1)
+            return (inputs-mean) / self.std
+        else:
+            mean = tf.expand_dims(tf.expand_dims(tf.math.reduce_std(inputs, axis=[-2, -3]), axis=1), axis=1)
+            std = tf.expand_dims(tf.expand_dims(tf.math.reduce_std(inputs, axis=[-2, -3]), axis=1), axis=1)
+            return (inputs-mean) / std
+
+
+class EParam(Layer):
+    """
+    Normalization of inputs before calling the CNN
+    """
+    def __init__(self):
+
+        super(EParam, self).__init__()
+
+    def build(self, input_shape):
+        super(EParam, self).build(input_shape)
+
+    @staticmethod
+    def tf_rad2deg(inputs):
+        """Convert input in radian to degrees"""
+        return tf.convert_to_tensor(57.2957795, dtype=tf.float32) * inputs
+
+    def call(self, topos, inputs_nwp):
+        # topos[:, 2] = tan_slope
+        # topos[:, 1] = aspect
+        delta = tf.expand_dims(tf.expand_dims(inputs_nwp[:, -1], axis=-1), axis=-1) - topos[:, :, :, 1]
+
+        cos_delta = tf.math.cos(delta)
+        E = tf.expand_dims(self.tf_rad2deg(tf.math.atan(topos[:, :, :, 2] * cos_delta)), axis=-1)
+        return tf.concat([topos, E], axis=-1)
+
+
+class SlidingMean(Layer):
+
+    def __init__(self, std):
+
+        super(SlidingMean, self).__init__()
+        self.std = tf.convert_to_tensor(std, tf.float32)
+
+        self.filter_mean = np.ones((79, 69, 1, 1), dtype=np.float32) / (79 * 69)
+
+    def build(self, input_shape):
+        super(SlidingMean, self).build(input_shape)
+
+    def call(self, inputs):
+        return (inputs-tf.nn.convolution(inputs, self.filter_mean, strides=[1, 1, 1, 1], padding="SAME")) / self.std
 
 
 class ActivationArctan(Layer):
@@ -190,9 +239,13 @@ class SimpleScaling(Layer):
         return outputs
 
     def call(self, output_cnn, wind_nwp):
+
         wind_nwp = tf.expand_dims(tf.expand_dims(tf.expand_dims(wind_nwp, axis=-1), axis=-1), axis=-1)
+
         scaled_wind = wind_nwp * output_cnn / tf.convert_to_tensor(3.)  # 3 = ARPS initialization speed
+
         result = self.reshape_as_inputs(output_cnn, scaled_wind)
+
         return result
 
 
@@ -207,7 +260,6 @@ class Components2Speed(Layer):
         super(Components2Speed, self).build(input_shape)
 
     def call(self, inputs):
-
         UV = tf.sqrt(inputs[:, :, :, 0]**2+inputs[:, :, :, 1]**2)
 
         if len(UV.shape) == 3:
@@ -234,13 +286,18 @@ class Components2Direction(Layer):
         return tf.convert_to_tensor(57.2957795, dtype=tf.float32) * inputs
 
     def call(self, inputs):
+
         outputs = tf.math.atan2(inputs[:, :, :, 0], inputs[:, :, :, 1])
+
         outputs = self.tf_rad2deg(outputs)
+
         constant_0 = tf.convert_to_tensor(180, dtype=tf.float32)
         constant_1 = tf.convert_to_tensor(360, dtype=tf.float32)
         outputs = tf.math.mod(constant_0 + outputs, constant_1)
+
         if len(outputs.shape) == 3:
             outputs = tf.expand_dims(outputs, -1)
+
         return outputs
 
 
@@ -284,11 +341,18 @@ class SpeedDirection2Components(Layer):
 
         U_zonal = self.reshape_as_inputs(speed, U_zonal)
         V_meridional = self.reshape_as_inputs(speed, V_meridional)
-
+        print("\nU_zonal")
+        print(V_meridional)
+        print("\nV_meridional")
+        print(V_meridional)
         if len(U_zonal.shape) == 3:
             U_zonal = tf.expand_dims(U_zonal, -1)
         if len(U_zonal.shape) == 3:
             V_meridional = tf.expand_dims(V_meridional, -1)
+        print("\nU_zonal")
+        print(V_meridional)
+        print("\nV_meridional")
+        print(V_meridional)
         return U_zonal, V_meridional
 
 
@@ -319,11 +383,13 @@ class Components2Alpha(Layer):
             return tf.expand_dims(output, -1)
 
     def call(self, inputs):
+
         result = tf.where(inputs[:, :, :, 0] == 0.,
                           tf.where(inputs[:, :, :, 1] == 0.,
                                    0.,
                                    tf.sign(inputs[:, :, :, 1]) * tf.cast(3.14159 / 2., dtype=tf.float32)),
                           tf.math.atan(inputs[:, :, :, 1] / inputs[:, :, :, 0]))
+
         return self.reshape_output(result)
 
 
@@ -368,6 +434,9 @@ class Alpha2Direction(Layer):
         if self.unit_alpha == "radian":
             alpha = self.tf_rad2deg(alpha)
         direction = tf.expand_dims(tf.expand_dims(tf.expand_dims(direction, axis=-1), axis=-1), axis=-1)
+
         outputs = tf.math.mod(direction - alpha, 360)
+
         result = self.reshape_as_inputs(alpha, outputs)
+
         return result

@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
+
 # matplotlib.use('Agg')
 
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -29,6 +30,7 @@ get_intermediate_output = config["get_intermediate_output"]
 quick_test = config["quick_test"]
 quick_test_stations = config["quick_test_stations"]
 initial_loss = config["loss"]
+
 if config["restore_experience"]:
     print_headline("Restore experience", "")
     exp, config = ExperienceManager.from_previous_experience(config["restore_experience"])
@@ -52,10 +54,12 @@ if not config["restore_experience"]:
     # First fit
     #
     #
-    cm = CustomModel(exp, config)
     config["labels"] = ['winddir(deg)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
     config["type_of_output"] = "output_direction"
     config["loss"] = "cosine_distance"
+    config["remove_null_speeds"] = True
+    config["callbacks"].append("CSVLogger_dir")
+    cm = CustomModel(exp, config)
 
     # Load inputs and outputs
     with timer_context("Prepare data"):
@@ -64,6 +68,7 @@ if not config["restore_experience"]:
 
     print_headline("Launch training direction", "")
     print(config["labels"], config["type_of_output"], config["loss"])
+    print(config["input_variables"])
 
     # We don't fit a model with two outputs because it cause error in the loss function
     config["get_intermediate_output"] = False
@@ -77,10 +82,8 @@ if not config["restore_experience"]:
         # selecting layer by name
         if "speed_ann" in layer.name:  # "speed_ann"
             cm.model.get_layer(layer.name).trainable = False
-            print(f"Freezing: {layer.name}")
         if "dir_ann" in layer.name:  # "speed_ann"
             cm.model.get_layer(layer.name).trainable = True
-            print(f"Training == True on: {layer.name}")
 
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
@@ -95,6 +98,9 @@ if not config["restore_experience"]:
     config["labels"] = ["vw10m(m/s)"]  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
     config["type_of_output"] = "output_speed"
     config["loss"] = initial_loss
+    config["remove_null_speeds"] = False
+    config["callbacks"].remove("CSVLogger_dir")
+    config["callbacks"].remove("CSVLogger")
 
     # Load inputs and outputs
     with timer_context("Prepare data"):
@@ -118,14 +124,15 @@ if not config["restore_experience"]:
     print(f"Restore weights from {cm.exp.path_to_last_model}")
     cm.model_version = "last"
 
-    for layer in cm.model.layers:
-        # selecting layer by name
-        if "speed_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = True
-            print(f"Training == True on: {layer.name}")
-        if "dir_ann" in layer.name:  # "speed_ann"
-            cm.model.get_layer(layer.name).trainable = False
-            print(f"Freezing: {layer.name}")
+    with timer_context("Detect layers to freeze"):
+        for layer in cm.model.layers:
+            # selecting layer by name
+            if "speed_ann" in layer.name or "speed_cnn" in layer.name:  # "speed_ann"
+                cm.model.get_layer(layer.name).trainable = True
+                print(f"Training == True on: {layer.name}")
+            if "dir_ann" in layer.name or "dir_cnn" in layer.name:  # "speed_ann"
+                cm.model.get_layer(layer.name).trainable = False
+                print(f"Freezing: {layer.name}")
 
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
@@ -155,9 +162,9 @@ zip(["output_speed", "output_direction"],
                                           [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
                                           [['vw10m(m/s)'], ['winddir(deg)']])
 """
-for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
-                                          [("bias", "n_bias", "ae", "n_ae"), ("bias_direction", "abs_bias_direction")],
-                                          [['vw10m(m/s)'], ['winddir(deg)']]):
+for type_of_output, metrics, label in zip(["output_direction"],
+                                          [("bias_direction", "abs_bias_direction")],
+                                          [['winddir(deg)']]):
 
     print_headline("Type of output", type_of_output)
 
@@ -174,6 +181,16 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
         exp.config["labels"] = label
         cm.config["labels"] = label
         data_loader.config["labels"] = label
+
+        if type_of_output == "output_speed":
+            remove_null_speeds = False
+        else:
+            remove_null_speeds = True
+
+        config["remove_null_speeds"] = remove_null_speeds
+        exp.config["remove_null_speeds"] = remove_null_speeds
+        cm.config["remove_null_speeds"] = remove_null_speeds
+        # Load inputs and outputs
         with timer_context("Prepare data"):
             data_loader = CustomDataHandler(config)
             data_loader.prepare_train_test_data()
@@ -225,6 +242,7 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                                       keys=("_AROME", "_nn"),
                                       other_models=("_D", "_A"),
                                       metrics=metrics)
+
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):
                 print("\nMean observations:", flush=True)
@@ -255,7 +273,7 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
             .batch(data_loader.length_other_countries)
         results_other_countries = cm.predict_single_bath(inputs_other_countries, model_version=model)
         del inputs_other_countries
-    
+
     # Other countries
     print_headline("Other countries statistics", model)
     data_loader.set_predictions(results_other_countries, mode="other_countries")

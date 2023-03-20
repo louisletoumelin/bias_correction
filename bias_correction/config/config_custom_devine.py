@@ -11,6 +11,7 @@ config["type_of_output"] = "map_u_v_w"                               # Str. "out
 config["custom_unet"] = True
 config["custom_input_shape"] = (90, 88, 1)
 config["disable_training_cnn"] = True
+config["sliding_mean"] = True
 
 # General
 config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None

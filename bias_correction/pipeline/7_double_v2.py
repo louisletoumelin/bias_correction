@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
+
 # matplotlib.use('Agg')
 
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -52,10 +53,11 @@ if not config["restore_experience"]:
     # First fit
     #
     #
-    cm = CustomModel(exp, config)
     config["labels"] = ['winddir(deg)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
     config["type_of_output"] = "output_direction"
     config["loss"] = "cosine_distance"
+    config["remove_null_speeds"] = True
+    cm = CustomModel(exp, config)
 
     # Load inputs and outputs
     with timer_context("Prepare data"):
@@ -64,6 +66,7 @@ if not config["restore_experience"]:
 
     print_headline("Launch training direction", "")
     print(config["labels"], config["type_of_output"], config["loss"])
+    print(config["input_variables"])
 
     # We don't fit a model with two outputs because it cause error in the loss function
     config["get_intermediate_output"] = False
@@ -95,6 +98,7 @@ if not config["restore_experience"]:
     config["labels"] = ["vw10m(m/s)"]  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
     config["type_of_output"] = "output_speed"
     config["loss"] = initial_loss
+    config["remove_null_speeds"] = False
 
     # Load inputs and outputs
     with timer_context("Prepare data"):
@@ -174,10 +178,22 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
         exp.config["labels"] = label
         cm.config["labels"] = label
         data_loader.config["labels"] = label
+
+        if type_of_output == "output_speed":
+            remove_null_speeds = False
+        else:
+            remove_null_speeds = True
+
+        config["remove_null_speeds"] = remove_null_speeds
+        exp.config["remove_null_speeds"] = remove_null_speeds
+        cm.config["remove_null_speeds"] = remove_null_speeds
+        # Load inputs and outputs
         with timer_context("Prepare data"):
             data_loader = CustomDataHandler(config)
             data_loader.prepare_train_test_data()
 
+        print("debug")
+        print(data_loader.get_inputs("test")[["Wind"]].describe())
         cm.build_model_with_strategy(print_=False)
         cm.model.load_weights(cm.exp.path_to_last_model)
         cm.model_version = "last"
@@ -225,6 +241,7 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                                       keys=("_AROME", "_nn"),
                                       other_models=("_D", "_A"),
                                       metrics=metrics)
+
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):
                 print("\nMean observations:", flush=True)
@@ -255,7 +272,7 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
             .batch(data_loader.length_other_countries)
         results_other_countries = cm.predict_single_bath(inputs_other_countries, model_version=model)
         del inputs_other_countries
-    
+
     # Other countries
     print_headline("Other countries statistics", model)
     data_loader.set_predictions(results_other_countries, mode="other_countries")

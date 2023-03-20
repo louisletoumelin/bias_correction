@@ -4,9 +4,9 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "standard"  # Str. Some details about the experiment
+config["details"] = "restore_input8_for_direction"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False
+config["restore_experience"] = "2022_10_27_labia_v4"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
