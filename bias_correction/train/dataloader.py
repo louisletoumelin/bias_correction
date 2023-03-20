@@ -69,7 +69,8 @@ class Batcher:
     def batch_test(self,
                    dataset: tf.data.Dataset
                    ) -> DatasetV2:
-        raise NotImplementedError("Test data are not batched")
+        return dataset.batch(batch_size=self.config[
+            "global_batch_size"])  # todo put raise NotImplementedError("Test data are not batched")
 
     def batch_val(self,
                   dataset: tf.data.Dataset
@@ -280,7 +281,13 @@ class ResultsSetter:
         if self.config["current_variable"] == "UV":
             results = results[1][:, 0]
         elif self.config["current_variable"] == "UV_DIR":
-            results = results[1][:, 1]
+            if self.config["global_architecture"] == "double_ann":
+                # In double_ann, intermediate output is one dimensional (either speed or direction)
+                results = results[1][:, 0]
+            else:
+                # In other architecture, intermediate output is two
+                # dimensional (one dimension for speed, the other direction)
+                results = results[1][:, 1]
         str_model = "_int"
         mode_str = "int"
         return results, str_model, mode_str
@@ -858,15 +865,20 @@ class CustomDataHandler:
                                         labels))
 
     def get_tf_zipped_inputs_labels(self,
-                                    mode: str
+                                    mode: str,
+                                    inputs: Union[pd.Series, pd.DataFrame] = None,
+                                    names: MutableSequence["str"] = None,
+                                    output_shapes: Tuple[int, int, int] = (140, 140, 1),
+                                    labels: Union[pd.Series, pd.DataFrame] = None
                                     ) -> tf.data.Dataset:
-        labels = self.get_labels(mode)
+        if labels is None:
+            labels = self.get_labels(mode)
 
         if hasattr(labels, "values"):
             labels = labels.values
 
         labels = tf.data.Dataset.from_tensor_slices(labels)
-        inputs = self.get_tf_zipped_inputs(mode=mode)
+        inputs = self.get_tf_zipped_inputs(mode=mode, inputs=inputs, names=names, output_shapes=output_shapes)
 
         return tf.data.Dataset.zip((inputs, labels))
 
@@ -938,8 +950,17 @@ class CustomDataHandler:
 
     def get_batched_inputs_labels(self,
                                   mode: str,
+                                  inputs: Union[pd.Series, pd.DataFrame] = None,
+                                  names: MutableSequence["str"] = None,
+                                  output_shapes: Tuple[int, int, int] = (140, 140, 1),
+                                  labels: Union[pd.Series, pd.DataFrame] = None
                                   ) -> DatasetV2:
-        dataset = self.get_tf_zipped_inputs_labels(mode)
+
+        dataset = self.get_tf_zipped_inputs_labels(mode,
+                                                   inputs=inputs,
+                                                   names=names,
+                                                   output_shapes=output_shapes,
+                                                   labels=labels)
 
         batch_func = {"train": self.batcher.batch_train,
                       "test": self.batcher.batch_test,

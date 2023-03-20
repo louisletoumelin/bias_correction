@@ -1,6 +1,11 @@
 import numpy as np
 import pandas as pd
-import seaborn as sns
+try:
+    import seaborn as sns
+
+    _sns = True
+except ModuleNotFoundError:
+    _sns = False
 import logging
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 import tensorflow as tf

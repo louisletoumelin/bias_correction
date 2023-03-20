@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "inputs9"  # Str. Some details about the experiment
+config["details"] = "traintestsplitv3"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -54,8 +54,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                             'TKE90', 'TKE87', 'TKE84', 'TKE75']  # todo sensibility 10
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -154,11 +153,8 @@ config["metric_split"] = "rmse"
 # Space split
 # 2022_08_04 v4
 # Warning: not the same as usual v2
-config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
-                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
-                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
-                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
-                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_test"] = ['Col du Lac Blanc', 'LUZ', 'REH', 'MMSAX', 'TIAIR', 'MMDAS', 'MER', 'LAT', 'PEONE', 'NAS', 'ARVIEUX', 'SCM', 'LES ECRINS-NIVOSE', 'MMERZ', 'STG', 'Col du Lautaret', 'WAE', "ALPE-D'HUEZ", 'LAE', 'GIH', "VILLAR D'ARENE", 'TAE', 'MMMUM', 'RUE', 'MMBOY', 'SCU', 'GOS', 'TGDUS', 'COL-DES-SAISIES', 'TGAMR', 'COV', 'HAI', 'VAD', 'ULR', 'ST-PIERRE-LES EGAUX', 'LE PLENAY', 'CHU', 'LUG', 'LES ROCHILLES-NIVOSE', 'AIG', 'MMLEN', 'MMPRV', 'DAV', 'KLO', 'GRE', 'OBR', 'TALLARD', 'BIE', 'AIGLETON-NIVOSE', 'MVE', 'ROE', 'ANT', 'EBK', 'CEV', 'TGARE', 'GRENOBLE - LVD', 'MMBIR', 'MMTRG', 'DIS', 'MMRIC', 'TGOTT', 'MMSAF', 'PEIRA CAVA', 'GUE', 'LAG', 'MMCPY', 'CDF', 'MMMAT', 'TGWEI', 'MMHIW', 'PAY', 'BIZ', 'MONT DU CHAT']
+
 # usual
 """
 ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',

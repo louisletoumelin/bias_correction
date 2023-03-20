@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "inputs7"  # Str. Some details about the experiment
+config["details"] = "lr_decay"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -54,8 +54,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'BLH',
-                             'CC_cumul_low', 'CC_cumul_middle', 'CC_cumul_high']  # todo sensibility 10
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -81,7 +80,8 @@ config["unbalanced_threshold"] = 2
 # Callbacks
 config["callbacks"] = ["TensorBoard",
                        "CSVLogger",
-                       "ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
+                       "ModelCheckpoint",
+                       "learning_rate_decay"]  # "FeatureImportanceCallback", "EarlyStopping",
 config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "EarlyStopping": [],
                             "ModelCheckpoint": [],

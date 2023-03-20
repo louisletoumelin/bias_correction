@@ -53,11 +53,13 @@ with timer_context("Prepare data"):
 
 if not config["restore_experience"]:
     print_headline("Launch training", "")
+
     # We don't fit a model with two outputs because it cause error in the loss function
     config["get_intermediate_output"] = False
     data_loader.config["get_intermediate_output"] = False
     cm.config["get_intermediate_output"] = False
     exp.config["get_intermediate_output"] = False
+
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
                                  dataloader=data_loader,

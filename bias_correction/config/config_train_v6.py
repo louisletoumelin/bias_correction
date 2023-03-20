@@ -4,7 +4,7 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "inputs8"  # Str. Some details about the experiment
+config["details"] = "traintestsplitv2"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
 
@@ -54,8 +54,7 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 
 # Input variables
 config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                             'Wind90', 'Wind87', 'Wind84', 'Wind75']  # todo sensibility 10
+                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -154,11 +153,8 @@ config["metric_split"] = "rmse"
 # Space split
 # 2022_08_04 v4
 # Warning: not the same as usual v2
-config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
-                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
-                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
-                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
-                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_test"] = ['Col du Lac Blanc', 'GIH', 'LEI', 'QUI', 'VIT', 'MMCPY', 'CHM', 'SMM', 'RISTOLAS', 'JUN', 'MMSAS', 'MMSRL', 'La Muzelle Lac Blanc', 'TGLAN', 'MMPRV', 'SIA', 'FRE', 'ALLANT-NIVOSE', 'LA MASSE', 'HAI', "VILLAR D'ARENE", 'MAG', 'FAH', 'TGNUS', 'GUE', 'BUF', 'LE CHEVRIL-NIVOSE', 'HOE', 'MMLOP', 'MMTIT', 'AIGUILLES ROUGES-NIVOSE', 'SRS', 'MMDAS', 'LA MURE- RADOME', 'MMLIN', 'SPF', 'GAP', 'CREYS-MALVILLE', 'PEIRA CAVA', 'GSB', 'ARO', 'BOL', 'BIE', 'KLO', 'EGO', 'AGAAR', 'PAY', 'GRANDE PAREI NIVOSE', 'AIGLETON-NIVOSE', 'INNRED', 'GES', 'MOE', 'MMFRS', 'TGILL', 'DAV', 'GRO', 'TGRIC', 'TGEGN', 'FLU', 'MMUNS', 'CHU', 'BIN', 'PEONE', 'TIT', 'MOB', 'AND', 'INNESF', 'MMERZ', 'MMRAF', 'MMSSE', 'CGI', 'TGAMR', 'PIL']
+
 # usual
 """
 ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
@@ -278,21 +274,28 @@ all_stations = ['ABO', 'AEG', 'AGAAR', 'AGSUA', 'AGUIL. DU MIDI', 'AIG',
 # De même, marche bien mais DEVINE a de mauvaises statistiques
 # 2022_08_04 v5
 config["stations_test"] = ['Col du Lac Blanc', 'CREYS-MALVILLE', 'CEV', 'TGKAL', 'EIN', 'AEG', 'CHB', 'ZER', 'ULR', 'CMA', 'TICAM', 'AND', 'LES ROCHILLES-NIVOSE', 'HAI', 'MAH', 'BEH', 'LUS L CROIX HTE', 'BONNEVAL-NIVOSE', 'PIL', 'MMZNZ', 'KOP', 'ARH', 'INNEBI', 'GRA', 'ASCROS', 'ST JEAN-ST-NICOLAS', 'BER', 'AIGUILLES ROUGES-NIVOSE', 'TGNOL', 'VILLAR ST PANCRACE', 'SAE', 'PAY', 'MRP', 'BIZ', 'ARVIEUX', 'AGSUA', 'MTR', 'ST-PIERRE-LES EGAUX', 'GRANDE PAREI NIVOSE', 'Argentiere', 'COM', 'MMPRV', 'TIT', 'WYN', 'WAE', 'TGALL', 'DIGNE LES BAINS', 'RISTOLAS', 'DIA', 'BUS', 'BLA', 'MMRAF', 'SMM', 'MMSVG', 'MMSAX']
-config["stations_val"] = ['LUG', 'TGUSH', 'RAG', 'SRS', 'SAG', 'MER', 'BIV', 'PARPAILLON-NIVOSE', 'EGH', 'MOB', 'MMDAS', 'INNESF', 'DEM', 'GRE', 'MMSSE', 'TGDIE', 'DAV', 'LA MASSE']
+# test + val
+config["stations_test"] = ['Col du Lac Blanc', 'CREYS-MALVILLE', 'CEV', 'TGKAL', 'EIN', 'AEG', 'CHB', 'ZER', 'ULR', 'CMA', 'TICAM', 'AND', 'LES ROCHILLES-NIVOSE', 'HAI', 'MAH', 'BEH', 'LUS L CROIX HTE', 'BONNEVAL-NIVOSE', 'PIL', 'MMZNZ', 'KOP', 'ARH', 'INNEBI', 'GRA', 'ASCROS', 'ST JEAN-ST-NICOLAS', 'BER', 'AIGUILLES ROUGES-NIVOSE', 'TGNOL', 'VILLAR ST PANCRACE', 'SAE', 'PAY', 'MRP', 'BIZ', 'ARVIEUX', 'AGSUA', 'MTR', 'ST-PIERRE-LES EGAUX', 'GRANDE PAREI NIVOSE', 'Argentiere', 'COM', 'MMPRV', 'TIT', 'WYN', 'WAE', 'TGALL', 'DIGNE LES BAINS', 'RISTOLAS', 'DIA', 'BUS', 'BLA', 'MMRAF', 'SMM', 'MMSVG', 'MMSAX', 'LUG', 'TGUSH', 'RAG', 'SRS', 'SAG', 'MER', 'BIV', 'PARPAILLON-NIVOSE', 'EGH', 'MOB', 'MMDAS', 'INNESF', 'DEM', 'GRE', 'MMSSE', 'TGDIE', 'DAV', 'LA MASSE']
 
 # Marche bien mais DEVINE trop biaisé
 # 2022_08_04 v4
 config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
 config["stations_val"] = ['WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
+# test + val
+config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM', 'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF', 'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT', 'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN', 'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH', 'WYN', 'BER', 'ARH', 'ELM', 'MMMES', 'ASCROS', 'GRANDE PAREI NIVOSE', 'SAM', 'JUN', 'SCU', 'MMSVG', 'GALIBIER-NIVOSE', 'MEYTHET', 'BRZ', 'OBR', 'FAH', 'MMRIG', 'PMA']
 
 # 2022_08_04 v3
 ['Col du Lac Blanc', 'LUZ', 'REH', 'MMSAX', 'TIAIR', 'MMDAS', 'MER', 'LAT', 'PEONE', 'NAS', 'ARVIEUX', 'SCM', 'LES ECRINS-NIVOSE', 'MMERZ', 'STG', 'Col du Lautaret', 'WAE', "ALPE-D'HUEZ", 'LAE', 'GIH', "VILLAR D'ARENE", 'TAE', 'MMMUM', 'RUE', 'MMBOY', 'SCU', 'GOS', 'TGDUS', 'COL-DES-SAISIES', 'TGAMR', 'COV', 'HAI', 'VAD', 'ULR', 'ST-PIERRE-LES EGAUX', 'LE PLENAY', 'CHU', 'LUG', 'LES ROCHILLES-NIVOSE', 'AIG', 'MMLEN', 'MMPRV', 'DAV', 'KLO', 'GRE', 'OBR', 'TALLARD', 'BIE', 'AIGLETON-NIVOSE', 'MVE', 'ROE', 'ANT', 'EBK', 'CEV', 'TGARE']
 ['GRENOBLE - LVD', 'MMBIR', 'MMTRG', 'DIS', 'MMRIC', 'TGOTT', 'MMSAF', 'PEIRA CAVA', 'GUE', 'LAG', 'MMCPY', 'CDF', 'MMMAT', 'TGWEI', 'MMHIW', 'PAY', 'BIZ', 'MONT DU CHAT']
+# test + val
+['Col du Lac Blanc', 'LUZ', 'REH', 'MMSAX', 'TIAIR', 'MMDAS', 'MER', 'LAT', 'PEONE', 'NAS', 'ARVIEUX', 'SCM', 'LES ECRINS-NIVOSE', 'MMERZ', 'STG', 'Col du Lautaret', 'WAE', "ALPE-D'HUEZ", 'LAE', 'GIH', "VILLAR D'ARENE", 'TAE', 'MMMUM', 'RUE', 'MMBOY', 'SCU', 'GOS', 'TGDUS', 'COL-DES-SAISIES', 'TGAMR', 'COV', 'HAI', 'VAD', 'ULR', 'ST-PIERRE-LES EGAUX', 'LE PLENAY', 'CHU', 'LUG', 'LES ROCHILLES-NIVOSE', 'AIG', 'MMLEN', 'MMPRV', 'DAV', 'KLO', 'GRE', 'OBR', 'TALLARD', 'BIE', 'AIGLETON-NIVOSE', 'MVE', 'ROE', 'ANT', 'EBK', 'CEV', 'TGARE', 'GRENOBLE - LVD', 'MMBIR', 'MMTRG', 'DIS', 'MMRIC', 'TGOTT', 'MMSAF', 'PEIRA CAVA', 'GUE', 'LAG', 'MMCPY', 'CDF', 'MMMAT', 'TGWEI', 'MMHIW', 'PAY', 'BIZ', 'MONT DU CHAT']
 
 
 # 2022_08_04 v2
 ['Col du Lac Blanc', 'GIH', 'LEI', 'QUI', 'VIT', 'MMCPY', 'CHM', 'SMM', 'RISTOLAS', 'JUN', 'MMSAS', 'MMSRL', 'La Muzelle Lac Blanc', 'TGLAN', 'MMPRV', 'SIA', 'FRE', 'ALLANT-NIVOSE', 'LA MASSE', 'HAI', "VILLAR D'ARENE", 'MAG', 'FAH', 'TGNUS', 'GUE', 'BUF', 'LE CHEVRIL-NIVOSE', 'HOE', 'MMLOP', 'MMTIT', 'AIGUILLES ROUGES-NIVOSE', 'SRS', 'MMDAS', 'LA MURE- RADOME', 'MMLIN', 'SPF', 'GAP', 'CREYS-MALVILLE', 'PEIRA CAVA', 'GSB', 'ARO', 'BOL', 'BIE', 'KLO', 'EGO', 'AGAAR', 'PAY', 'GRANDE PAREI NIVOSE', 'AIGLETON-NIVOSE', 'INNRED', 'GES', 'MOE', 'MMFRS', 'TGILL', 'DAV']
 ['GRO', 'TGRIC', 'TGEGN', 'FLU', 'MMUNS', 'CHU', 'BIN', 'PEONE', 'TIT', 'MOB', 'AND', 'INNESF', 'MMERZ', 'MMRAF', 'MMSSE', 'CGI', 'TGAMR', 'PIL']
+# test + val
+['Col du Lac Blanc', 'GIH', 'LEI', 'QUI', 'VIT', 'MMCPY', 'CHM', 'SMM', 'RISTOLAS', 'JUN', 'MMSAS', 'MMSRL', 'La Muzelle Lac Blanc', 'TGLAN', 'MMPRV', 'SIA', 'FRE', 'ALLANT-NIVOSE', 'LA MASSE', 'HAI', "VILLAR D'ARENE", 'MAG', 'FAH', 'TGNUS', 'GUE', 'BUF', 'LE CHEVRIL-NIVOSE', 'HOE', 'MMLOP', 'MMTIT', 'AIGUILLES ROUGES-NIVOSE', 'SRS', 'MMDAS', 'LA MURE- RADOME', 'MMLIN', 'SPF', 'GAP', 'CREYS-MALVILLE', 'PEIRA CAVA', 'GSB', 'ARO', 'BOL', 'BIE', 'KLO', 'EGO', 'AGAAR', 'PAY', 'GRANDE PAREI NIVOSE', 'AIGLETON-NIVOSE', 'INNRED', 'GES', 'MOE', 'MMFRS', 'TGILL', 'DAV', 'GRO', 'TGRIC', 'TGEGN', 'FLU', 'MMUNS', 'CHU', 'BIN', 'PEONE', 'TIT', 'MOB', 'AND', 'INNESF', 'MMERZ', 'MMRAF', 'MMSSE', 'CGI', 'TGAMR', 'PIL']
 
 # 2022_08_04
 config["stations_test"] = ['Col du Lac Blanc', 'MMLAF', 'WAE', 'AGAAR', 'DIS', 'MMDAS', 'EMBRUN', 'ZER', 'LE TOUR',

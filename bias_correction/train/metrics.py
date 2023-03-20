@@ -81,6 +81,11 @@ def abs_bias_direction(y_true, y_pred):
     return np.abs(bias_direction(y_true, y_pred))
 
 
+def mean_abs_bias_direction(y_true, y_pred):
+    """Absolute bias for wind direction"""
+    return np.nanmean(np.abs(bias_direction(y_true, y_pred)))
+
+
 dict_metrics = {"bias": bias,
                 "n_bias": n_bias,
                 "ae": ae,
@@ -95,7 +100,8 @@ dict_metrics = {"bias": bias,
                 "tf_mae": tf.keras.metrics.MeanAbsoluteError(),
                 "tf_mbe": tf_mbe,
                 "bias_direction": bias_direction,
-                "abs_bias_direction": abs_bias_direction
+                "abs_bias_direction": abs_bias_direction,
+                "mean_abs_bias_direction": mean_abs_bias_direction
                 }
 
 

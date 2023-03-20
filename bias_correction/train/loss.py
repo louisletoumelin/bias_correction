@@ -94,13 +94,34 @@ class MSEpower(tf.keras.losses.Loss):
         return result
 
 
+class CosineDistance(tf.keras.losses.Loss):
+
+    def __init__(self, power=1):
+        super().__init__()
+        self.power = power
+
+    @staticmethod
+    def tf_deg2rad(angle):
+        """
+        Converts angles in degrees to radians
+
+        Note: pi/180 = 0.01745329
+        """
+
+        return angle * tf.convert_to_tensor(0.01745329)
+
+    def call(self, y_true, y_pred):
+        return (1 - tf.math.cos(self.tf_deg2rad(y_true) - self.tf_deg2rad(y_pred)))**self.power
+
+
 dict_loss = {"mse": "mse",
              "penalized_mse": PenalizedMSE,
              "mse_proportional": MSEProportionalInput,
              "mse_power": MSEpower,
              "pinball": Pinball,
              "pinball_proportional": PinballProportional,
-             "pinball_weight": PinballWeight}
+             "pinball_weight": PinballWeight,
+             "cosine_distance": CosineDistance}
 
 
 def load_loss(name_loss: str, *args, **kwargs) -> Union[str, Callable]:

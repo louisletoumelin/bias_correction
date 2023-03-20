@@ -230,6 +230,11 @@ class CustomEvaluation(VizualizationResults):
 
         return self.df2metric("corr", print_=print_)
 
+    def df2ae_dir(self,
+              print_: bool = False
+              ) -> list:
+        return self._df2metric(self.df_results, "mean_abs_bias_direction", self.key_obs, self.keys, print_=print_)
+
     def print_stats(self
                     ) -> Tuple[list, list, list, list]:
 
