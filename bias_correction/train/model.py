@@ -27,12 +27,14 @@ from bias_correction.train.layers import RotationLayer, \
     SpeedDirection2Components, \
     Components2Alpha, \
     Alpha2Direction, \
-    NormalizationInputs
+    NormalizationInputs, \
+    SimpleScaling
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
 from bias_correction.train.callbacks import load_callback_with_custom_model
 from bias_correction.train.experience_manager import ExperienceManager
+from bias_correction.train.unet import create_unet
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -124,17 +126,10 @@ class DevineBuilder(StrategyInitializer):
         super().__init__(config)
 
         # Get norm
-        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_cnn(config["model_path"])
-
-        # Load cnn
-        self.cnn_devine = self.load_cnn(config["model_path"])
-
-        # Freeze CNN weights
-        if config["disable_training_cnn"]:
-            self.cnn_devine = self.disable_training(self.cnn_devine)
+        self.mean_norm_cnn, self.std_norm_cnn = self.load_norm_unet(config["unet_path"])
 
     @staticmethod
-    def load_cnn(model_path: str):
+    def load_classic_unet(model_path: str):
         def root_mse(y_true, y_pred):
             return K.sqrt(K.mean(K.square(y_true - y_pred)))
 
@@ -145,7 +140,7 @@ class DevineBuilder(StrategyInitializer):
                           options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost'))
 
     @staticmethod
-    def load_norm_cnn(model_path):
+    def load_norm_unet(model_path):
         """Load normalization parameters: mean and std"""
 
         dict_norm = pd.read_csv(model_path + "dict_norm.csv")
@@ -159,26 +154,79 @@ class DevineBuilder(StrategyInitializer):
         model.trainable = False
         return model
 
-    def devine(self, topos, x, inputs, use_crop=True):
+    @staticmethod
+    def load_custom_unet(input_shape, model_path):
+        unet = create_unet(input_shape)
+        unet.load_weights(model_path)
+        return unet
+
+    def devine(self,
+               topos,
+               x,
+               inputs,
+               use_crop=True):
+
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
-        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-1)(topos, x[:, 1])
-        if use_crop:
-            y = CropTopography(initial_length=140, y_offset=79 // 2, x_offset=69 // 2)(y)
-        y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
-        y = self.cnn_devine(y)
+        y = RotationLayer(clockwise=False, unit_input="degree", fill_value=-9999)(topos, x[:, 1])
 
-        if self.config["type_of_output"] in ["output_components", "map", "map_components"]:
+        if self.config["custom_unet"]:
+            length_y = self.config["custom_input_shape"][0]
+            length_x = self.config["custom_input_shape"][1]
+            min_length = np.min([self.config["custom_input_shape"][0], self.config["custom_input_shape"][1]])
+            y_diff = np.intp((min_length/np.sqrt(2))) // 2
+            x_diff = np.intp((min_length/np.sqrt(2))) // 2
+        else:
+            length_y = 140
+            length_x = 140
+            y_diff = 79 // 2
+            x_diff = 69 // 2
+
+        if use_crop:
+            print("debug")
+            print(length_x)
+            print(length_y)
+            print(y_diff)
+            print(x_diff)
+            y = CropTopography(initial_length_x=length_x,
+                               initial_length_y=length_y,
+                               y_offset=y_diff,
+                               x_offset=x_diff)(y)
+
+        y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
+
+        if self.config["custom_unet"]:
+            print("debug shape custom devine")
+            print((y_diff*2+1, y_diff*2+1, 1))
+            unet = self.load_custom_unet((y_diff*2+1, y_diff*2+1, 1), self.config["unet_path"])
+        else:
+            unet = self.load_classic_unet(self.config["unet_path"])
+
+        if self.config["disable_training_cnn"]:
+            unet = self.disable_training(unet)
+
+        y = unet(y)
+
+        if self.config["type_of_output"] == "map_u_v_w":
+            w = y[:, :, :, 2]
+            if len(w.shape) == 3:
+                w = tf.expand_dims(w, -1)
+            w = RotationLayer(clockwise=True,
+                              unit_input="degree",
+                              fill_value=np.nan)(w, x[:, 1])
+            w = SimpleScaling()(w, x[:, 0])
+
+        if self.config["type_of_output"] in ["output_components", "map", "map_components", "map_u_v_w"]:
             # Direction
             alpha_or_direction = Components2Alpha()(y)
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
-                                               fill_value=-1)(alpha_or_direction, x[:, 1])
+                                               fill_value=np.nan)(alpha_or_direction, x[:, 1])
 
         # Speed
         y = Components2Speed()(y)
-        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=-1)(y, x[:, 1])
+        y = RotationLayer(clockwise=True, unit_input="degree", fill_value=np.nan)(y, x[:, 1])
         y = ActivationArctan(alpha=38.2)(y, x[:, 0])
 
         if self.config["type_of_output"] == "output_components":
@@ -194,6 +242,10 @@ class DevineBuilder(StrategyInitializer):
         elif self.config["type_of_output"] == "map_components":
             x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
             bc_model = Model(inputs=inputs, outputs=(x, y), name="bias_correction")
+
+        elif self.config["type_of_output"] == "map_u_v_w":
+            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
+            bc_model = Model(inputs=inputs, outputs=(x, y, w), name="bias_correction")
 
         elif self.config["type_of_output"] == "map":
             bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
@@ -474,12 +526,17 @@ class CustomModel(StrategyInitializer):
         )
 
     def _build_devine_only(self):
-        # Inputs
-        topos = Input(shape=(140, 140, 1), name="input_topos")
-        wind_field = Input(shape=(2,), name="input_wind_field")
-        inputs = (topos, wind_field)
 
-        bc_model = self.devine_builder.devine(topos, wind_field, inputs)
+        if self.config["custom_unet"]:
+            input_shape = self.config["custom_input_shape"]
+        else:
+            input_shape = (140, 140, 1)
+
+        # Inputs
+        topos = Input(shape=input_shape, name="input_topos")
+        x = Input(shape=(2,), name="input_wind_field")
+        inputs = (topos, x)
+        bc_model = self.devine_builder.devine(topos, x, inputs)
 
         print(bc_model.summary())
         self.model = bc_model

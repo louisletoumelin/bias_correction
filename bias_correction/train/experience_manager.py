@@ -5,11 +5,15 @@ import tensorflow as tf
 from datetime import date
 import os
 import json
+from typing import Union, MutableSequence, Tuple
 
 from bias_correction.utils_bc.network import detect_network
+from bias_correction.train.eval import CustomEvaluation
+from bias_correction.train.model import CustomModel
+from bias_correction.train.dataloader import CustomDataHandler
 
 
-def _is_full_path(path_to_previous_exp):
+def _is_full_path(path_to_previous_exp: str) -> bool:
     if len(path_to_previous_exp.split("/")) == 1:
         full_path = False
     elif len(path_to_previous_exp.split("/")) == 2 and path_to_previous_exp.split("/")[-1] == '':
@@ -20,13 +24,13 @@ def _is_full_path(path_to_previous_exp):
     return full_path
 
 
-def _get_path_with_root(path_to_previous_exp, network):
+def _get_path_with_root(path_to_previous_exp: str, network: str) -> str:
     pt = {"local": "/home/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp,
           "labia": "//scratch/mrmn/letoumelinl/bias_correction/Data/3_Predictions/Experiences/" + path_to_previous_exp}
     return pt[network]
 
 
-def _get_full_path_to_previous_exp(path_to_previous_exp):
+def _get_full_path_to_previous_exp(path_to_previous_exp: str) -> str:
     network = detect_network()
     if _is_full_path(path_to_previous_exp):
         return path_to_previous_exp
@@ -50,9 +54,15 @@ class FolderShouldNotExistError(Exception):
 
 class AllExperiences:
 
-    def __init__(self, config, override=False, create=True):
+    def __init__(self,
+                 config: dict,
+                 override: bool = False,
+                 create: bool = True
+                 ) -> None:
+
         self.config = config
         self.path_experiences = config["path_experiences"]
+
         if create:
             self.create_csv_file_if_doesnt_exists("experiences",
                                                   ["exp", "finished", "details"],
@@ -65,10 +75,14 @@ class AllExperiences:
                                                   ["exp", "finished", "hyperparameter1", "hyperparameter2", "details"],
                                                   override=override)
 
-    def check_csv_file_exists(self, name):
+    def check_csv_file_exists(self, name: str) -> bool:
         return f"{name}.csv" in os.listdir(self.path_experiences)
 
-    def create_csv_file_if_doesnt_exists(self, name, columns, override=False):
+    def create_csv_file_if_doesnt_exists(self,
+                                         name: str,
+                                         columns: list[str],
+                                         override: bool = False
+                                         ) -> None:
         df = pd.DataFrame(columns=columns)
         df.index.name = "index"
         file_doesnt_exists = not self.check_csv_file_exists(name)
@@ -78,7 +92,13 @@ class AllExperiences:
 
 class ExperienceManager(AllExperiences):
 
-    def __init__(self, config, override=False, restore_old_experience=False, create=True):
+    def __init__(self,
+                 config: dict,
+                 override: bool = False,
+                 restore_old_experience: bool = False,
+                 create: bool = True
+                 ) -> None:
+
         super().__init__(config, override=override, create=create)
         self.list_physical_devices()
 
@@ -112,14 +132,14 @@ class ExperienceManager(AllExperiences):
                 self._update_experience_to_csv_file(name)
             self.save_config_json()
 
-    def detect_variable(self):
+    def detect_variable(self) -> str:
         if "temperature" in self.config["global_architecture"]:
             return "T2m"
         else:
             return "UV"
 
     @staticmethod
-    def list_physical_devices():
+    def list_physical_devices() -> None:
         gpus = tf.config.list_physical_devices('GPU')
         cpus = tf.config.list_physical_devices('CPU')
         print("\nPhysical devices available:")
@@ -127,11 +147,11 @@ class ExperienceManager(AllExperiences):
             print("Name:", device.name, "  Type:", device.device_type)
 
     @staticmethod
-    def _get_current_date_str():
+    def _get_current_date_str() -> str:
         today = date.today()
         return f"{today.year}_{today.month}_{today.day}"
 
-    def _get_experiences_created_today(self):
+    def _get_experiences_created_today(self) -> list:
         other_experiences_created_today = []
 
         for file in os.listdir(self.path_experiences):
@@ -140,7 +160,7 @@ class ExperienceManager(AllExperiences):
 
         return other_experiences_created_today
 
-    def _get_current_id(self):
+    def _get_current_id(self) -> str:
         if self.other_experiences_created_today:
             ids = [int(file.split("v")[1]) for file in self.other_experiences_created_today]
             current_id = np.max(ids).astype(np.int) + 1
@@ -148,14 +168,17 @@ class ExperienceManager(AllExperiences):
             current_id = 0
         return current_id
 
-    def _get_name_current_experience(self):
+    def _get_name_current_experience(self) -> str:
         return self.current_date + f"_{self.config['network']}_v{self.current_id}/"
 
-    def _get_path_to_current_experience(self):
+    def _get_path_to_current_experience(self) -> str:
         return self.path_experiences + self.name_current_experience
 
     @staticmethod
-    def create_folder_if_doesnt_exist(path, _raise=True, verbose=False):
+    def create_folder_if_doesnt_exist(path: str,
+                                      _raise: bool = True,
+                                      verbose: bool = False
+                                      ) -> None:
         if not os.path.exists(path):
             os.makedirs(path)
         elif _raise:
@@ -165,7 +188,8 @@ class ExperienceManager(AllExperiences):
                 print(f"{path} already exists")
             pass
 
-    def _update_experience_to_csv_file(self, name):
+    def _update_experience_to_csv_file(self, name: str
+                                       ) -> None:
         df = pd.read_csv(self.path_experiences + f"{name}.csv")
 
         keys = ["exp", "finished", "details"]
@@ -174,7 +198,7 @@ class ExperienceManager(AllExperiences):
         df = df.append(dict_to_append, ignore_index=True)
         df.to_csv(self.path_experiences + f"{name}.csv", index=False)
 
-    def _update_finished_csv_file(self):
+    def _update_finished_csv_file(self) -> None:
         for name in ["experiences", "metrics", "hyperparameters"]:
             df = pd.read_csv(self.path_experiences + f"{name}.csv")
             filter_exp = df["exp"] == self.name_current_experience
@@ -182,18 +206,28 @@ class ExperienceManager(AllExperiences):
             df.to_csv(self.path_experiences + f"{name}.csv", index=False)
             print(f"Save info about experience in: " + self.path_experiences + f"{name}.csv")
 
-    def _update_single_metrics_csv(self, metric_value, metric_name, precision=3):
+    def _update_single_metrics_csv(self,
+                                   metric_value: float,
+                                   metric_name: str,
+                                   precision: int = 3
+                                   ) -> None:
         df = pd.read_csv(self.path_experiences + "metrics.csv")
         filter_exp = df["exp"] == self.name_current_experience
         df.loc[filter_exp, metric_name] = np.round(metric_value, precision)
         df.to_csv(self.path_experiences + "metrics.csv", index=False, float_format=f"%.{precision}f")
         print("Updated: " + self.path_experiences + "metrics.csv")
 
-    def _update_metrics_csv(self, list_metric_values, metric_name=None, precision=3):
+    def _update_metrics_csv(self,
+                            list_metric_values: list,
+                            metric_name: Union[str, None] = None,
+                            precision: int = 3
+                            ) -> None:
         for metric_value, model in zip(list_metric_values, ["_a", "_nn", "_int"]):
             self._update_single_metrics_csv(metric_value, metric_name + model, precision=precision)
 
-    def _update_csv_files_with_results(self, c_eval):
+    def _update_csv_files_with_results(self,
+                                       c_eval: CustomEvaluation
+                                       ) -> None:
 
         assert hasattr(c_eval, "df_results")
 
@@ -205,21 +239,26 @@ class ExperienceManager(AllExperiences):
         self._update_metrics_csv(rmse, metric_name="RMSE")
         self._update_metrics_csv(bias, metric_name="MB")
 
-    def finished(self):
+    def finished(self) -> None:
         self.is_finished = 1
 
-    def save_model(self, custom_model):
+    def save_model(self,
+                   custom_model: CustomModel
+                   ) -> None:
         tf.keras.models.save_model(custom_model.model, self.path_to_last_model)
 
-    def save_config_json(self):
+    def save_config_json(self) -> None:
         with open(self.path_to_current_experience + 'config.json', 'w') as fp:
             json.dump(self.config, fp, sort_keys=True, indent=4)
 
-    def save_norm_param(self, mean, std):
+    def save_norm_param(self,
+                        mean: MutableSequence[float],
+                        std: MutableSequence[float]
+                        ) -> None:
         np.save(self.path_to_current_experience + "mean.npy", mean)
         np.save(self.path_to_current_experience + "std.npy", std)
 
-    def save_experience_json(self):
+    def save_experience_json(self) -> None:
 
         if hasattr(self, "is_finished"):
             if self.is_finished is None:
@@ -243,7 +282,10 @@ class ExperienceManager(AllExperiences):
         with open(self.path_to_current_experience + 'exp.json', 'w') as fp:
             json.dump(dict_exp, fp, sort_keys=True, indent=4)
 
-    def save_all(self, data, custom_model):
+    def save_all(self,
+                 data: CustomDataHandler,
+                 custom_model: CustomModel
+                 ) -> None:
 
         self.save_model(custom_model)
         self.save_config_json()
@@ -251,13 +293,17 @@ class ExperienceManager(AllExperiences):
             self.save_norm_param(data.mean_standardize, data.std_standardize)
         self.save_experience_json()
 
-    def save_results(self, c_eval):
+    def save_results(self,
+                     c_eval: CustomEvaluation
+                     ) -> None:
         self.finished()
         self._update_finished_csv_file()
         self._update_csv_files_with_results(c_eval)
 
     @classmethod
-    def from_previous_experience(cls, path_to_previous_exp):
+    def from_previous_experience(cls,
+                                 path_to_previous_exp: str
+                                 ) -> Tuple[ExperienceManager, dict]:
 
         path_to_previous_exp = _get_full_path_to_previous_exp(path_to_previous_exp)
 

@@ -65,16 +65,17 @@ class RotationLayer(Layer):
 
 class CropTopography(Layer):
     def __init__(self,
-                 initial_length=140,
+                 initial_length_x=140,
+                 initial_length_y=140,
                  y_offset=39,
                  x_offset=34,
                  ):
 
         super(CropTopography, self).__init__()
-        self.y_offset_left = tf.constant(initial_length//2 - y_offset)
-        self.y_offset_right = tf.constant(initial_length//2 + y_offset + 1)
-        self.x_offset_left = tf.constant(initial_length//2 - x_offset)
-        self.x_offset_right = tf.constant(initial_length//2 + x_offset + 1)
+        self.y_offset_left = tf.constant(initial_length_y//2 - y_offset)
+        self.y_offset_right = tf.constant(initial_length_y//2 + y_offset + 1)
+        self.x_offset_left = tf.constant(initial_length_x//2 - x_offset)
+        self.x_offset_right = tf.constant(initial_length_x//2 + x_offset + 1)
 
     def build(self, input_shape):
         super(CropTopography, self).build(input_shape)
@@ -163,6 +164,29 @@ class ActivationArctan(Layer):
         scaled_wind = wind_nwp * output_cnn / tf.convert_to_tensor(3.)  # 3 = ARPS initialization speed
         outputs = self.alpha * tf.math.atan(scaled_wind/self.alpha)
         result = self.reshape_as_inputs(output_cnn, outputs)
+        return result
+
+
+class SimpleScaling(Layer):
+    """
+    Normalization of inputs before calling the CNN
+    """
+    def __init__(self):
+        super(SimpleScaling, self).__init__()
+
+    def build(self, input_shape):
+        super(SimpleScaling, self).build(input_shape)
+
+    @staticmethod
+    def reshape_as_inputs(inputs, outputs):
+        if outputs.shape[-1] is None:
+            outputs = tf.keras.backend.reshape(outputs, tf.shape(inputs))
+        return outputs
+
+    def call(self, output_cnn, wind_nwp):
+        wind_nwp = tf.expand_dims(tf.expand_dims(tf.expand_dims(wind_nwp, axis=-1), axis=-1), axis=-1)
+        scaled_wind = wind_nwp * output_cnn / tf.convert_to_tensor(3.)  # 3 = ARPS initialization speed
+        result = self.reshape_as_inputs(output_cnn, scaled_wind)
         return result
 
 
