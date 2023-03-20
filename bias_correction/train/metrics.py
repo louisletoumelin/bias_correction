@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-
 
 def bias(y_true, y_pred):
     """Bias"""
@@ -54,8 +52,17 @@ def mae(y_true, y_pred):
     return np.nanmean(ae(y_true, y_pred))
 
 
+dict_metrics = {"bias": bias,
+                "n_bias": n_bias,
+                "ae": ae,
+                "n_ae": n_ae,
+                "mbe": mbe,
+                "m_n_be": m_n_be,
+                "m_n_ae": m_n_ae,
+                "corr": corr,
+                "rmse": rmse,
+                "mae": mae}
+
+
 def get_metric(metric_name):
-    if metric_name in globals():
-        return globals()[metric_name]
-    else:
-        raise NotImplementedError(f"{metric_name} is not implemented")
+    return dict_metrics[metric_name]
