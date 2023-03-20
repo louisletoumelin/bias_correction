@@ -427,18 +427,20 @@ class Boxplots:
             assert f"class_{carac}" in df, f"class_{carac} should be in input DataFrame. " \
                                            f"Dataframe columns are {df.columns}"
 
-        for metric in metrics:
+        for idx, metric in enumerate(metrics):
+            old_names = list(dict_keys.keys())
+            new_names = list(dict_keys.values())
+            if idx > 0:
+                df.drop(columns=new_names, inplace=True)
+            new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(old_names, new_names)}
+            df = df.rename(columns=new_columns)
             for carac in topo_carac:
+                df_to_plot = df[["name"] + [f"class_{carac}"] + new_names]
 
-                keys = dict_keys.keys()
-                values = dict_keys.values()
-                new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(keys, values)}
-                df = df.rename(columns=new_columns)
-
-                plot_boxplot_models(df,
+                plot_boxplot_models(df_to_plot,
                                     carac=f"class_{carac}",
                                     metric=metric,
-                                    models_names=list(dict_keys.values()),
+                                    models_names=new_names,
                                     showfliers=showfliers,
                                     orient="v",
                                     figsize=figsize,
@@ -451,5 +453,4 @@ class VizualizationResults(Boxplots, Leadtime, SeasonalEvolution, ModelVersusObs
 
     def __init__(self, exp=None):
         super().__init__(exp)
-
 
