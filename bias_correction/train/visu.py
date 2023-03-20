@@ -646,7 +646,7 @@ class Boxplots:
                                                                   "$q_{50}<x \leq q_{75}$", "$q_{75}<x$"),
                                 hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "DEVINE",
                                                                       "Neural Network + DEVINE", "$AROME_{analysis}$"),
-                                palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C3"),
+                                palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C4"),
                                 print_: bool = False
                                 ) -> None:
 

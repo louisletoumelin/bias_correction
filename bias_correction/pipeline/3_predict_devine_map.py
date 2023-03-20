@@ -29,7 +29,7 @@ if config["restore_experience"]:
     cm = CustomModel.from_previous_experience(exp, config)
 else:
     exp = ExperienceManager(config)
-    cm = CustomModel(exp, config, "last")
+    cm = CustomModel(exp, config)
 
 data_loader = CustomDataHandler(config)
 
@@ -45,10 +45,20 @@ inputs_and_labels_train = data_loader.get_tf_zipped_inputs_labels(mode="train")
 inputs_and_labels_val = data_loader.get_tf_zipped_inputs_labels(mode="val")
 
 time_series = data_loader.get_time_series(prepared=False)
-d0 = pd.to_datetime(datetime(2020, 1, 5, 0))
+d0 = pd.to_datetime(datetime(2020, 1, 5, 4))
 d = pd.to_datetime(datetime(2020, 1, 5, 5))
-d1 = pd.to_datetime(datetime(2020, 1, 5, 12))
+d1 = pd.to_datetime(datetime(2020, 1, 5, 6))
+
+d0 = pd.to_datetime(datetime(2020, 1, 2, 15))
+d = pd.to_datetime(datetime(2020, 1, 2, 17))
+d1 = pd.to_datetime(datetime(2020, 1, 2, 18))
+
+d0 = pd.to_datetime(datetime(2020, 1, 3, 15))
+d = pd.to_datetime(datetime(2020, 1, 3, 17))
+d1 = pd.to_datetime(datetime(2020, 1, 3, 18))
 station = "Col du Lac Blanc"
+station = "AGUIL. DU MIDI"
+station = "LE GUA-NIVOSE"
 
 vm = VisuMap(exp, d0, d, d1, station, config)
 vm.plot_quiver(time_series, data_loader, cm)

@@ -29,8 +29,11 @@ class DictTopo:
         dem = self.get_dem(country)
 
         # Names
-        str_x = f'X_index_{self.name_nwp}_NN_0_ref_{self.name_dem}'
-        str_y = f'Y_index_{self.name_nwp}_NN_0_ref_{self.name_dem}'
+        # before
+        # f'X_index_{self.name_nwp}_NN_0_ref_{self.name_dem}'
+        # f'Y_index_{self.name_nwp}_NN_0_ref_{self.name_dem}'
+        str_x = "X_index_DEM_NN_0_ref_DEM"
+        str_y = "Y_index_DEM_NN_0_ref_DEM"
 
         # Station idx
         idx_x = np.intp(self.stations.loc[filter_station, str_x].values[0])
@@ -91,12 +94,12 @@ class DictTopo:
                 dict_1[station]["name"] = station
                 dict_2[station]["name"] = station
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_station.pickle', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_station_2022_10_26.pickle', 'wb') as handle:
             pickle.dump(dict_0, handle)
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp.pickle', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp.pickle_2022_10_26', 'wb') as handle:
             pickle.dump(dict_1, handle)
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp_inter.pickle', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp_inter_2022_10_26.pickle', 'wb') as handle:
             pickle.dump(dict_2, handle)
 

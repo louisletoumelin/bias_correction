@@ -18,7 +18,7 @@ class RotationLayer(Layer):
                  unit_input,
                  interpolation="nearest",
                  fill_mode="constant",
-                 fill_value=np.nan):
+                 fill_value=-1):
 
         super(RotationLayer, self).__init__()
         self.clockwise = clockwise
@@ -58,7 +58,6 @@ class RotationLayer(Layer):
                                   fill_mode=self.fill_mode,
                                   fill_value=self.fill_value)
         tf.convert_to_tensor(result)
-
         result = tf.keras.backend.reshape(result, tf.shape(inputs))
         return result
 
@@ -104,6 +103,17 @@ class SelectCenter(Layer):
             return inputs[:, self.len_y//2, self.len_x//2, :]
 
 
+class MeanTopo(Layer):
+    def __init__(self):
+        super(MeanTopo, self).__init__()
+
+    def build(self, input_shape):
+        super(MeanTopo, self).build(input_shape)
+
+    def call(self, inputs):
+        return tf.convert_to_tensor(tf.math.reduce_mean(inputs, axis=[-2, -3]), tf.float32)
+
+
 class NormalizationInputs(Layer):
     """
     Normalization of inputs before calling the CNN
@@ -126,19 +136,17 @@ class Normalization(Layer):
     """
     Normalization of inputs before calling the CNN
     """
-    def __init__(self,
-                 mean,
-                 std):
+    def __init__(self, std):
 
         super(Normalization, self).__init__()
-        self.mean = tf.convert_to_tensor(mean, tf.float32)
         self.std = tf.convert_to_tensor(std, tf.float32)
 
     def build(self, input_shape):
         super(Normalization, self).build(input_shape)
 
     def call(self, inputs):
-        return (inputs-self.mean) / self.std
+        mean = tf.expand_dims(tf.expand_dims(tf.math.reduce_mean(inputs, axis=[-2, -3]), axis=-1), axis=-1)
+        return (inputs-mean) / self.std
 
 
 class ActivationArctan(Layer):
@@ -162,9 +170,7 @@ class ActivationArctan(Layer):
     def call(self, output_cnn, wind_nwp):
         wind_nwp = tf.expand_dims(tf.expand_dims(tf.expand_dims(wind_nwp, axis=-1), axis=-1), axis=-1)
         scaled_wind = wind_nwp * output_cnn / tf.convert_to_tensor(3.)  # 3 = ARPS initialization speed
-        outputs = self.alpha * tf.math.atan(scaled_wind/self.alpha)
-        result = self.reshape_as_inputs(output_cnn, outputs)
-        return result
+        return self.reshape_as_inputs(output_cnn, self.alpha * tf.math.atan(scaled_wind/self.alpha))
 
 
 class SimpleScaling(Layer):

@@ -3,12 +3,8 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import pytest
 
-from bias_correction.train.model import NormalizationCNN
 
 
-@pytest.fixture
-def normalizationcnn():
-    return NormalizationCNN(0.5, 2)
 
 @pytest.fixture
 def output_normalizationcnn(image_cross):
