@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib
-#matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import cm
+from matplotlib.pyplot import cm as cm_plt
 from typing import Union, List, MutableSequence, Tuple
 
 try:
@@ -29,7 +29,7 @@ class CustomEvaluation(VizualizationResults):
                  mode: str = "test",
                  keys: Tuple[str, ...] = ("_AROME", "_nn"),
                  stations_to_remove: Union[List[str], List] = [],
-                 other_models: Tuple[str, ...] = ("_D", "_A"),
+                 other_models: Union[Tuple[str, ...], None] = ("_D", "_A"),
                  metrics: Tuple[str, ...] = ("bias", "n_bias", "ae", "n_ae"),
                  topo_carac: Tuple[str, ...] = ('mu',
                                                 'curvature',
@@ -38,7 +38,9 @@ class CustomEvaluation(VizualizationResults):
                                                 'laplacian',
                                                 'alti',
                                                 'country'),
-                 quick: bool = False):
+                 quick: bool = False,
+                 key_df_results: Union[str, None] = None
+                 ):
 
         super().__init__(exp)
 
@@ -47,36 +49,44 @@ class CustomEvaluation(VizualizationResults):
         self.current_variable = self.exp.get_config()["current_variable"]
         self.mode = mode
         keys = list(keys)
-        other_models = list(other_models)
-        if self.exp.config.get("get_intermediate_output", False):
-            keys.append("_int")
-        self._set_key_attributes(keys)
-        self._set_key_list(keys)
-        self.df_results = self.create_df_results()
 
         if other_models:
-            self.df_results = computer.add_other_models(self.df_results,
-                                                        other_models,
-                                                        self.current_variable,
-                                                        self.data)
-            keys = keys + other_models
-            self._set_key_attributes(keys)
-            self._set_key_list(keys)
+            other_models = list(other_models)
 
-        if stations_to_remove:
-            self.df_results = self.df_results[~self.df_results["name"].isin(stations_to_remove)]
+        if self.exp.config.get("get_intermediate_output", False):
+            keys.append("_int")
 
-        if not quick:
-            self.df_results = computer.add_metric_to_df(self.df_results,
-                                                        self.keys,
-                                                        self.key_obs,
-                                                        metrics=metrics)
-            self.df_results = computer.add_topo_carac_from_stations_to_df(self.df_results,
-                                                                          self.data.get_stations(),
-                                                                          topo_carac=topo_carac)
-            self.df_results = computer.classify_topo_carac(self.data.get_stations(), self.df_results)
-            self.df_results = computer.classify_alti(self.df_results)
-            self.df_results = computer.classify_forecast_term(self.df_results)
+        self._set_key_attributes(keys)
+        self._set_key_list(keys)
+
+        if key_df_results is None:
+            self.df_results = self.create_df_results()
+
+            if other_models:
+                self.df_results = computer.add_other_models(self.df_results,
+                                                            other_models,
+                                                            self.current_variable,
+                                                            self.data)
+                keys = keys + other_models
+                self._set_key_attributes(keys)
+                self._set_key_list(keys)
+
+            if stations_to_remove:
+                self.df_results = self.df_results[~self.df_results["name"].isin(stations_to_remove)]
+
+            if not quick:
+                self.df_results = computer.add_metric_to_df(self.df_results,
+                                                            self.keys,
+                                                            self.key_obs,
+                                                            metrics=metrics)
+                self.df_results = computer.add_topo_carac_from_stations_to_df(self.df_results,
+                                                                              self.data.get_stations(),
+                                                                              topo_carac=topo_carac)
+                self.df_results = computer.classify_topo_carac(self.data.get_stations(), self.df_results)
+                self.df_results = computer.classify_alti(self.df_results)
+                self.df_results = computer.classify_forecast_term(self.df_results)
+        else:
+            self.set_df_results(key_df_results)
 
     def _set_key_attributes(self,
                             keys: MutableSequence[str]
@@ -84,6 +94,10 @@ class CustomEvaluation(VizualizationResults):
         self.key_obs = f"{self.current_variable}_obs"
         for key in keys:
             setattr(self, f"key{key}", f"{self.current_variable}{key}")
+
+    def set_df_results(self, key="UV"):
+        print("Loaded df_results")
+        self.df_results = pd.read_pickle(self.exp.path_to_current_experience + f"df_results_{key}.pkl")
 
     def _set_key_list(self,
                       keys: MutableSequence[str]
@@ -231,8 +245,8 @@ class CustomEvaluation(VizualizationResults):
         return self.df2metric("corr", print_=print_)
 
     def df2ae_dir(self,
-              print_: bool = False
-              ) -> list:
+                  print_: bool = False
+                  ) -> list:
         return self._df2metric(self.df_results, "mean_abs_bias_direction", self.key_obs, self.keys, print_=print_)
 
     def df2mean(self):
@@ -351,24 +365,37 @@ class Interpretability(VizualizationResults):
         self.data = data
         self.cm = custom_model
 
-    def compute_feature_importance(self, mode, epsilon=0.01):
-        list_results_rmse = []
+    def compute_feature_importance(self, mode, epsilon=0.01, cv="UV"):
+
+        # Initialize list results
         list_results_ae = []
 
+        # Get inputs and length
         inputs = self.data.get_inputs(mode)
-        length_batch = getattr(self.data, f"length_{mode}")
+        print("debug")
+        print(inputs)
+        length_batch = self.data.get_length(mode)
+
+        # Batch input
         inputs_tf = self.data.get_tf_zipped_inputs(inputs=inputs).batch(length_batch)
 
+        # Predict
         with tf.device('/GPU:0'):
             results = self.cm.predict_single_bath(inputs_tf)
 
         # Calculate the new RMSE
         self.data.set_predictions(results, mode=mode)
-        c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=("_nn"), quick=True)
-        se = np.array(c_eval.df2bias()[0]) ** 2
-        ae = np.array(c_eval.df2ae()[0])
+        c_eval = CustomEvaluation(self.exp, self.data, mode="test", keys=("_nn",), other_models=None, quick=True)
+
+        # Initial absolute error
+        if cv == "UV":
+            ae = np.array(c_eval.df2ae()[0])  # Vector
+        else:
+            ae = np.array(c_eval.df2ae_dir()[0])  # Vector
 
         for idx_pred, predictor in enumerate(inputs):
+
+            print("\nFeature importance:")
             print(predictor)
 
             # Create a copy of X_test
@@ -378,7 +405,6 @@ class Interpretability(VizualizationResults):
             inputs_copy[predictor] = inputs[predictor].sample(frac=1).values
 
             # Prepare dataset
-            length_batch = getattr(self.data, f"length_{mode}")
             inputs_tf = self.data.get_tf_zipped_inputs(inputs=inputs_copy).batch(length_batch)
 
             # Predict
@@ -387,31 +413,26 @@ class Interpretability(VizualizationResults):
 
             # Calculate the new metrics
             self.data.set_predictions(results_permutation, mode=mode)
-            c_eval = CustomEvaluation(self.exp, self.data, mode=mode, keys=("_nn"), quick=True)
-            se_permuted = np.array(c_eval.df2bias()[0]) ** 2  # Vector
-            ae_permuted = np.array(c_eval.df2ae()[0])  # Vector
+            c_eval = CustomEvaluation(self.exp, self.data, mode=mode, other_models=None, keys=("_nn",), quick=True)
+            if cv == "UV":
+                ae_permuted = np.array(c_eval.df2ae()[0])  # Vector
+            else:
+                ae_permuted = np.array(c_eval.df2ae_dir()[0])  # Vector
 
             # Metrics
-            metric_se = 100 * (se_permuted - se) / (se + epsilon)
             metric_ae = 100 * (ae_permuted - ae) / (ae + epsilon)
 
             # Label names
-            str_rmse = r'$\frac{RMSE_{permuted} - RMSE_{not \quad permuted}}{RMSE_{not \quad permuted}}$ [%]'
-            str_ae = r'$\frac{AE_{permuted} - AE_{not \quad permuted}}{AE_{not \quad permuted}}$ [%]'
-
-            list_results_rmse.append({'Predictor': predictor,
-                                      str_rmse: np.sqrt(np.nanmean(metric_se)),
-                                      "std": np.sqrt(np.nanstd(metric_se))})
+            str_ae = r'$\frac{Absolute error_{permuted} - Absolute error_{not \quad permuted}}{Absolute error_{not \quad permuted}}$ [%]'
 
             list_results_ae.append({'Predictor': predictor,
                                     str_ae: np.nanmean(metric_ae),
                                     "std": np.nanstd(ae)})
 
         # Put the results into a pandas dataframe and rank the predictors by score
-        df_rmse = pd.DataFrame(list_results_rmse).sort_values(by=str_rmse, ascending=False)
         df_ae = pd.DataFrame(list_results_ae).sort_values(by=str_ae, ascending=False)
 
-        return df_rmse, df_ae, str_rmse, str_ae
+        return None, df_ae, None, str_ae
 
     def _plot_bar_with_error(self, df, x, y, err, name, width=0.01, figsize=(15, 12)):
         x = df[x].values
@@ -422,18 +443,10 @@ class Interpretability(VizualizationResults):
         plt.ylabel(y)
         save_figure(name)
 
-    def plot_feature_importance(self, mode, width=0.8, epsilon=0.01, figsize=(15, 12), name="Feature_importance"):
+    def plot_feature_importance(self, mode, width=0.8, epsilon=0.01, figsize=(15, 12), name="Feature_importance",
+                                cv="UV"):
 
-        df_rmse, df_ae, str_rmse, str_ae = self.compute_feature_importance(mode, epsilon=epsilon)
-
-        # RMSE
-        self._plot_bar_with_error(df_rmse,
-                                  "Predictor",
-                                  str_rmse,
-                                  "std",
-                                  f"Feature_importance/{name}_rmse",
-                                  width=width,
-                                  figsize=figsize)
+        _, df_ae, _, str_ae = self.compute_feature_importance(mode, epsilon=epsilon, cv=cv)
 
         # AE
         self._plot_bar_with_error(df_ae,
@@ -444,12 +457,18 @@ class Interpretability(VizualizationResults):
                                   width=width,
                                   figsize=figsize)
 
-    def plot_partial_dependence(self, mode, name="Partial_dependence_plot"):
+        save_figure(f"Feature_Importance/{name}", exp=self.exp, svg=True)
+
+    def plot_partial_dependence(self, mode, features=["mu"], nb_points=5, name="Partial_dependence_plot"):
         inputs = self.data.get_inputs(mode)
-        c = cm.viridis(np.linspace(0, 1, len(inputs.keys())))
-        for idx_pred, predictor in enumerate(inputs):
+        c = cm_plt.viridis(np.linspace(0, 1, len(inputs.keys())))
+
+        if features is None:
+            features = list(inputs.columns)
+
+        for idx_pred, predictor in enumerate(features):
+
             print(predictor)
-            mean_pred = np.nanmean(inputs[predictor])
             min_pred = np.nanmin(inputs[predictor])
             max_pred = np.nanmax(inputs[predictor])
 
@@ -459,8 +478,9 @@ class Interpretability(VizualizationResults):
 
             list_results = []
             inputs = self.data.get_inputs(mode)
-            for fixed_value in np.linspace(min_pred, max_pred, 5, endpoint=True):
+            for fixed_value in np.linspace(min_pred, max_pred, nb_points, endpoint=True):
                 print(fixed_value)
+
                 # Create a copy of X_test
                 inputs_copy = inputs.copy()
 
@@ -468,12 +488,17 @@ class Interpretability(VizualizationResults):
                 inputs_copy[predictor] = fixed_value
 
                 # Prepare dataset
-                length_batch = getattr(self.data, f"length_{mode}")
-                inputs_tf = self.data.get_tf_zipped_inputs(inputs=inputs_copy).batch(length_batch)
+                length_batch = self.data.get_length(mode=mode)
+                inputs_tf = self.data.get_tf_zipped_inputs(inputs=inputs_copy).batch(128)
 
                 # Predict
                 with tf.device('/GPU:0'):
-                    results_fixed_value = self.cm.predict_single_bath(inputs_tf)
+                    results_fixed_value = self.cm.predict_multiple_batches(inputs_tf,
+                                                                           model_version="last",
+                                                                           batch_size=128,
+                                                                           index_max=len(inputs),
+                                                                           output_shape=(len(inputs),),
+                                                                           force_build=False)
 
                 mean = np.nanmean(results_fixed_value)
                 std = np.nanstd(results_fixed_value)
@@ -485,6 +510,6 @@ class Interpretability(VizualizationResults):
             plt.fill_between(df["Fixed value"], df["mean"] - df["std"], df["mean"] + df["std"],
                              color=c[idx_pred],
                              alpha=0.1)
-            plt.ylim(0, 20)
+
             plt.title(predictor)
-            save_figure(f"Partial_dependence_plot/{name}_{predictor}")
+            save_figure(f"Partial_dependence_plot/{name}_{predictor}", svg=True, exp=self.exp)

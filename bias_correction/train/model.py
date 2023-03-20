@@ -241,6 +241,7 @@ class DevineBuilder(StrategyInitializer):
             w = SimpleScaling()(w, x[:, 0])
 
         if self.config["type_of_output"] in ["output_components",
+                                             "output_speed_and_dir",
                                              "map",
                                              "map_speed_direction",
                                              "map_u_v_w",
@@ -278,6 +279,11 @@ class DevineBuilder(StrategyInitializer):
             bc_model = Model(inputs=inputs, outputs=(alpha_or_direction), name="bias_correction")
 
         elif self.config["type_of_output"] == "output_speed_and_direction":
+            y = SelectCenter(79, 69)(y)
+            alpha_or_direction = SelectCenter(79, 69)(alpha_or_direction)
+            bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
+
+        elif self.config["type_of_output"] == "output_speed_and_dir":
             y = SelectCenter(79, 69)(y)
             alpha_or_direction = SelectCenter(79, 69)(alpha_or_direction)
             bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
@@ -381,7 +387,7 @@ class ArtificialNeuralNetwork(StrategyInitializer):
                 x = Dropout(dropout_rate)(x)
 
         x = Dense(nb_outputs,
-                  activation="relu",
+                  activation="linear",
                   kernel_initializer=initializer,
                   name=f"D_output_{str_name}",
                   use_bias=use_bias)(x)
@@ -495,10 +501,12 @@ class CustomModel(StrategyInitializer):
                f"model_is_built={self.model_is_built}, " \
                f"model_is_compiled={self.model_is_compiled}"
 
-    def load_weights(self):
+    def load_weights(self, path=None):
         print("Launch load_weights")
+        if path is None:
+            path = self.exp.path_to_last_weights
         #self.model.load_weights(self.exp.path_to_last_model)
-        self.model.load_weights(self.exp.path_to_last_weights + 'model_weights.h5')
+        self.model.load_weights(path + 'model_weights.h5')
         print(f"Restore weights from {self.exp.path_to_last_model}")
 
     def get_optimizer(self):
@@ -911,6 +919,7 @@ class CustomModel(StrategyInitializer):
                                  model_version="last",
                                  batch_size=1,
                                  output_shape=(2, 360, 2761, 2761),
+                                 index_max=360,
                                  force_build=False):
 
         if model_version:
@@ -919,12 +928,13 @@ class CustomModel(StrategyInitializer):
         results_test = np.zeros(output_shape, dtype=np.float32)
         index = 0
         for batch_index, i in enumerate(inputs):
-            print(f"Batch: {batch_index}")
+            if batch_index % 10 == 0:
+                print(f"Batch: {batch_index}")
             result = self.model.predict(i)
-            index_end = np.min([index + batch_size, 360])
-            results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
+            index_end = np.min([index + batch_size, index_max])
+            #results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
+            results_test[index:index_end] = np.squeeze(result)
             index += batch_size
-
         return np.squeeze(results_test)
 
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
@@ -971,6 +981,19 @@ class CustomModel(StrategyInitializer):
     def freeze_layers_speed(self):
         self.freeze_layers(layers_to_freeze=["speed_ann", "speed_cnn"],
                            layers_to_train=["dir_ann", "dir_cnn"])
+    
+    def load_external_model(self, path, custom_objects=None):
+        print(custom_objects)
+        return load_model(path, custom_objects=custom_objects, compile=False)
+    
+    def load_previous_weights(self, loaded_model, type_="speed"):
+        if type_ == "speed" or type_ == "dir":
+            for layer in loaded_model.layers:
+                layer_name = layer.name
+                if f"{type_}_ann" in layer_name:
+                    print(f"Loaded weights of {layer_name}")
+                    new_weights = loaded_model.get_layer(layer_name).get_weights()
+                    self.model.get_layer(layer_name).set_weights(new_weights)
 
     @classmethod
     def from_previous_experience(cls,

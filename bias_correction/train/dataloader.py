@@ -435,6 +435,7 @@ class CustomDataHandler:
                     try:
                         value_topo_carac = df.loc[df["name"] == station, topo_carac].values[0]
                     except:
+
                         value_topo_carac = df.loc[df["name"] == station, topo_carac].values
                     time_series.loc[time_series["name"] == station, topo_carac] = value_topo_carac
 

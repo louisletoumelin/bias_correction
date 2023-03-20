@@ -1,23 +1,28 @@
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.utils_bc.utils_config import assert_input_for_skip_connection, \
-    sort_input_variables, adapt_distribution_strategy_to_available_devices, init_learning_rate_adapted, detect_variable
+    sort_input_variables,\
+    adapt_distribution_strategy_to_available_devices,\
+    init_learning_rate_adapted,\
+    detect_variable,\
+    get_idx_speed_and_dir_variables,\
+    define_input_variables
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "epoch50"  # Str. Some details about the experiment
+config["details"] = "d_var_dir_var_speed"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False  # todo WARNING  # reference "2022_9_19_labia_v20" or "reference_20_09_2022"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]  # 25, 10               #todo 3 architectures                     # List. Each member is a unit [40, 20, 10, 5]
+config["nb_units"] = [25, 10]  # 25, 10
 config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
 config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout  #  todo sensibility
+config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -26,12 +31,12 @@ config["prefetch"] = "auto"  # Default="auto", else = Int
 config["dense_with_skip_connection"] = False
 
 # Hyperparameters
-config["batch_size"] = 128  # Int. # todo sensibility 32 64 128 256
-config["epochs"] = 5  # Int. # todo sensibility without early stopping 1, 5, 8, 10, 12, 15, 20
-config["learning_rate"] = 0.001  # todo sensibility 0.001 0.05 0.01
+config["batch_size"] = 128  # Int.
+config["epochs"] = 5  # Int.
+config["learning_rate"] = 0.001
 
 # Optimizer
-config["optimizer"] = "Adam"  # Str.  # todo sensibility à 3 differents
+config["optimizer"] = "Adam"  # Str.
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
@@ -53,8 +58,12 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                             "LWnet", "SWnet", 'CC_cumul', 'BLH']  # todo sensibility 10
+#config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+#                             "LWnet", "SWnet", 'CC_cumul', 'BLH']
+config["input_speed"] = ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+                         "LWnet", "SWnet", 'CC_cumul', 'BLH',  'Wind90', 'Wind87', 'Wind84', 'Wind75']
+config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
+
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -69,7 +78,7 @@ config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                  'Wind_DIR', 'U_obs', 'V_obs', 'U_AROME', 'V_AROME', "month", "hour"]
 
 # Labels
-config["labels"] = ['vw10m(m/s)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)']
+config["labels"] = ['vw10m(m/s)']  # ["vw10m(m/s)"] or ["U_obs", "V_obs"] or ['T2m(degC)'] or ['winddir(deg)']
 config["wind_nwp_variables"] = ["Wind", "Wind_DIR"]  # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
 config["wind_temp_variables"] = ['Tair']  # ["Wind", "Wind_DIR"] or ["U_AROME", "V_AROME"]
 
@@ -183,7 +192,7 @@ config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 config["get_intermediate_output"] = True
 
 # Custom loss
-config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent #  todo sensibility 2 ou 3 fonctions
+config["loss"] = "pinball_proportional"  # Str. Default=mse. Used for gradient descent
 config["args_loss"] = {"mse": [],
                        "penalized_mse": [],
                        "mse_proportional": [],
@@ -198,17 +207,21 @@ config["kwargs_loss"] = {"mse": {},
                          "mse_power": {"penalty": 1,
                                        "power": 2},
                          "pinball": {"tho": 0.85},
-                         "pinball_proportional": {"tho": 0.6},  # todo sensibility 0.5, 0.6, 0.7, 0.8
+                         "pinball_proportional": {"tho": 0.6},
                          "pinball_weight": {"tho": 0.95}}
 
 # Do not modify: assert inputs are correct
+config = define_input_variables(config)
 config = assert_input_for_skip_connection(config)
 config = sort_input_variables(config)
 config = adapt_distribution_strategy_to_available_devices(config)
 config = init_learning_rate_adapted(config)
 config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
+config = get_idx_speed_and_dir_variables(config)
 
+#idx_speed_var
+#idx_dir_var
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
                   'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
                   'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',

@@ -1,16 +1,16 @@
 import numpy as np
 import pandas as pd
 import matplotlib
-from matplotlib import cm
-#matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib import cm
+from matplotlib import cm as cm_plt
 
 import os
 import uuid
 from typing import Union, Tuple, Dict, MutableSequence
+from functools import partial
 
-from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module
+from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module, pass_if_doesnt_have_seaborn_version
 from bias_correction.train.utils import create_folder_if_doesnt_exist
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.windrose import plot_windrose
@@ -29,6 +29,30 @@ KEY2NEW_NAMES = {"_AROME": "$AROME_{forecast}$",
                  "_int": "Neural Network",
                  "_A": "$AROME_{analysis}$",
                  }
+
+METRICS2NAMES = {"bias": "Wind speed bias [$m\:s^{-1}$]",
+                 "n_bias": "Wind speed normalized bias [$m\:s^{-1}$]",
+                 "ae": "Wind speed \nabsolute error [$m\:s^{-1}$]",
+                 "n_ae": "Wind speed \n normalized absolute error [$m\:s^{-1}$]",
+                 "bias_direction": "Wind direction bias [°]",
+                 "abs_bias_direction": "Wind direction \nabsolute error [°]"}
+
+CARAC2NAME = {"lead_time": "Forecast lead time [hour]",
+              'class_mu': "Slope category of the observation stations",
+              'class_curvature': "Curvature category of the observation stations",
+              'class_tpi_500': "$TPI_{500m}$ category of the observation stations",
+              'class_tpi_2000': "$TPI_{2000m}$ category of the observation stations",
+              'class_laplacian': "Laplacian category of the observation stations",
+              'class_alti': "Elevation category of the observation stations"
+              }
+
+CLASS2CARAC = {'class_mu': "Slope",
+               'class_curvature': "Curvature",
+               'class_tpi_500': "TPI_{500m}",
+               'class_tpi_2000': "TPI_{2000m}",
+               'class_laplacian': "Laplacian",
+               'class_alti': "Elevation"
+               }
 
 
 def check_if_subfolder_in_filename(name_figure: str) -> bool:
@@ -268,6 +292,7 @@ def plot_single_subplot(df: pd.DataFrame,
     plt.xlim(min_value, max_value)
     plt.ylim(min_value, max_value)
 
+
 def plot_single_1_1(df: pd.DataFrame,
                     key_model: str = "UV_AROME",
                     key_obs: str = "UV_obs",
@@ -280,6 +305,11 @@ def plot_single_1_1(df: pd.DataFrame,
                     text_y: str = None,
                     color: str = "C0",
                     figsize: Tuple[int, int] = (15, 15),
+                    density: bool = False,
+                    xlabel: Union[str, None] = None,
+                    ylabel: Union[str, None] = None,
+                    fontsize: float = 20,
+                    plot_text: bool = True,
                     print_=False
                     ) -> Union[None, matplotlib.figure.Figure]:
     # Get values
@@ -322,17 +352,28 @@ def plot_single_1_1(df: pd.DataFrame,
     # xlim and ylim
     plt.xlim(min_value, max_value)
     plt.ylim(min_value, max_value)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+
+    if xlabel:
+        plt.xlabel(xlabel, fontsize=fontsize)
+    if ylabel:
+        plt.ylabel(ylabel, fontsize=fontsize)
+
+    if density:
+        sns.kdeplot(df, x=key_obs, y=key_model, color="black", ax=ax).set(xlim=(0), ylim=(0))
 
     # Text
-    try:
-        ax.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
-        ax.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
-        corr_coeff = df[[key_obs, key_model]].corr().iloc[0, 1]
-        ax.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
-    except:
-        print("Error in text figure")
+    if plot_text:
+        try:
+            ax.text(text_x, text_y, f"Mean bias {key_model}: {round(np.mean(model - obs), 2):.2f}")
+            ax.text(text_x, text_y - 2, f"RMSE {key_model}: {round(np.sqrt(np.mean((model - obs) ** 2)), 2):.2f}")
+            corr_coeff = df[[key_obs, key_model]].corr().iloc[0, 1]
+            ax.text(text_x, text_y - 4, f"Corr. {key_model}: {round(corr_coeff, 2):.2f}")
+        except:
+            print("Error in text figure")
 
     return fig
+
 
 def plot_1_1_multiple_subplots(df: pd.DataFrame,
                                keys_models: Tuple[str] = ("UV_nn", "UV_AROME"),
@@ -369,21 +410,40 @@ class ModelVersusObsPlots:
                      s: int = 1,
                      name: str = "1_1_all",
                      color: Tuple[str, ...] = ("C1", "C0", "C2", "C3", "C4"),
+                     density: bool = False,
+                     plot_text: bool = True,
+                     fontsize: float = 25,
+                     xlabel: Union[str, None] = None,
+                     ylabel: Union[str, None] = None,
                      print_: bool = False
                      ) -> None:
+
         current_variable = self.exp.config['current_variable']
         key_obs = f"{current_variable}_obs"
         for idx, key in enumerate(keys):
+            if _sns:
+                sns.set_style("ticks", {'axes.grid': True})
+
             fig = plot_single_1_1(df, key, key_obs, current_variable,
-                                  s=s, figsize=figsize, color=color[idx], print_=print_)
-            save_figure(f"Model_vs_obs/{name}_{key}", exp=self.exp, fig=fig)
+                                  s=s,
+                                  figsize=figsize,
+                                  color=color[idx],
+                                  density=density,
+                                  xlabel=xlabel,
+                                  ylabel=ylabel,
+                                  plot_text=plot_text,
+                                  fontsize=fontsize,
+                                  print_=print_)
+            ax = plt.gca()
+            ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            save_figure(f"Model_vs_obs/{name}_{key}", exp=self.exp, svg=True, fig=fig)
 
     def plot_1_1_by_station(self,
                             df: pd.DataFrame,
                             keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                             s: int = 1,
                             name: str = "",
-                            color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
+                            color: Tuple[str, ...] = ("C1", "C0", "C2", "C3", "C4"),
                             figsize: Tuple[int, int] = (40, 10),
                             print_: bool = False
                             ) -> None:
@@ -410,7 +470,9 @@ def plot_evolution(df: pd.DataFrame,
                    figsize: Tuple[int, int] = (20, 15),
                    groupby: str = "month",
                    color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
-                   print_: bool = False
+                   print_: bool = False,
+                   yerr: Union[bool, None] = None,
+                   alpha: float = 0.15
                    ) -> None:
     if hasattr(df.index, groupby):
         index_groupby = getattr(df.index, groupby)
@@ -424,8 +486,19 @@ def plot_evolution(df: pd.DataFrame,
               f"y_label_name {y_label_name}, "
               f"groupby {groupby}, "
               f"nb obs {len(df)}")
+
     dict_color = {key: value for key, value in zip(list(hue_names_to_plot), list(color))}
-    df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=dict_color, ax=ax)
+
+    if yerr:
+        sns.lineplot(data=df, x=groupby, y="year", hue=hue_names_to_plot)
+    else:
+        alpha = None
+        df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=dict_color,
+                                                                       ax=ax,
+                                                                       alpha=alpha)
+    if _sns:
+        sns.set_style("ticks", {'axes.grid': True})
+
     plt.xlabel(groupby.capitalize(), fontsize=fontsize)
     plt.ylabel(y_label_name.capitalize(), fontsize=fontsize)
 
@@ -447,7 +520,7 @@ class SeasonalEvolution:
     def plot_seasonal_evolution(self,
                                 df: pd.DataFrame,
                                 metrics: Tuple[str, ...] = ("bias", "ae", "n_bias", "n_ae"),
-                                fontsize: int = 15,
+                                fontsize: int = 20,
                                 figsize: Tuple[int, int] = (20, 15),
                                 keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                                 groupby: str = "month",
@@ -455,6 +528,7 @@ class SeasonalEvolution:
                                 color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
                                 print_: bool = False
                                 ) -> None:
+
         keys = ['_' + key.split('_')[-1] for key in keys]
         for metric in metrics:
             key2old_name = {"_AROME": f"{metric}_AROME",
@@ -474,8 +548,14 @@ class SeasonalEvolution:
                            groupby=groupby,
                            color=color,
                            print_=print_)
+            if _sns:
+                sns.set_style("ticks", {'axes.grid': True})
 
-            save_figure(f"Seasonal_evolution/{name}", exp=self.exp)
+            ax = plt.gca()
+            ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            plt.xlabel("Month", fontsize=fontsize)
+            plt.ylabel(METRICS2NAMES[metric], fontsize=fontsize)
+            save_figure(f"Seasonal_evolution/{name}", exp=self.exp, svg=True)
             df = df.drop(columns=list(set(new_names)))
 
     def plot_seasonal_evolution_by_station(self,
@@ -525,14 +605,15 @@ class Leadtime:
 
     def plot_lead_time(self,
                        df: pd.DataFrame,
-                       metrics: Tuple[str, ...] = ("bias", "ae", "n_bias", "n_ae"),
+                       metrics: Tuple[str, ...] = ("bias", "ae"),  # ("bias", "ae", "n_bias", "n_ae")
                        keys: Tuple[str, ...] = ("UV_nn", "UV_AROME"),
                        groupby: str = "lead_time",
                        fontsize: int = 15,
                        figsize: Tuple[int, int] = (20, 15),
                        name: str = "Lead_time",
-                       color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
-                       print_: bool = False
+                       color: Tuple[str, ...] = ("C1", "C0", "C2", "C3", "C4"),
+                       print_: bool = False,
+                       yerr: Union[bool, None] = False
                        ) -> None:
         keys = ['_' + key.split('_')[-1] for key in keys]
         for metric in metrics:
@@ -552,7 +633,9 @@ class Leadtime:
                            figsize=figsize,
                            groupby=groupby,
                            color=color,
+                           yerr=yerr,
                            print_=print_)
+
             save_figure(f"Lead_time/{name}", exp=self.exp)
             df = df.drop(columns=list(set(new_names)))
 
@@ -589,6 +672,51 @@ class Leadtime:
                 save_figure(f"Lead_time/Lead_time_{station}", exp=self.exp)
                 df_copy = df_copy.drop(columns=list(set(new_names)))
 
+    @pass_if_doesnt_have_seaborn_version()
+    def plot_lead_time_shadow(self,
+                              df: pd.DataFrame,
+                              metrics: Tuple[str, ...] = ("bias", "ae", "n_bias", "n_ae"),
+                              list_x: Tuple[str, ...] = ("lead_time",),
+                              dict_keys: Dict[str, str] = {"_nn": "Neural Network", "_AROME": "AROME"},
+                              showfliers: bool = False,
+                              figsize: Tuple[int, int] = (15, 10),
+                              name: str = "Boxplot_topo_carac",
+                              order: Union[Tuple[str, ...], None] = ("$x \leq q_{25}$", "$q_{25}<x \leq q_{50}$",
+                                                                     "$q_{50}<x \leq q_{75}$", "$q_{75}<x$"),
+                              hue_order: Union[Tuple[str, ...], None] = ("$AROME_{forecast}$", "DEVINE",
+                                                                         "Neural Network + DEVINE",
+                                                                         "$AROME_{analysis}$"),
+                              palette: Union[Tuple[str, ...], None] = ("C1", "C0", "C2", "C4"),
+                              print_: bool = False,
+                              fontsize: float = 15
+                              ) -> None:
+
+        for idx, metric in enumerate(metrics):
+            old_names = list(dict_keys.keys())
+            new_names = list(dict_keys.values())
+            if idx > 0:
+                df.drop(columns=new_names, inplace=True)
+            new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(old_names, new_names)}
+            df = df.rename(columns=new_columns)
+            for x in list_x:
+
+                df_to_plot = df[["name"] + [x] + new_names]
+
+                if print_:
+                    print(f"carac {x}, metric {metric}, models_names {tuple(new_names)}, nb_obs {len(df)}")
+                df_melted = df_to_plot.melt(id_vars=["name", x],
+                                            value_vars=tuple(new_names),
+                                            var_name='Model',
+                                            value_name=metric.capitalize())
+                plt.figure(figsize=figsize)
+                ax = plt.gca()
+                sns.set_style("ticks", {'axes.grid': True})
+                sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue="Model", errorbar="ci")
+                plt.xlabel(CARAC2NAME[x], fontsize=fontsize)
+                plt.ylabel(METRICS2NAMES[metric], fontsize=fontsize)
+                ax.tick_params(axis='both', which='major', labelsize=fontsize)
+                save_figure(f"LeadTimes/{name}", exp=self.exp, svg=True)
+
 
 def plot_boxplot_models(df: pd.DataFrame,
                         carac: str = "class_laplacian",
@@ -597,32 +725,45 @@ def plot_boxplot_models(df: pd.DataFrame,
                         showfliers: bool = False,
                         orient: str = "v",
                         figsize: Tuple[int, int] = (15, 12),
-                        order: Union[Tuple[str], None] = ("$x \leq q_{25}$", "$q_{25}<x \leq q_{50}$",
-                                                          "$q_{50}<x \leq q_{75}$", "$q_{75}<x$"),
+                        order: Union[Tuple[str], None] = ("$x \leq q_{25}$",
+                                                          "$q_{25}<x \leq q_{50}$",
+                                                          "$q_{50}<x \leq q_{75}$",
+                                                          "$q_{75}<x$"),
                         hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "DEVINE",
                                                               "Neural Network + DEVINE", "$AROME_{analysis}$"),
                         palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C3"),
-                        print_: bool = False
+                        print_: bool = False,
+                        fontsize: float = 20
                         ) -> None:
     if print_:
         print(f"carac {carac}, metric {metric}, models_names {models_names}, nb_obs {len(df)}")
+
     df_melted = df.melt(id_vars=["name", carac],
                         value_vars=models_names,
                         var_name='Model',
                         value_name=metric.capitalize())
 
-    plt.figure(figsize=figsize)
+    # e.g. replace "$x \leq q_{25}$" by "$Elevation \leq q_{25}$"
+    order_with_name = []
+    for value in order:
+        new_name = value.replace("x", CLASS2CARAC[carac])
+        df_melted.loc[df_melted[carac] == value, carac] = new_name
+        order_with_name.append(new_name)
 
+    plt.figure(figsize=figsize)
+    ax = plt.gca()
     sns.boxplot(data=df_melted,
                 y=metric.capitalize(),
                 x=carac,
                 hue='Model',
                 orient=orient,
                 showfliers=showfliers,
-                order=list(order),
+                order=order_with_name,
                 hue_order=list(hue_order),
                 palette=list(palette))
-
+    plt.xlabel(CARAC2NAME[carac], fontsize=fontsize)
+    plt.ylabel(METRICS2NAMES[metric], fontsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
     sns.despine(trim=True, left=True)
 
 
@@ -647,6 +788,7 @@ class Boxplots:
                                 hue_order: Union[Tuple[str], None] = ("$AROME_{forecast}$", "DEVINE",
                                                                       "Neural Network + DEVINE", "$AROME_{analysis}$"),
                                 palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C4"),
+                                fontsize: float = 20,
                                 print_: bool = False
                                 ) -> None:
 
@@ -663,7 +805,6 @@ class Boxplots:
             df = df.rename(columns=new_columns)
             for carac in topo_carac:
                 df_to_plot = df[["name"] + [f"class_{carac}"] + new_names]
-
                 plot_boxplot_models(df_to_plot,
                                     carac=f"class_{carac}",
                                     metric=metric,
@@ -674,7 +815,8 @@ class Boxplots:
                                     order=order,
                                     hue_order=hue_order,
                                     palette=palette,
-                                    print_=print_
+                                    print_=print_,
+                                    fontsize=fontsize
                                     )
 
                 save_figure(f"Boxplots/{name}", exp=self.exp)
@@ -694,7 +836,7 @@ class WindRoses:
                                                          'UV_DIR_A'),
                                 metrics: Tuple[str, ...] = ("abs_bias_direction",),
                                 name: str = "wind_direction_all",
-                                cmap: matplotlib.colors.ListedColormap = cm.viridis,
+                                cmap: matplotlib.colors.ListedColormap = cm_plt.viridis,
                                 kind="bar",
                                 print_: bool = True
                                 ):
@@ -704,7 +846,7 @@ class WindRoses:
             if metric == "bias_direction":
                 bins = np.arange(-100, 120, 20)
             else:
-                bins = np.arange(0, 150, 20)
+                bins = np.arange(0, 150, 30)
 
             for key in keys:
                 if print_:
@@ -712,10 +854,13 @@ class WindRoses:
                 plot_windrose(df,
                               var_name=f"{metric}{key}",
                               direction_name=f"UV_DIR{key}",
+                              normed=True,
+                              rmax=12,
                               kind=kind,
                               bins=bins,
                               cmap=cmap)
-                save_figure(f"Wind_direction/{name}_{metric}_{key}", exp=self.exp)
+                plt.title(key)
+                save_figure(f"Wind_direction/{name}_{metric}_{key}", exp=self.exp, svg=True)
 
 
 class ALEPlot:
@@ -723,14 +868,38 @@ class ALEPlot:
                  ) -> None:
         self.exp = exp
 
-    def plot_ale(self, cm, data_loader, features, bins, monte_carlo=False, rugplot_lim=None,
-                 cmap="viridis", marker='x', markersize=1, linewidth=1):
-        model = cm.model
+    def plot_ale(self,
+                 cm,
+                 data_loader,
+                 features,
+                 bins,
+                 monte_carlo=False,
+                 rugplot_lim=None,
+                 cmap="viridis",
+                 marker='x',
+                 markersize=1,
+                 linewidth=1,
+                 folder_name="ALE_speed",
+                 ylim=(-2, 2),
+                 exp=None,
+                 use_std=True,
+                 type_of_output="speed",
+                 only_local_effects=False,
+                 fontsize=25):
+
         df_inputs = data_loader.get_inputs(mode="test")
         cmap = plt.get_cmap(cmap, 4)
         colors = cmap(np.linspace(0, 1, len(features)))
+        predictor = partial(cm.predict_multiple_batches,
+                            model_version="last",
+                            batch_size=128,
+                            index_max=data_loader.get_length("test"),
+                            output_shape=(data_loader.get_length("test"),),
+                            force_build=False)
+
         for feature, color in zip(features, colors):
-            ale_plot(model,
+            print(f"Feature: {feature}")
+            ale_plot(cm.model,
                      df_inputs,
                      [feature],
                      bins=bins,
@@ -740,11 +909,218 @@ class ALEPlot:
                      color=color,
                      marker=marker,
                      markersize=markersize,
+                     predictor=predictor,
+                     exp=exp,
+                     use_std=use_std,
+                     folder_name=folder_name,
+                     type_of_output=type_of_output,
+                     only_local_effects=only_local_effects,
                      linewidth=linewidth)
-            save_figure(f"ALE/ale_{feature}", exp=self.exp)
+            if ylim:
+                plt.ylim(ylim)
+            ax = plt.gca()
+            # ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            plt.tight_layout()
+            save_figure(f"{folder_name}/ale_{feature}", exp=self.exp, svg=True)
+
+    def plot_ale_two_variables(self,
+                               cm,
+                               data_loader,
+                               features,
+                               bins,
+                               monte_carlo=False,
+                               rugplot_lim=None,
+                               cmap="viridis",
+                               marker='x',
+                               markersize=1,
+                               linewidth=1,
+                               folder_name="ALE_speed",
+                               ylim=(-2, 2),
+                               exp=None,
+                               use_std=None,
+                               type_of_output="speed",
+                               fontsize=25):
+        df_inputs = data_loader.get_inputs(mode="test")
+        cmap = plt.get_cmap(cmap, 4)
+        colors = cmap(np.linspace(0, 1, len(features)))
+        predictor = partial(cm.predict_multiple_batches,
+                            model_version="last",
+                            batch_size=128,
+                            index_max=data_loader.get_length("test"),
+                            output_shape=(data_loader.get_length("test"),),
+                            force_build=False)
+
+        for list_feature, color in zip(features, colors):
+            print(f"Features: {list_feature}")
+            ale_plot(cm.model,
+                     df_inputs,
+                     list_feature,
+                     bins=bins,
+                     monte_carlo=monte_carlo,
+                     rugplot_lim=rugplot_lim,
+                     data_loader=data_loader,
+                     color=color,
+                     marker=marker,
+                     markersize=markersize,
+                     predictor=predictor,
+                     exp=exp,
+                     use_std=use_std,
+                     folder_name=folder_name,
+                     type_of_output=type_of_output,
+                     linewidth=linewidth)
+            if ylim:
+                plt.ylim(ylim)
+            ax = plt.gca()
+            # ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            plt.tight_layout()
+            save_figure(f"{folder_name}/ale_two_variables_{list_feature[0]}_{list_feature[1]}", exp=self.exp, svg=True)
 
 
-class VizualizationResults(Boxplots, Leadtime, SeasonalEvolution, ModelVersusObsPlots, StaticPlots, WindRoses, ALEPlot):
+def qq_plot(obs, model, nb_point=10_000, marker="x", linestyle="-", markersize=5, color="C0", color_1_1="red",
+            linewidth=2, ax=None):
+    # quantiles
+    percs = np.round(np.linspace(0, 100, nb_point), 2)
+    qn_obs = np.percentile(obs, percs)
+    qn_model = np.percentile(model, percs)
+
+    # QQ-plot
+    ax.plot(qn_obs, qn_model, linestyle=linestyle, linewidth=linewidth, marker=marker, markersize=markersize,
+            color=color)
+
+    # 1-1 line
+    x = np.linspace(np.min((qn_obs.min(),
+                            qn_obs.min())),
+                    np.max((qn_obs.max(),
+                            qn_obs.max())))
+
+    plt.plot(x, x, ls="--", color=color_1_1, label='_nolegend_')
+    plt.xlim(-1, 45)
+    plt.ylim(-1, 45)
+    plt.axis("square")
+
+
+class QQplot:
+
+    def __init__(self, exp: Union[ExperienceManager, None] = None
+                 ) -> None:
+        self.exp = exp
+
+    def qq_single(self,
+                  df: pd.DataFrame,
+                  figsize: Tuple[int, int] = (15, 10),
+                  key_obs="UV_obs",
+                  key_model="UV_nn",
+                  color="C0",
+                  marker="x",
+                  linestyle="-",
+                  markersize=5,
+                  color_1_1="red",
+                  linewidth=2,
+                  fontsize=20,
+                  ax=None
+                  ) -> None:
+
+        if ax is None:
+            plt.figure(figsize=figsize)
+            ax = plt.gca()
+
+        obs = df[key_obs].values
+        model = df[key_model].values
+        qq_plot(obs=obs,
+                model=model,
+                color=color,
+                marker=marker,
+                linestyle=linestyle,
+                markersize=markersize,
+                color_1_1=color_1_1,
+                linewidth=linewidth,
+                ax=ax)
+
+        plt.xlabel("Observed wind speed [$m\:s^{-1}$]", fontsize=fontsize)
+        plt.ylabel("Modeled wind speed [$m\:s^{-1}$]", fontsize=fontsize)
+        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+        plt.tight_layout()
+
+        save_figure(f"QQ_plot/qq_plot_single", exp=self.exp)
+
+    def qq_double(self,
+                  df0: pd.DataFrame,
+                  df1: pd.DataFrame,
+                  figsize: Tuple[int, int] = (15, 10),
+                  key_obs="UV_obs",
+                  key_model="UV_nn",
+                  color0="C2",
+                  color1="C9",
+                  marker0="x",
+                  marker1="d",
+                  marker_AROME="d",
+                  linestyle0="-",
+                  linestyle1="-",
+                  markersize=2,
+                  color_1_1="red",
+                  fontsize=25,
+                  linewidth=2,
+                  legend=("$L_{speed}$", "mse", "AROME"),
+                  ax=None
+                  ) -> None:
+
+        if ax is None:
+            plt.figure(figsize=figsize)
+            ax = plt.gca()
+
+        obs = df0[key_obs].values
+        model = df0[key_model].values
+        qq_plot(obs=obs,
+                model=model,
+                color=color0,
+                marker=marker0,
+                linestyle=linestyle0,
+                markersize=markersize,
+                linewidth=linewidth,
+                color_1_1=color_1_1,
+                ax=ax)
+
+        obs = df1[key_obs].values
+        model = df1[key_model].values
+        qq_plot(obs=obs,
+                model=model,
+                color=color1,
+                marker=marker_AROME,
+                linestyle=linestyle1,
+                markersize=markersize,
+                linewidth=linewidth,
+                color_1_1=color_1_1,
+                ax=ax)
+
+        obs = df1[key_obs].values
+        model = df1["UV_AROME"].values
+        qq_plot(obs=obs,
+                model=model,
+                color="C1",
+                marker=marker1,
+                linestyle=linestyle1,
+                markersize=markersize,
+                linewidth=linewidth,
+                color_1_1=color_1_1,
+                ax=ax)
+
+        plt.grid(visible=True)
+        plt.xlabel("Observed wind speed [$m\:s^{-1}$]", fontsize=fontsize)
+        plt.ylabel("Modeled wind speed [$m\:s^{-1}$]", fontsize=fontsize)
+        plt.legend(legend, fontsize=fontsize)
+        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+        plt.tight_layout()
+        save_figure(f"QQ_plot/qq_plot_double", exp=self.exp)
+
+
+class VizualizationResults(Boxplots,
+                           Leadtime,
+                           SeasonalEvolution,
+                           ModelVersusObsPlots,
+                           StaticPlots,
+                           WindRoses,
+                           ALEPlot,
+                           QQplot):
 
     def __init__(self, exp: Union[ExperienceManager, None] = None
                  ) -> None:

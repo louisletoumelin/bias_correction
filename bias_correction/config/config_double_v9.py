@@ -1,23 +1,35 @@
 from bias_correction.utils_bc.network import detect_network
 from bias_correction.utils_bc.utils_config import assert_input_for_skip_connection, \
-    sort_input_variables, adapt_distribution_strategy_to_available_devices, init_learning_rate_adapted, detect_variable
+    sort_input_variables, \
+    adapt_distribution_strategy_to_available_devices, \
+    init_learning_rate_adapted, \
+    detect_variable, \
+    get_idx_speed_and_dir_variables, \
+    define_input_variables
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "d_lr_dir_0005_speed_001"  # Str. Some details about the experiment
-config["global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = False
+config["details"] = "batch_size_256_archi_25_10_50_epoch_15"  # Str. Some details about the experiment
+config[
+    "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
+config["restore_experience"] = "2022_12_7_labia_v8"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
 config["nb_units"] = [25, 10, 50]  # 25, 10
+config["nb_units_speed"] = [25, 10, 50]  # 25, 10
+config["nb_units_dir"] = [50, 10]  # 25, 10 or 1024, 256, 32
 config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
-config["activation_dense"] = "selu"  # Bool. Activation in dense network
-config["dropout_rate"] = 0.25  # Int. or False. Dropout rate or no dropout
+config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
+config["activation_dense_speed"] = "selu"  # Bool. Activation in dense network, before selu
+config["activation_dense_dir"] = "gelu"  # Bool. Activation in dense network, before selu
+config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
+config["dropout_rate_speed"] = 0.25  # Int. or False. Dropout rate or no dropout
+config["dropout_rate_dir"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
 config["distribution_strategy"] = None  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"  # Default="auto", else = Int
@@ -27,22 +39,32 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 5  # Int.
+config["batch_size_speed"] = 256  # Int.
+config["batch_size_dir"] = 128  # Int.
+config["epochs"] = 10  # Int.
+config["epochs_speed"] = 15  # Int.
+config["epochs_dir"] = 5  # Int.
 config["learning_rate"] = 0.001
+config["learning_rate_speed"] = 0.001
+config["learning_rate_dir"] = 0.001
 
 # Optimizer
-config["optimizer"] = "RMSprop"  # Str.
+config["optimizer"] = "Adam"  # Str.
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
 # Initializer
-config["initializer"] = "GlorotUniform"  # Str. Default = "GlorotUniform"
+config["initializer"] = "GlorotNormal"  # Str. Default = "GlorotUniform"
 config["args_initializer"] = []  # List.
 config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
 # Input CNN
 config["input_cnn"] = False
-config["use_input_cnn_dir"] = True
+config["use_input_cnn_dir"] = False
+config["use_batch_norm_cnn"] = False
+config["activation_cnn"] = "gelu"
+config["threshold_null_speed"] = 1
+config["use_normalization_cnn_inputs"] = True
 
 # Inputs pre-processing
 config["standardize"] = True  # Bool. Apply standardization
@@ -54,24 +76,47 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] =  ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                              "LWnet", "SWnet", 'CC_cumul', 'BLH',
-                              'Wind90', 'Wind87', 'Wind84', 'Wind75',
-                              "tpi_500", "curvature", "mu", "laplacian",
-                              'dir_canyon_w0_1_w1_10',
-                              'dir_canyon_w0_5_w1_10',
-                              'dir_canyon_w0_1_w1_3_thresh5',
-                              'dir_canyon_w0_4_w1_20_thresh20',
-                              'diag_7', 'diag_13', 'diag_21', 'diag_31',
-                              'diag_7_r', 'diag_13_r', 'diag_21_r', 'diag_31_r',
-                              'side_7', 'side_13', 'side_21', 'side_31',
-                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r']
+# config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+#                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
+#                             'Wind90', 'Wind87', 'Wind84', 'Wind75',
+#                             "tpi_500", "curvature", "mu", "laplacian", 'aspect', 'tan(slope)']
+config["input_speed"] = ["alti",
+                         "ZS",
+                         "Tair",
+                         "LWnet",
+                         "SWnet",
+                         "CC_cumul",
+                         "BLH",
+                         "tpi_500",
+                         "curvature",
+                         "mu",
+                         "laplacian",
+                         'Wind90',
+                         'Wind87',
+                         'Wind84',
+                         'Wind75',
+                         "Wind",
+                         "Wind_DIR"]
+config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
+# todo write a test that checks that topos, aspect and tan_slope are in the correct order
+config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
 config["compute_product_with_wind_direction"] = True
 
-# ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-#                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
+# ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
+#                              "LWnet", "SWnet", 'CC_cumul', 'BLH',
+#                              'Wind90', 'Wind87', 'Wind84', 'Wind75',
+#                              "tpi_500", "curvature", "mu", "laplacian",
+#                              'dir_canyon_w0_1_w1_10',
+#                              'dir_canyon_w0_5_w1_10',
+#                              'dir_canyon_w0_1_w1_3_thresh5',
+#                              'dir_canyon_w0_4_w1_20_thresh20',
+#                              'diag_7', 'diag_13', 'diag_21', 'diag_31',
+#                              'diag_7_r', 'diag_13_r', 'diag_21_r', 'diag_31_r',
+#                              'side_7', 'side_13', 'side_21', 'side_31',
+#                              'side_7_r', 'side_13_r', 'side_21_r', 'side_31_r',
+#                              'aspect', 'tan(slope)']
 
-#list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
+# list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
 #                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
 #                  'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',
 #                  'LWdown', 'LWnet', 'DIR_SWdown', 'SCA_SWdown', 'SWnet', 'SWD', 'SWU',
@@ -91,14 +136,13 @@ config["unbalanced_dataset"] = False
 config["unbalanced_threshold"] = 2
 
 # Callbacks
-config["callbacks"] = ["TensorBoard",
-                       "CSVLogger",
-                       "ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
+config["callbacks"] = ["ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
 config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "EarlyStopping": [],
                             "ModelCheckpoint": [],
                             "TensorBoard": [],
                             "CSVLogger": [],
+                            "CSVLogger_dir": [],
                             "LearningRateWarmupCallback": [],
                             "FeatureImportanceCallback": [],
                             "BroadcastGlobalVariablesCallback": [],
@@ -137,6 +181,8 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "MetricAverageCallback": {},
 
                               "CSVLogger": {},
+
+                              "CSVLogger_dir": {},
 
                               "learning_rate_decay": {},
                               }
@@ -217,12 +263,14 @@ config["kwargs_loss"] = {"mse": {},
                          "cosine_distance": {"power": 1}}
 
 # Do not modify: assert inputs are correct
+config = define_input_variables(config)
 config = assert_input_for_skip_connection(config)
 config = sort_input_variables(config)
 config = adapt_distribution_strategy_to_available_devices(config)
 config = init_learning_rate_adapted(config)
 config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
+config = get_idx_speed_and_dir_variables(config)
 
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
                   'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',

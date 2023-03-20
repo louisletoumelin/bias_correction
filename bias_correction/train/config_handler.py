@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 
 @dataclass
 class DataFitDirection:
+    batch_size: int
+    epochs: int
+    learning_rate: int
     loss: str = "cosine_distance"
     labels: MutableSequence[str] = field(default_factory=lambda: ['winddir(deg)'])
     type_of_output: str = "output_direction"
@@ -27,6 +30,9 @@ class DataPredictDirection:
 @dataclass
 class DataFitSpeed:
     loss: str
+    batch_size: int
+    epochs: int
+    learning_rate: int
     labels: MutableSequence[str] = field(default_factory=lambda: ["vw10m(m/s)"])
     type_of_output: str = "output_speed"
     remove_null_speeds: bool = False
@@ -54,6 +60,22 @@ class DataPersist:
     initial_loss: str
 
 
+@dataclass
+class DataFitSpeedDir:
+    batch_size: int
+    epochs: int
+    learning_rate: int
+    loss: str = "mixed"
+    labels: MutableSequence[str] = field(default_factory=lambda: ["vw10m(m/s)", "winddir(deg)"])
+    type_of_output: str = "output_speed_and_dir"
+    remove_null_speeds: bool = False
+    csv_logger: str = "CSVLogger"
+    # We don't fit a model with two outputs because it cause error in the loss function
+    get_intermediate_output: bool = False
+    current_variable: str = "UV"
+    name: str = "fit_speed_and_dir"
+
+
 class PersistentConfig:
 
     def __init__(self, config: Dict) -> None:
@@ -65,8 +87,21 @@ class PersistentConfig:
                                         config["quick_test_stations"],
                                         config["loss"])
 
-        self.data_fit_direction = DataFitDirection()
-        self.data_fit_speed = DataFitSpeed(config["loss"])
+        self.data_fit_direction = DataFitDirection(config["batch_size_dir"],
+                                                   config["epochs_dir"],
+                                                   config["learning_rate_dir"])
+
+        self.data_fit_speed = DataFitSpeed(config["loss"],
+                                           config["batch_size_speed"],
+                                           config["epochs_speed"],
+                                           config["learning_rate_speed"])
+
+        self.data_fit_speed_and_dir = DataFitSpeedDir(config["batch_size"],
+                                                      config["epochs"],
+                                                      config["learning_rate"])
+        batch_size: int
+        epochs: int
+        learning_rate: int
 
         self.data_predict_speed = DataPredictSpeed()
         self.data_predict_direction = DataPredictDirection()
@@ -88,7 +123,9 @@ class PersistentConfig:
         config["remove_null_speeds"] = fit_data.remove_null_speeds
         config["current_variable"] = fit_data.current_variable
         config["get_intermediate_output"] = fit_data.get_intermediate_output
-
+        config["epochs"] = fit_data.epochs
+        config["learning_rate"] = fit_data.learning_rate
+        config["batch_size"] = fit_data.batch_size
         return config
 
     @staticmethod
@@ -122,6 +159,12 @@ class PersistentConfig:
         """Adapts the configuration in order to fit model on direction"""
         print(self.data_fit_direction)
         config = self.modify_config_for_fit(config, self.data_fit_direction)
+        return self.modify_csvlogger_in_callbacks(config, self.data_fit_direction, self.data_fit_speed)
+
+    def config_fit_speed_and_dir(self, config: Dict) -> Dict:
+        """Adapts the configuration in order to fit model on direction"""
+        print(self.data_fit_speed_and_dir)
+        config = self.modify_config_for_fit(config, self.data_fit_speed_and_dir)
         return self.modify_csvlogger_in_callbacks(config, self.data_fit_direction, self.data_fit_speed)
 
     def config_fit_speed(self, config: Dict) -> Dict:

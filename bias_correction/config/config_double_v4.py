@@ -9,10 +9,10 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "fit_atm"  # Str. Some details about the experiment
+config["details"] = "batch_size_256_archi_25_10_50_epoch_15"  # Str. Some details about the experiment
 config[
     "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = False
+config["restore_experience"] = "2022_12_7_labia_v8"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
@@ -24,10 +24,10 @@ config["use_bias"] = True
 
 # General
 config["batch_normalization"] = False  # Bool. Apply batch_norm or not
-# config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
+config["activation_dense"] = "gelu"  # Bool. Activation in dense network, before selu
 config["activation_dense_speed"] = "selu"  # Bool. Activation in dense network, before selu
 config["activation_dense_dir"] = "gelu"  # Bool. Activation in dense network, before selu
-# config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
+config["dropout_rate"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["dropout_rate_speed"] = 0.25  # Int. or False. Dropout rate or no dropout
 config["dropout_rate_dir"] = 0.35  # Int. or False. Dropout rate or no dropout
 config["final_skip_connection"] = True  # Use skip connection with speed/direction
@@ -39,16 +39,22 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 5  # Int.
+config["batch_size_speed"] = 256  # Int.
+config["batch_size_dir"] = 128  # Int.
+config["epochs"] = 10  # Int.
+config["epochs_speed"] = 15  # Int.
+config["epochs_dir"] = 5  # Int.
 config["learning_rate"] = 0.001
+config["learning_rate_speed"] = 0.001
+config["learning_rate_dir"] = 0.001
 
 # Optimizer
-config["optimizer"] = "RMSprop"  # Str.
+config["optimizer"] = "Adam"  # Str.
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
 # Initializer
-config["initializer"] = "GlorotUniform"  # Str. Default = "GlorotUniform"
+config["initializer"] = "GlorotNormal"  # Str. Default = "GlorotUniform"
 config["args_initializer"] = []  # List.
 config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
@@ -81,10 +87,14 @@ config["input_speed"] = ["alti",
                          "SWnet",
                          "CC_cumul",
                          "BLH",
-                         "Wind90",
-                         "Wind87",
-                         "Wind84",
-                         "Wind75",
+                         "tpi_500",
+                         "curvature",
+                         "mu",
+                         "laplacian",
+                         'Wind90',
+                         'Wind87',
+                         'Wind84',
+                         'Wind75',
                          "Wind",
                          "Wind_DIR"]
 config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
@@ -126,8 +136,7 @@ config["unbalanced_dataset"] = False
 config["unbalanced_threshold"] = 2
 
 # Callbacks
-config["callbacks"] = ["TensorBoard",
-                       "ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
+config["callbacks"] = ["ModelCheckpoint"]  # "FeatureImportanceCallback", "EarlyStopping",
 config["args_callbacks"] = {"ReduceLROnPlateau": [],
                             "EarlyStopping": [],
                             "ModelCheckpoint": [],
