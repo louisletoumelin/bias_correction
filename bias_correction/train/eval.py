@@ -119,13 +119,9 @@ class CustomEvaluation(VizualizationResults):
 
                 filter_time = df_station.index.intersection(model_station.index)
                 df_station.loc[filter_time, self.current_variable+model_str] = model_station.loc[filter_time, self.current_variable+model_str]
-                print("debug0")
-                print(df_station.head())
                 results.append(df_station)
 
             self.df_results = pd.concat(results)
-            print("debug1")
-            print(self.df_results)
 
     def _add_metric_to_df_results(self, metrics=["bias", "n_bias", "ae", "n_ae"]):
         for metric in metrics:

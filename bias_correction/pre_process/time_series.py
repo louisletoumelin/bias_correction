@@ -83,8 +83,8 @@ class TimeSeries(Interpolation):
                 self.time_series[variable] = np.nan
 
             self.time_series.index = pd.to_datetime(self.time_series["date"])
-            str_x = f"X_index_AROME_NN_0{str_interpolated}_ref_AROME{str_interpolated}"
-            str_y = f"Y_index_AROME_NN_0{str_interpolated}_ref_AROME{str_interpolated}"
+            str_x = f"X_index_AROME_analysis_NN_0{str_interpolated}_ref_AROME_analysis{str_interpolated}"
+            str_y = f"Y_index_AROME_analysis_NN_0{str_interpolated}_ref_AROME_analysis{str_interpolated}"
 
             for country in ["france", "swiss", "pyr", "corse"]:
                 for file in os.listdir(self.config[f"path_nwp_{country}"]):
@@ -94,7 +94,9 @@ class TimeSeries(Interpolation):
                         nwp = self.interpolate_nwp(nwp)
 
                     filter_time = self.time_series.index.isin(nwp.time.values)
-
+                    print("debug")
+                    print(self.stations)
+                    print(self.stations["name"][self.stations["country"] == country])
                     for idx, station in enumerate(self.stations["name"][self.stations["country"] == country]):
                         if idx == 0:
                             logger.info(self.stations.head())
@@ -153,14 +155,18 @@ class TimeSeries(Interpolation):
             variables = self.config["variables_time_series"]
             self.time_series[variables] = self.time_series[variables].astype(np.float32)
 
-    def save_to_csv(self):
-        self.time_series.to_csv(self.config["path_time_series_pre_processed"]+"time_series_bc.csv")
-        print(f"Saved {self.config['path_time_series_pre_processed']+'time_series_bc.csv'}")
+    def save_to_csv(self, name=None):
+        if name is None:
+            name = ""
+        self.time_series.to_csv(self.config["path_time_series_pre_processed"]+f"time_series_bc{name}.csv")
+        print(f"Saved {self.config['path_time_series_pre_processed']+f'time_series_bc{name}.csv'}")
 
-    def save_to_pickle(self):
+    def save_to_pickle(self, name=None):
         interp_str = "_interpolated" if self.interpolated else ""
-        self.time_series.to_pickle(self.config["path_time_series_pre_processed"]+f"time_series_bc{interp_str}.pkl")
-        print(f"Saved {self.config['path_time_series_pre_processed']+f'time_series_bc{interp_str}.pkl'}")
+        if name is None:
+            name = ""
+        self.time_series.to_pickle(self.config["path_time_series_pre_processed"]+f"time_series_bc{interp_str}{name}.pkl")
+        print(f"Saved {self.config['path_time_series_pre_processed']+f'time_series_bc{interp_str}{name}.pkl'}")
 
 
 
