@@ -380,19 +380,8 @@ class CustomDataHandler(SplitTrainTestVal):
         aiguille_du_midi_in_test = "AGUIL. DU MIDI" in self.config["stations_test"]
         aiguille_du_midi_in_val = "AGUIL. DU MIDI" in self.config["stations_val"]
         aiguille_du_midi_not_in_train = aiguille_du_midi_in_test or aiguille_du_midi_in_val
-        print("debug")
-        print("col_du_lac_blanc_not_in_test")
-        print(col_du_lac_blanc_not_in_test)
-        print("aiguille_du_midi_not_in_train")
-        print(aiguille_du_midi_not_in_train)
         while col_du_lac_blanc_not_in_test or aiguille_du_midi_not_in_train:
             i += 1
-            print("Try:")
-            print(i)
-            print("col_du_lac_blanc_not_in_test")
-            print(col_du_lac_blanc_not_in_test)
-            print("aiguille_du_midi_not_in_train")
-            print(aiguille_du_midi_not_in_train)
             self.config["stations_test"] = self._select_randomly_test_val_stations(time_series,
                                                                                    stations,
                                                                                    mode="test")
@@ -400,9 +389,6 @@ class CustomDataHandler(SplitTrainTestVal):
                                                                                   stations,
                                                                                   mode="val",
                                                                                   stations_to_exclude=self.config["stations_test"])
-            print("debug")
-            print(self.config["stations_test"])
-            print(self.config["stations_val"])
 
             col_du_lac_blanc_not_in_test = "Col du Lac Blanc" not in self.config["stations_test"]
             aiguille_du_midi_in_test = "AGUIL. DU MIDI" in self.config["stations_test"]
@@ -445,11 +431,8 @@ class CustomDataHandler(SplitTrainTestVal):
         time_series = self._select_all_variables_needed(time_series, variables_needed)
 
         # Define test/train/val stations if random
-        print("debug")
         if self.config["stations_test"] == "random" and self.config["stations_val"] == "random":
-            print("before define_test_and_val_stations")
             self.define_test_and_val_stations(time_series, stations)
-            print("after define_test_and_val_stations")
 
         # Dropna
         time_series = time_series.dropna()

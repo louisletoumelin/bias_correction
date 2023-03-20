@@ -5,14 +5,15 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Model, \
     load_model
 from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint
+try:
+    import horovod.tensorflow as hvd
+    _horovod = True
+except ModuleNotFoundError:
+    _horovod = False
 
 import os
 from functools import partial
-from typing import Callable
-
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+from typing import Callable, Union
 
 from bias_correction.train.layers import RotationLayer, \
     CropTopography, \
@@ -28,15 +29,10 @@ from bias_correction.train.layers import RotationLayer, \
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
-from bias_correction.train.callbacks import FeatureImportanceCallback
 from bias_correction.train.callbacks import load_callback_with_custom_model
 
-try:
-    import horovod.tensorflow as hvd
-
-    _horovod = True
-except ModuleNotFoundError:
-    _horovod = False
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 class Initializer:
@@ -97,7 +93,6 @@ class Initializer:
 
     def init_horovod(self):
         """https://github.com/horovod/horovod/blob/master/examples/keras/keras_mnist_advanced.py"""
-
         # Horovod: pin GPU to be used to process local rank (one GPU per process)
         hvd.init()
 
@@ -293,8 +288,7 @@ class BaseModel:
             "initializer": config["initializer"],
             "batch_normalization": config["batch_normalization"],
             "dropout_rate": config["dropout_rate"],
-            "use_bias": config["use_bias"],
-            "input_cnn": config["input_cnn"]}
+            "use_bias": config["use_bias"]}
 
         if config["dense_with_skip_connection"]:
 
@@ -313,7 +307,6 @@ class CustomModel(CNNDevine, BaseModel):
 
     def __init__(self, experience, config):
         super().__init__(config)
-        self.__dict__ = experience.__dict__
 
         if hasattr(self, "is_finished"):
             del self.is_finished
@@ -350,11 +343,10 @@ class CustomModel(CNNDevine, BaseModel):
             return optimizer
 
     def get_loss(self):
-        loss_func = load_loss(self.config["loss"],
-                              *self.config["args_loss"],
-                              **self.config["kwargs_loss"])
-
-        return loss_func
+        name_loss = self.config["loss"]
+        return load_loss(name_loss,
+                         *self.config["args_loss"][name_loss],
+                         **self.config["kwargs_loss"][name_loss])
 
     def get_initializer(self):
         return load_initializer(self.config["initializer"],
@@ -379,11 +371,241 @@ class CustomModel(CNNDevine, BaseModel):
             return tf.keras.layers.Concatenate(axis=1)([self._input_cnn(topos), inputs_nwp])
 
     def add_intermediate_output(self):
+        assert self.model_is_built
         inputs = self.model.input
         intermediate_outputs = self.model.get_layer("Add_dense_output").output
         self.model = Model(inputs=inputs, outputs=(self.model.outputs, intermediate_outputs))
         self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
 
+    def _build_model_architecture(self,
+                                  nb_input_variables: int,
+                                  nb_outputs_dense_network: int,
+                                  nb_var_for_skip_connection: int,
+                                  use_input_cnn: bool,
+                                  use_final_skip_connection: bool,
+                                  use_devine: bool,
+                                  use_standardize: bool,
+                                  use_final_relu: bool,
+                                  name: Union[str, None],
+                                  input_shape_topo: tuple[int, int, int] = (140, 140, 1),
+                                  ):
+
+        # Inputs
+        topos = Input(shape=input_shape_topo, name="input_topos")
+        nwp_variables = Input(shape=(nb_input_variables,), name="input_nwp")
+
+        # Standardize inputs
+        if use_standardize:
+            mean_norm = Input(shape=(nb_input_variables,), name="mean_norm")
+            std_norm = Input(shape=(nb_input_variables,), name="std_norm")
+            nwp_variables_norm = NormalizationInputs()(nwp_variables, mean_norm, std_norm)
+            inputs = (topos, nwp_variables, mean_norm, std_norm)
+        else:
+            inputs = (topos, nwp_variables)
+
+        # Input CNN
+        if use_input_cnn and use_standardize:
+            nwp_variables_norm = self.cnn_and_concatenate(topos, nwp_variables_norm)
+        elif use_input_cnn and not use_standardize:
+            nwp_variables = self.cnn_and_concatenate(topos, nwp_variables)
+
+        # Dense network
+        dense_network = self.get_dense_network()
+        if use_standardize:
+            x = dense_network(nwp_variables_norm, nb_outputs=nb_outputs_dense_network)
+        else:
+            x = dense_network(nwp_variables, nb_outputs=nb_outputs_dense_network)
+
+        # Final skip connection
+        if use_final_skip_connection:
+            x = Add(name="Add_dense_output")([x, nwp_variables[:, -nb_var_for_skip_connection:]])
+
+        if use_final_relu:
+            x = tf.keras.activations.relu(x)
+
+        if use_devine:
+            bc_model = self.devine(topos, x, inputs)
+        else:
+            bc_model = Model(inputs=inputs, outputs=(x[:, 0]), name=name)
+
+        print(bc_model.summary())
+        self.model = bc_model
+
+    def _build_dense_temperature(self):
+        self._build_model_architecture(
+            nb_input_variables=self.config["nb_input_variables"],
+            nb_outputs_dense_network=1,
+            nb_var_for_skip_connection=1,
+            use_input_cnn=self.config["input_cnn"],
+            use_final_skip_connection=self.config["final_skip_connection"],
+            use_devine=False,
+            use_standardize=self.config["standardize"],
+            use_final_relu=False,
+            name="bias_correction_temperature",
+            input_shape_topo=(140, 140, 1),
+        )
+
+    def _build_dense_only(self):
+        self._build_model_architecture(
+            nb_input_variables=self.config["nb_input_variables"],
+            nb_outputs_dense_network=2,
+            nb_var_for_skip_connection=2,
+            use_input_cnn=self.config["input_cnn"],
+            use_final_skip_connection=self.config["final_skip_connection"],
+            use_devine=False,
+            use_standardize=self.config["standardize"],
+            use_final_relu=True,
+            name="bias_correction",
+            input_shape_topo=(140, 140, 1),
+        )
+
+    def _build_devine_only(self):
+        # Inputs
+        topos = Input(shape=(140, 140, 1), name="input_topos")
+        wind_field = Input(shape=(2,), name="input_wind_field")
+        inputs = (topos, wind_field)
+
+        bc_model = self.devine(topos, wind_field, inputs)
+
+        print(bc_model.summary())
+        self.model = bc_model
+
+    def _build_ann_v0(self):
+        self._build_model_architecture(
+            nb_input_variables=self.config["nb_input_variables"],
+            nb_outputs_dense_network=2,
+            nb_var_for_skip_connection=2,
+            use_input_cnn=self.config["input_cnn"],
+            use_final_skip_connection=self.config["final_skip_connection"],
+            use_devine=True,
+            use_standardize=self.config["standardize"],
+            use_final_relu=True,
+            name=None,
+            input_shape_topo=(140, 140, 1),
+        )
+
+    def _build_model(self):
+        """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
+        model_architecture = self.config["global_architecture"]
+        method_build = getattr(self, f"_build_{model_architecture}")
+        method_build()
+        self.model_is_built = True
+
+    def _build_compiled_model(self):
+        self._build_model()
+        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
+        self.model_is_compiled = True
+
+    def _build_mirrored_strategy(self):
+
+        # Get number of devices
+        nb_replicas = self.strategy.num_replicas_in_sync
+        print('\nMirroredStrategy: number of devices: {}'.format(nb_replicas))
+
+        # Adapt batch size according to the number of devices
+        self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
+
+        with self.strategy.scope():
+            self._build_compiled_model()
+            # todo change here
+            if self.config["get_intermediate_output"]:
+                self.add_intermediate_output()
+
+    def _build_classic_strategy(self):
+        if self.config["distribution_strategy"] is None:
+            print('\nNot distributed: number of devices: 1')
+
+        # Do not modify batch size
+        self.config["global_batch_size"] = self.config["batch_size"]
+
+        self._build_compiled_model()
+
+        if self.config["get_intermediate_output"]:
+            self.add_intermediate_output()
+
+    def build_model_with_strategy(self):
+        if self.config["distribution_strategy"] == "MirroredStrategy":
+            self._build_mirrored_strategy()
+        else:
+            self._build_classic_strategy()
+
+    def select_model_version(self, model_str, build=False):
+
+        if build:
+            self.build_model_with_strategy()
+
+        assert self.model_is_built
+
+        if model_str == "last":
+            # For previous experiences, last model is not built, for current experience, last model is built
+            if build:
+                self.model.load_weights(self.exp.path_to_last_model)
+                self.model_version = "last"
+                print("last model weights loaded")
+            else:
+                print("last model is already built and weights are loaded")
+
+        elif "best":
+            self.model.load_weights(self.exp.path_to_best_model)
+            self.model_version = "best"
+            print("best model weights loaded")
+
+    def predict_with_batch(self, inputs_test, model_str="last"):
+
+        if model_str:
+            self.select_model_version(model_str)
+        for index, i in enumerate(inputs_test):
+            results_test = self.model.predict(i)
+            print("WARNING: multi batch prediction not supported")
+
+        return results_test
+
+    def prepare_train_dataset(self, dataset):
+        dataset = dataset.batch(batch_size=self.config["global_batch_size"]) \
+            .cache() \
+            .prefetch(self.get_prefetch())
+        return dataset
+
+    def prepare_val_dataset(self, dataset):
+        return dataset.batch(batch_size=self.config["global_batch_size"])
+
+    def _set_model_version_after_training(self):
+        has_earlystopping = "EarlyStopping" in self.config["callbacks"]
+        restore_best_weights = self.config["kwargs_callbacks"]["EarlyStopping"]["restore_best_weights"] is True
+        if has_earlystopping and restore_best_weights:
+            self.model_version = "best"
+        else:
+            self.model_version = "last"
+
+    def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
+
+        if not self.model_is_built and not self.model_is_compiled:
+            self.build_model_with_strategy()
+
+        dataset = self.prepare_train_dataset(dataset)
+
+        validation_data = self.prepare_val_dataset(validation_data)
+
+        results = self.model.fit(dataset,
+                                 validation_data=validation_data,
+                                 epochs=self.config["epochs"],
+                                 callbacks=self.get_callbacks(dataloader, mode_callback))
+
+        self._set_model_version_after_training()
+
+        return results
+
+    @classmethod
+    def from_previous_experience(cls, exp, config, model_str):
+
+        inst = cls(exp, config)
+
+        inst.select_model_version(model_str, build=True)
+
+        return inst
+
+
+"""
     def _build_dense_temperature(self):
 
         # Inputs
@@ -512,124 +734,4 @@ class CustomModel(CNNDevine, BaseModel):
 
         print(bc_model.summary())
         self.model = bc_model
-
-    def _build_model(self):
-        """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
-        model_architecture = self.config["global_architecture"]
-        method_build = getattr(self, f"_build_{model_architecture}")
-        method_build()
-        self.model_is_built = True
-
-    def _build_compiled_model(self):
-        self._build_model()
-        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
-        self.model_is_compiled = True
-
-    def _build_mirrored_strategy(self):
-
-        # Get number of devices
-        nb_replicas = self.strategy.num_replicas_in_sync
-        print('\nMirroredStrategy: number of devices: {}'.format(nb_replicas))
-
-        # Adapt batch size according to the number of devices
-        self.config["global_batch_size"] = self.config["batch_size"] * nb_replicas
-
-        with self.strategy.scope():
-            self._build_compiled_model()
-            # todo change here
-            if self.config["get_intermediate_output"]:
-                self.add_intermediate_output()
-
-    def _build_classic_strategy(self):
-        if self.config["distribution_strategy"] is None:
-            print('\nNot distributed: number of devices: 1')
-
-        # Do not modify batch size
-        self.config["global_batch_size"] = self.config["batch_size"]
-
-        self._build_compiled_model()
-
-        if self.config["get_intermediate_output"]:
-            self.add_intermediate_output()
-
-    def build_model_with_strategy(self):
-        if self.config["distribution_strategy"] == "MirroredStrategy":
-            self._build_mirrored_strategy()
-        else:
-            self._build_classic_strategy()
-
-    def select_model_version(self, model_str, build=False):
-
-        if build:
-            self.build_model_with_strategy()
-
-        assert self.model_is_built
-
-        if model_str == "last":
-            # For previous experiences, last model is not built, for current experience, last model is built
-            if build:
-                self.model.load_weights(self.path_to_last_model)
-                self.model_version = "last"
-                print("last model weights loaded")
-            else:
-                print("last model is already built and weights are loaded")
-
-        elif "best":
-            self.model.load_weights(self.path_to_best_model)
-            self.model_version = "best"
-            print("best model weights loaded")
-
-    def predict_with_batch(self, inputs_test, model_str="last"):
-
-        if model_str:
-            self.select_model_version(model_str)
-
-        for index, i in enumerate(inputs_test):
-            results_test = self.model.predict(i)
-
-        return results_test
-
-    def prepare_train_dataset(self, dataset):
-        dataset = dataset.batch(batch_size=self.config["global_batch_size"]) \
-            .cache() \
-            .prefetch(self.get_prefetch())
-        return dataset
-
-    def prepare_val_dataset(self, dataset):
-        dataset = dataset.batch(batch_size=self.config["global_batch_size"])
-        return dataset
-
-    def _set_model_version_after_training(self):
-        has_earlystopping = "EarlyStopping" in self.config["callback"]
-        restore_best_weights = self.config["kwargs_callbacks"]["EarlyStopping"]["restore_best_weights"] is True
-        if has_earlystopping and restore_best_weights:
-            self.model_version = "best"
-        else:
-            self.model_version = "last"
-
-    def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
-
-        if not self.model_is_built and not self.model_is_compiled:
-            self.build_model_with_strategy()
-
-        dataset = self.prepare_train_dataset(dataset)
-
-        validation_data = self.prepare_val_dataset(validation_data)
-
-        results = self.model.fit(dataset,
-                                 validation_data=validation_data,
-                                 epochs=self.config["epochs"],
-                                 callbacks=self.get_callbacks(dataloader, mode_callback))
-
-        self._set_model_version_after_training()
-
-        return results
-
-    @classmethod
-    def from_previous_experience(cls, exp, config, model_str):
-
-        inst = cls(exp, config)
-
-        inst.select_model_version(model_str, build=True)
-
-        return inst
+        """

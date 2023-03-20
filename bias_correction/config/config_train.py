@@ -78,7 +78,7 @@ config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_n
 # Architecture
 config["details"] = "test_station"  # Str. Some details about the experiment
 config["global_architecture"] = "ann_v0"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
-config["restore_experience"] = False  # "2022_7_27_labia_v4"
+config["restore_experience"] = "2022_8_11_local_v22"  # "2022_7_27_labia_v4"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
@@ -99,7 +99,7 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["epochs"] = 3  # Int.
+config["epochs"] = 1  # Int.
 config["learning_rate"] = 0.001
 
 # Optimizer
@@ -120,7 +120,7 @@ config["standardize"] = True  # Bool. Apply standardization
 config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = False  # Bool. Quicktest case (fast training)
+config["quick_test"] = True  # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
@@ -144,7 +144,16 @@ config["callbacks"] = ["TensorBoard",
                        "EarlyStopping",
                        "CSVLogger",
                        "ModelCheckpoint"]  # "FeatureImportanceCallback"
-
+config["args_callbacks"] = {"ReduceLROnPlateau": [],
+                            "EarlyStopping": [],
+                            "ModelCheckpoint": [],
+                            "TensorBoard": [],
+                            "CSVLogger": [],
+                            "LearningRateWarmupCallback": [],
+                            "FeatureImportanceCallback": [],
+                            "BroadcastGlobalVariablesCallback": [],
+                            "MetricAverageCallback": [],
+                            }
 config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                                                     "factor": 0.5,  # new_lr = lr * factor
                                                     "patience": 3,
@@ -169,7 +178,13 @@ config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
                               "LearningRateWarmupCallback": {"warmup_epochs": 5,
                                                              "verbose": 1},
 
-                              "FeatureImportanceCallback": {}
+                              "FeatureImportanceCallback": {},
+
+                              "BroadcastGlobalVariablesCallback": {},
+
+                              "MetricAverageCallback": {},
+
+                              "CSVLogger": {},
                               }
 
 # Split

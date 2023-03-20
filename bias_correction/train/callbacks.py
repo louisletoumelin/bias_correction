@@ -3,20 +3,22 @@ from tensorflow.keras.callbacks import TensorBoard, ReduceLROnPlateau, EarlyStop
 
 try:
     import horovod.tensorflow as hvd
-
     _horovod = True
 except ModuleNotFoundError:
     _horovod = False
 
 import os
 from typing import List
+from copy import deepcopy
 
 from bias_correction.train.eval import Interpretability
+from bias_correction.train.utils import no_raise_on_key_error
 
 
 class FeatureImportanceCallback(tf.keras.callbacks.Callback):
 
     def __init__(self, data_loader, cm, exp, mode):
+        super().__init__()
         self.it = Interpretability(data_loader, cm, exp)
         self.mode = mode
 
@@ -37,64 +39,67 @@ callbacks_dict = {"TensorBoard": TensorBoard,
                   "EarlyStopping": EarlyStopping,
                   "CSVLogger": CSVLogger,
                   "ModelCheckpoint": ModelCheckpoint,
-                  "FeatureImportanceCallback": FeatureImportanceCallback,
-                  # Horovod: broadcast initial variable states from rank 0 to all other processes.
-                  # This is necessary to ensure consistent initialization of all workers when
-                  # training is started with random weights or restored from a checkpoint.
-                  "BroadcastGlobalVariablesCallback": hvd.keras.callbacks.BroadcastGlobalVariablesCallback,
-                  # Horovod: average metrics among workers at the end of every epoch.
-                  # Note: This callback must be in the list before the ReduceLROnPlateau,
-                  # TensorBoard or other metrics-based callbacks.
-                  "MetricAverageCallback": hvd.keras.callbacks.MetricAverageCallback,
-                  # Horovod: using `lr = 1.0 * hvd.size()` from the very beginning leads to worse final
-                  # accuracy. Scale the learning rate `lr = 1.0` ---> `lr = 1.0 * hvd.size()` during
-                  # the first five epochs. See https://arxiv.org/abs/1706.02677 for details.
-                  "LearningRateWarmupCallback": hvd.keras.callbacks.LearningRateWarmupCallback
-                  }
+                  "FeatureImportanceCallback": FeatureImportanceCallback}
+if _horovod:
+    # Horovod: broadcast initial variable states from rank 0 to all other processes.
+    # This is necessary to ensure consistent initialization of all workers when
+    # training is started with random weights or restored from a checkpoint.
+    callbacks_dict["BroadcastGlobalVariablesCallback"] = hvd.keras.callbacks.BroadcastGlobalVariablesCallback
+    # Horovod: average metrics among workers at the end of every epoch.
+    # Note: This callback must be in the list before the ReduceLROnPlateau,
+    # TensorBoard or other metrics-based callbacks.
+    callbacks_dict["MetricAverageCallback"] = hvd.keras.callbacks.MetricAverageCallback
+    # Horovod: using `lr = 1.0 * hvd.size()` from the very beginning leads to worse final
+    # accuracy. Scale the learning rate `lr = 1.0` ---> `lr = 1.0 * hvd.size()` during
+    # the first five epochs. See https://arxiv.org/abs/1706.02677 for details.
+    callbacks_dict["LearningRateWarmupCallback"] = hvd.keras.callbacks.LearningRateWarmupCallback
 
 
-def load_callbacks(callbacks_str: List[str], config: dict) -> list:
+def load_callbacks(callbacks_str: List[str], args_callbacks: dict, kwargs_callbacks: dict) -> list:
     callbacks = []
+
     for callback_str in callbacks_str:
-        args = config["args_callbacks"][callback_str]
-        kwargs = config["kwargs_callbacks"][callback_str]
+        args = args_callbacks[callback_str]
+        kwargs = kwargs_callbacks[callback_str]
         callback = callbacks_dict[callback_str](*args, **kwargs)
         callbacks.append(callback)
+
     return callbacks
 
 
-def get_callbacks(callbacks_str: str, distribution_strategy: str, config: dict):
+def get_callbacks(callbacks_str: List[str], distribution_strategy: str, args_callbacks: dict, kwargs_callbacks: dict):
+    normal_callbacks = load_callbacks(callbacks_str, args_callbacks, kwargs_callbacks)
+
     if distribution_strategy == "Horovod" and _horovod:
-        callbacks = load_callbacks(["BroadcastGlobalVariablesCallback", "MetricAverageCallback"], config)
+        callbacks_str = ["BroadcastGlobalVariablesCallback", "MetricAverageCallback"]
+        hvdcallbacks = load_callbacks(callbacks_str, args_callbacks, kwargs_callbacks)
         if hvd.rank() == 0:
-            callbacks += load_callbacks(callbacks_str, config)
+            return hvdcallbacks + normal_callbacks
     else:
-        callbacks = load_callbacks(callbacks_str, config)
-
-    return callbacks
+        return normal_callbacks
 
 
 def load_callback_with_custom_model(cm, data_loader=None, mode_callback=None):
+    _tmp_args_callbacks = {"CSVLogger": [cm.exp.path_to_logs + "tf_logs.csv"],
+                           "BroadcastGlobalVariablesCallback": [0],
+                           "FeatureImportanceCallback": [data_loader, cm, cm.exp, mode_callback],
+                           "MetricAverageCallback": [],
+                           "LearningRateWarmupCallback": []
+                           }
 
-    args_callbacks = {"CSVLogger": [cm.path_to_logs + "tf_logs.csv"],
-                      "BroadcastGlobalVariablesCallback": [0],
-                      "FeatureImportanceCallback": [data_loader, cm, cm.exp, mode_callback],
-                      "MetricAverageCallback": [],
-                      "LearningRateWarmupCallback": []
-                      }
+    _tmp_kwargs_callbacks = {"TensorBoard": {"log_dir": cm.exp.path_to_tensorboard_logs},
+                             "ModelCheckpoint": {"filepath": cm.exp.path_to_best_model}
+                             }
 
-    kwargs_callbacks = {"TensorBoard": {"log_dir": cm.path_to_tensorboard_logs},
-                        "ModelCheckpoint": {"filepath": cm.path_to_best_model}
-                        }
-    # Create args dict
-    cm.config["args_callback"] = args_callbacks
+    args = deepcopy(cm.config["args_callbacks"])
+    kwargs = deepcopy(cm.config["kwargs_callbacks"])
 
     # Update old kwargs dict with new kwargs
     for callback in cm.config["kwargs_callbacks"]:
-        try:
-            cm.config["kwargs_callbacks"][callback] = cm.config["kwargs_callbacks"][callback] | kwargs_callbacks[
-                callback]
-        except KeyError:
-            pass
+        with no_raise_on_key_error():
+            kwargs[callback] = cm.config["kwargs_callbacks"][callback] | _tmp_kwargs_callbacks[callback]
 
-    return get_callbacks(cm.config["callbacks"], cm.config["distribution_strategy"], cm.config)
+        with no_raise_on_key_error():
+            args[callback].extend(_tmp_args_callbacks[callback])
+
+    return get_callbacks(cm.config["callbacks"], cm.config["distribution_strategy"], args, kwargs)

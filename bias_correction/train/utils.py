@@ -1,5 +1,7 @@
 import matplotlib
-import os
+
+from contextlib import contextmanager
+
 matplotlib.use('Agg')
 
 
@@ -32,18 +34,9 @@ def save_figure(name_figure, save_path, format_="png", svg=False):
         fig.savefig(save_path + f"/{name_figure}_{uuid_str}.svg")
 
 
-for station in test["name"].unique():
-    print(station)
-    plot_1_1_subplot(test[test["name"] == station], figsize=(10,10))
-    if station in config["stations_test"]:
-        save_path = os.path.join(os.getcwd(), "test/")
-    elif station in config["stations_val"]:
-        save_path = os.path.join(os.getcwd(), "val/")
-    else:
-        save_path = os.path.join(os.getcwd(), "train")
-    save_figure(f"Wind_{station}", save_path)
-
-"""
-with open(path_to_previous_exp + "config.json", 'w') as fp:
-    config = json.loads(fp)
-"""
+@contextmanager
+def no_raise_on_key_error():
+    try:
+        yield
+    except KeyError:
+        pass

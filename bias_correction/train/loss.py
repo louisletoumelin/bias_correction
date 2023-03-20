@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from typing import Union, Callable
+
 mse = tf.keras.losses.MeanSquaredError()
 
 
@@ -101,68 +103,9 @@ dict_loss = {"mse": "mse",
              "pinball_weight": PinballWeight}
 
 
-def load_loss(name_loss: str, args: dict, kwargs: dict):
+def load_loss(name_loss: str, *args, **kwargs) -> Union[str, Callable]:
 
-    if name_loss == "mse":
-        return name_loss
-
-    if isinstance(name_loss, str):
+    if isinstance(dict_loss[name_loss], str):
         return name_loss
     else:
-        args = args[name_loss]
-        kwargs = kwargs[name_loss]
         return dict_loss[name_loss](*args, **kwargs)
-
-
-"""
-    elif name_loss == "penalized_mse":
-
-        penalty = kwargs["penalized_mse"].get("penalty")
-        speed_threshold = kwargs["penalized_mse"].get("speed_threshold")
-        return PenalizedMSE(penalty, speed_threshold)
-
-    elif name_loss == "mse_proportional":
-
-        penalty = kwargs["mse_proportional"].get("penalty", 1)
-        return MSEProportionalInput(penalty)
-
-    elif name_loss == "mse_power":
-
-        penalty = kwargs["mse_proportional"].get("penalty", 1)
-        power = kwargs["mse_proportional"].get("power", 2)
-        return MSEpower(penalty, power)
-
-    elif name_loss == "pinball":
-
-        tho = kwargs["pinball"].get("tho", 0.75)
-        return Pinball(tho)
-
-    elif name_loss == "pinball_proportional":
-
-        tho = kwargs["pinball_proportional"].get("tho")
-        return PinballProportional(tho)
-
-    elif name_loss == "pinball_weight":
-
-        tho = kwargs["pinball_weight"].get("tho", 0.75)
-        return PinballWeight(tho) #PinballProportional before
-
-    else:
-        raise NotImplementedError(f"Loss {name_loss} not implemented")
-"""
-
-"""
-def custom_loss(y_true, y_pred):
-  penalty = 20
-
-  # actual = 0.1 and pred = -0.05 should be penalized a lot more than actual = 0.1 and pred = 0.05
-  loss = tf.cond(tf.logical_and(tf.greater(y_true, 0.0), tf.less(y_pred, 0.0)),
-                   lambda: mse(y_true, y_pred) * penalty,
-                   lambda: mse(y_true, y_pred) * penalty / 4)
-  
-  #actual = 0.1 and pred = 0.15 slightly more penalty than actual = 0.1 and pred = 0.05
-  loss = tf.cond(tf.greater(y_pred, y_true),
-                   lambda: loss * penalty / 2,
-                   lambda: loss * penalty / 3)
-  return loss 
-"""
