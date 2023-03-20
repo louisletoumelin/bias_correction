@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import LightSource
 
-import uuid
-from bias_correction.utils_bc.decorators import pass_if_doesnt_has_module
-from bias_correction.train.visu import StaticPlots
 from bias_correction.train.wind_utils import wind2comp, comp2speed
 
 try:
@@ -52,7 +49,11 @@ def plot_quiver(x, y, u, v, uv,
         plt.axis("equal")
 
 
-class VisuMap(StaticPlots):
+def get_two_slope_norm(vmin=0, vcenter=5, vmax=10):
+    return colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+
+
+class VisuMap:
 
     def __init__(self, exp, d0, d, d1, station, config):
         super().__init__(exp)
@@ -61,9 +62,6 @@ class VisuMap(StaticPlots):
         self.d1 = d1
         self.station = station
         self.config = config
-
-    def get_two_slope_norm(self, vmin=0, vcenter=5, vmax=10):
-        return colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
 
     def get_map_prediction(self, time_series, data_loader, cm):
         assert self.config["type_of_output"] == "map"

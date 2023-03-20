@@ -3,42 +3,32 @@ import pandas as pd
 import logging
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 import tensorflow as tf
-from pprint import pprint
+import matplotlib
+matplotlib.use('Qt5Agg')
+import matplotlib.pyplot as plt
 
 import sys
 sys.path.append("/home/letoumelinl/bias_correction/src/")
 sys.path.append("//home/mrmn/letoumelinl/bias_correction/src/")
+from pprint import pprint
+
 
 from bias_correction.config.config_custom_devine import config
 from bias_correction.train.model import CustomModel
 from bias_correction.train.dataloader import CustomDataHandler
 from bias_correction.utils_bc.context_manager import timer_context
 from bias_correction.train.experience_manager import ExperienceManager
+from bias_correction.train.visu_map import plot_quiver
 
+# Create topo_dict
 data_path = "/home/letoumelinl/bias_correction/Data/1_Raw/Custom/"
 dem = np.loadtxt(data_path + "dem.asc", skiprows=6)
 dict_topo_custom = {"custom": {"data": np.reshape(dem, (90, 88, 1))}}
 
+# Create time_series
 custom_time_series = pd.DataFrame()
 custom_time_series["Wind"] = [2.3, 1.3, 1.3, 1.1, 1.4]
 custom_time_series["Wind_DIR"] = [200, 235, 248, 221, 290]
-config["custom_unet"] = True
-config["custom_input_shape"] = (90, 88, 1)
-config["standardize"] = False
-config["labels"] = []
-config["batch_size"] = 32
-config["initializer"] = None
-config["args_initializer"] = []
-config["kwargs_initializer"] = {}
-config["disable_training_cnn"] = True
-config["loss"] = "mse"
-config["args_loss"] = {"mse": []}
-config["kwargs_loss"] = {"mse": {}}
-config["optimizer"] = "Adam"
-config["learning_rate"] = 0.01
-config["args_optimizer"] = [config["learning_rate"]]  # List.
-config["kwargs_optimizer"] = {}  # Dict.
-config["get_intermediate_output"] = False
 
 # Initialization
 exp = ExperienceManager(config)
@@ -55,19 +45,6 @@ with timer_context("Predict test set"):
         .batch(data_loader.length_custom)
     results = cm.predict_with_batch(inputs, force_build=True)
 
-import matplotlib
-# matplotlib.use('Qt5Agg')
-import matplotlib.pyplot as plt
-
-
-def plot_quiver(x, y, u, v, uv,
-                cmap="coolwarm", norm=None, linewidths=1, scale=1 / 0.001, axis_equal=True, edgecolor=None):
-    ax = plt.gca()
-    ax.quiver(x, y, u, v, uv, cmap=cmap, norm=norm, linewidths=linewidths, scale=scale, edgecolor=edgecolor)
-    if axis_equal:
-        plt.axis("equal")
-
-
 plt.figure()
 initial_length_x = 88
 initial_length_y = 90
@@ -83,28 +60,47 @@ for idx_fig in range(5):
     speed = custom_time_series["Wind"].values[idx_fig]
     dir = custom_time_series["Wind_DIR"].values[idx_fig]
 
+    U_final = np.full_like(dem, np.nan)
+    V_final = np.full_like(dem, np.nan)
+    W_final = np.full_like(dem, np.nan)
+    UV_final = np.full_like(dem, np.nan)
+
     U = results[0][idx_fig, :, :, 0]
+    U_final[y_offset_left:y_offset_right, x_offset_left:x_offset_right] = U
+    U_final = np.where(np.isnan(U_final), -9999, U_final)
     # U = np.where(U>10, -9999, U)
     plt.figure()
     plt.imshow(U)
     plt.title(f"U_{idx_fig}_s_{speed}_d_{dir}")
-    np.savetxt(f"U_{idx_fig}_s_{speed}_d_{dir}.asc", U, fmt='%.4e')
+    np.savetxt(f"U_{idx_fig}_s_{speed}_d_{dir}.asc", U_final, fmt='%.4e')
     plt.colorbar()
 
     V = results[1][idx_fig, :, :, 0]
+    V_final[y_offset_left:y_offset_right, x_offset_left:x_offset_right] = V
+    V_final = np.where(np.isnan(V_final), -9999, V_final)
     # V = np.where(V>8, -9999, V)
     plt.figure()
     plt.imshow(V)
     plt.title(f"V_{idx_fig}_s_{speed}_d_{dir}")
-    np.savetxt(f"V_{idx_fig}_s_{speed}_d_{dir}.asc", V, fmt='%.4e')
+    np.savetxt(f"V_{idx_fig}_s_{speed}_d_{dir}.asc", V_final, fmt='%.4e')
 
     W = results[2][idx_fig, :, :, 0]
-    W = np.where(W < -50, -9999, W)
+    W_final[y_offset_left:y_offset_right, x_offset_left:x_offset_right] = W
+    W_final = np.where(np.isnan(W_final), -9999, W_final)
     plt.colorbar()
     plt.figure()
     plt.imshow(W)
     plt.title(f"W_{idx_fig}_s_{speed}_d_{dir}")
-    np.savetxt(f"W_{idx_fig}_s_{speed}_d_{dir}.asc", W, fmt='%.4e')
+    np.savetxt(f"W_{idx_fig}_s_{speed}_d_{dir}.asc", W_final, fmt='%.4e')
+
+    UV = np.sqrt(U**2+V**2)
+    UV_final[y_offset_left:y_offset_right, x_offset_left:x_offset_right] = UV
+    UV_final = np.where(np.isnan(UV_final), -9999, UV_final)
+    plt.colorbar()
+    plt.figure()
+    plt.imshow(UV)
+    plt.title(f"UV_{idx_fig}_s_{speed}_d_{dir}")
+    np.savetxt(f"UV_{idx_fig}_s_{speed}_d_{dir}.asc", UV_final, fmt='%.4e')
 
     plt.colorbar()
     plt.figure()
