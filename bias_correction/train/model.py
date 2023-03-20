@@ -427,8 +427,10 @@ class ArtificialNeuralNetwork(StrategyInitializer):
         return y
 
     def get_func_dense_network(self, config: dict, str_name="", nb_units=[], activation_dense=None) -> Callable:
+
         if activation_dense is None:
             activation_dense = config["activation_dense"]
+
         kwargs_dense = {
             "nb_units": nb_units,
             "activation_dense": load_activation(activation_dense),
@@ -940,6 +942,7 @@ class CustomModel(StrategyInitializer):
             for layer_to_train in layers_to_train:
                 if layer_to_train in layer.name:
                     self.model.get_layer(layer.name).trainable = True
+                    print(f"Trainable layer: {layer.name}")
 
     def freeze_layers_direction(self):
         self.freeze_layers(layers_to_freeze=["dir_ann", "dir_cnn"],
