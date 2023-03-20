@@ -43,7 +43,7 @@ with tf.device('/GPU:0'):
     # Predict
     with timer_context("Predict"):
         inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-        results_test = cm.predict_with_batch(inputs_test)
+        results_test = cm.predict_single_bath(inputs_test)
 
 data_loader.set_predictions(results_test)
 

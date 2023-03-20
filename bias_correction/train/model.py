@@ -35,6 +35,7 @@ from bias_correction.train.loss import load_loss
 from bias_correction.train.callbacks import load_callback_with_custom_model
 from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.unet import create_unet
+from bias_correction.train.metrics import get_metric
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -70,7 +71,10 @@ class StrategyInitializer:
             print("\ntf.config.experimental.set_memory_growth called\n")
             physical_devices = tf.config.list_physical_devices('GPU')
             for gpu_instance in physical_devices:
-                tf.config.experimental.set_memory_growth(gpu_instance, True)
+                try:
+                    tf.config.experimental.set_memory_growth(gpu_instance, True)
+                except RuntimeError:
+                    pass
 
     @staticmethod
     def init_mirrored_strategy():
@@ -197,8 +201,6 @@ class DevineBuilder(StrategyInitializer):
         y = Normalization(self.mean_norm_cnn, self.std_norm_cnn)(y)
 
         if self.config.get("custom_unet", False):
-            print("debug shape custom devine")
-            print((y_diff*2+1, y_diff*2+1, 1))
             unet = self.load_custom_unet((y_diff*2+1, y_diff*2+1, 1), self.config["unet_path"])
         else:
             unet = self.load_classic_unet(self.config["unet_path"])
@@ -437,12 +439,15 @@ class CustomModel(StrategyInitializer):
             # inputs_cnn must be after cnn outputs to be sure speed and direction are latest in the list
             return tf.keras.layers.Concatenate(axis=1)([self.cnn_input.tf_input_cnn(topos), inputs_nwp])
 
+    def get_training_metrics(self):
+        return [get_metric(metric) for metric in self.config["metrics"]]
+
     def add_intermediate_output(self):
         assert self.model_is_built
         inputs = self.model.input
         intermediate_outputs = self.model.get_layer("Add_dense_output").output
         self.model = Model(inputs=inputs, outputs=(self.model.outputs, intermediate_outputs))
-        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
+        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
 
     def _build_model_architecture(self,
                                   nb_input_variables: int,
@@ -568,7 +573,7 @@ class CustomModel(StrategyInitializer):
 
     def _build_compiled_model(self):
         self._build_model()
-        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer())
+        self.model.compile(loss=self.get_loss(), optimizer=self.get_optimizer(), metrics=self.get_training_metrics())
         self.model_is_compiled = True
 
     def _build_mirrored_strategy(self):
@@ -629,16 +634,27 @@ class CustomModel(StrategyInitializer):
             self.model_version = "best"
             print("best model weights loaded")
 
-    def predict_with_batch(self, inputs_test, model_version="last", force_build=False):
+    def predict_single_bath(self, inputs, model_version="last", force_build=False):
 
         if model_version:
             self.select_model(force_build=force_build, model_version=model_version)
 
-        for index, i in enumerate(inputs_test):
+        for index, i in enumerate(inputs):
             results_test = self.model.predict(i)
             print("WARNING: multi batch prediction not supported")
 
         return results_test
+
+    def predict_multiple_batches(self, inputs, model_version="last", force_build=False):
+
+        if model_version:
+            self.select_model(force_build=force_build, model_version=model_version)
+
+        results_test = []
+        for index, i in enumerate(inputs):
+            results_test.append(self.model.predict(i))
+
+        return np.squeeze(np.concatenate(results_test, axis=0))
 
     def fit_with_strategy(self, dataset, validation_data=None, dataloader=None, mode_callback=None):
 

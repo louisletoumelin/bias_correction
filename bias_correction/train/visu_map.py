@@ -90,7 +90,7 @@ class VisuMap:
 
         # Prepare data for predictions
         inputs_test = data_loader.get_tf_zipped_inputs(inputs=inputs, names=names).batch(len(inputs))
-        results_test = cm.predict_with_batch(inputs_test)
+        results_test = cm.predict_single_bath(inputs_test)
 
         # Prepare maps
         uv = results_test[0][:, :, :, 0]

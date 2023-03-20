@@ -38,13 +38,13 @@ with tf.device('/GPU:0'):
     # Predict
     with timer_context("Predict test set"):
         inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-        results_test = cm.predict_with_batch(inputs_test, force_build=True)
+        results_test = cm.predict_single_bath(inputs_test, force_build=True)
 
     # Predict
     #with timer_context("Predict Pyrénées and Corsica"):
     #    inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries")\
     #        .batch(data_loader.length_other_countries)
-    #    results_other_countries = cm.predict_with_batch(inputs_other_countries)
+    #    results_other_countries = cm.predict_single_bath(inputs_other_countries)
 
 for mode, result in zip(["test"], [results_test]):
     data_loader.set_predictions(result, mode=mode, str_model="_D")

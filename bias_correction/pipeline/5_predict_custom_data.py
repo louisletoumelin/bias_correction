@@ -43,7 +43,7 @@ with timer_context("Predict test set"):
     inputs = data_loader.get_tf_zipped_inputs(mode="custom",
                                               output_shapes=config["custom_input_shape"])\
         .batch(data_loader.length_custom)
-    results = cm.predict_with_batch(inputs, force_build=True)
+    results = cm.predict_single_bath(inputs, force_build=True)
 
 plt.figure()
 initial_length_x = 88
