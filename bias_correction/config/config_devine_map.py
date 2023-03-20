@@ -46,13 +46,6 @@ if config["network"] == "local":
 else:
     config["path_root"] = "//scratch/mrmn/letoumelinl/bias_correction/"
 
-# Path downscale
-if config["network"] == "local":
-    config["path_module_downscale"] = "/home/letoumelinl/wind_downscaling_cnn/src/downscale_/"
-else:
-    config["path_module_downscale"] = "//home/mrmn/letoumelinl/downscale_/"
-
-
 # Path to CNN
 config["cnn_name"] = "date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
 config["path_experience"] = config["path_root"] + "Data/1_Raw/CNN/"
@@ -64,8 +57,6 @@ config["path_stations_pre_processed"] = config["path_root"] + f"Data/2_Pre_proce
 config["path_time_series_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/time_series/{config['folder_obs']}/"
 config["path_topos_pre_processed"] = config["path_root"] + f"Data/2_Pre_processed/topos/{config['folder_obs']}/"
 config["path_experiences"] = config["path_root"] + "Data/3_Predictions/Experiences/"
-config["path_to_devine_test"] = config["path_root"] + "Data/3_Predictions/DEVINE/"
-config["path_to_analysis_test"] = config["path_root"] + "Data/2_Pre_processed/AROME_analysis/"
 
 # Filename inputs and labels data
 config["time_series"] = config["path_time_series_pre_processed"] + "time_series_bc.pkl"
@@ -76,36 +67,36 @@ config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_
 config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
 
 # Architecture
-config["details"] = "pp_50_20"                                            # Str. Some details about the experiment
-config["global_architecture"] = "ann_v0"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
+config["details"] = "new_test"                                          # Str. Some details about the experiment
+config["global_architecture"] = "devine_only"                                # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only"
 
 # ann_v0
-config["disable_training_cnn"] = True                                   # Bool. Default=True
-config["type_of_output"] = "output_speed"                               # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10]       #25, 10                                    # List. Each member is a unit [40, 20, 10, 5]
-config["use_bias"] = True
+config["disable_training_cnn"] = "n/a"                                   # Bool. Default=True
+config["type_of_output"] = "map"                               # Str. "output_speed" or "output_components", "map", "map_components"
+config["nb_units"] = "n/a"                                           # List. Each member is a unit [40, 20, 10, 5]
+config["use_bias"] = "n/a"
 
 # General
-config["batch_normalization"] = False                                   # Bool. Apply batch_norm or not
-config["activation_dense"] = "selu"                                     # Bool. Activation in dense network
-config["dropout_rate"] = 0.25                                            # Int. or False. Dropout rate or no dropout
-config["final_skip_connection"] = True                                        # Use skip connection with speed/direction
+config["batch_normalization"] = "n/a"                                   # Bool. Apply batch_norm or not
+config["activation_dense"] = "n/a"                                     # Bool. Activation in dense network
+config["dropout_rate"] = "n/a"                                            # Int. or False. Dropout rate or no dropout
+config["final_skip_connection"] = "n/a"                                        # Use skip connection with speed/direction
 config["distribution_strategy"] = None                                  # "MirroredStrategy", "Horovod" or None
 config["prefetch"] = "auto"                                                # Default="auto", else = Int
 
 # Skip connections in dense network
-config["dense_with_skip_connection"] = False
-config["nb_layers_skip_connection"] = 3
+config["dense_with_skip_connection"] = "n/a"
+config["nb_layers_skip_connection"] = "n/a"
 
 # Hyperparameters
-config["batch_size"] = 128                                                # Int.
-config["epochs"] = 20                                                      # Int.
-config["learning_rate"] = 0.001
+config["batch_size"] = "n/a"                                                # Int.
+config["epochs"] = "n/a"                                                      # Int.
+config["learning_rate"] = "n/a"
 
 # Optimizer
-config["optimizer"] = "Adam"                                         # Str.
-config["args_optimizer"] = [config["learning_rate"]]                                        # List.
-config["kwargs_optimizer"] = {}                                         # Dict.
+config["optimizer"] = "n/a"                                         # Str.
+config["args_optimizer"] = ["n/a"]                                        # List.
+config["kwargs_optimizer"] = {"n/a": "n/a"}                                         # Dict.
 
 # Initializer
 config["initializer"] = "GlorotUniform"                                 # Str. Default = "GlorotUniform"
@@ -116,16 +107,15 @@ config["kwargs_initializer"] = {"seed": 42}                             # Dict.
 config["input_cnn"] = False
 
 # Inputs pre-processing
-config["standardize"] = True                                            # Bool. Apply standardization
-config["shuffle"] = True                                                # Bool. Shuffle inputs
+config["standardize"] = False                                            # Bool. Apply standardization
+config["shuffle"] = False                                                # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = True                                             # Bool. Quicktest case (fast training)
-config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
+config["quick_test"] = False                                             # Bool. Quicktest case (fast training)
+config["quick_test_stations"] = ["ALPE-D'HUEZ", 'LES ECRINS-NIVOSE', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
 # Input variables
-config["input_variables"] = ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
-                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
+config["input_variables"] = ['Wind', 'Wind_DIR']
 # ["tpi_500", "curvature", "mu", "laplacian", 'alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
 #                              "LWnet", "SWnet", 'CC_cumul', 'BLH']
 
@@ -136,41 +126,12 @@ config["wind_temp_variables"] = ['Tair']                     # ["Wind", "Wind_DI
 
 # Dataset
 config["unbalanced_dataset"] = False
-config["unbalanced_threshold"] = 2
+config["unbalanced_threshold"] = "n/a"
 
 # Callbacks
-config["callbacks"] = ["TensorBoard",
-                       "ReduceLROnPlateau",
-                       "EarlyStopping",
-                       "CSVLogger",
-                       "ModelCheckpoint"]  # "FeatureImportanceCallback"
+config["callbacks"] = []
 
-config["kwargs_callbacks"] = {"ReduceLROnPlateau": {"monitor": "val_loss",
-                                                    "factor": 0.5,      # new_lr = lr * factor
-                                                    "patience": 3,
-                                                    "min_lr": 0.0001},
-
-                              "EarlyStopping": {"monitor": "val_loss",
-                                                "min_delta": 0.01,
-                                                "patience": 5,
-                                                "mode": "min",
-                                                "restore_best_weights": False},
-
-                              "ModelCheckpoint": {"min_delta": 0.01,
-                                                  "monitor": "val_loss",
-                                                  "save_best_only": True,
-                                                  "save_weights_only": False,
-                                                  "mode": "min",
-                                                  "save_freq": "epoch"},
-
-                              "TensorBoard": {"profile_batch": '20, 50',
-                                              "histogram_freq": 1},
-
-                              "HVDLearningRateWarmupCallback": {"warmup_epochs": 5,
-                                                                "verbose": 1},
-
-                              "FeatureImportanceCallback": {}
-                              }
+config["kwargs_callbacks"] = {"n/a": "n/a"}
 
 # Split
 config["split_strategy_test"] = "time_and_space"                         # "time", "space", "time_and_space", "random"
@@ -214,32 +175,26 @@ config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 config["get_intermediate_output"] = False
 
 # Custom loss
-config["loss"] = "pinball_proportional"                                                  # Str. Default=mse. Used for gradient descent
-config["args_loss"] = []
-config["kwargs_loss"] = {"penalized_mse": {"penalty": 10,
-                                           "speed_threshold": 5},
-                         "mse_proportional": {"penalty": 1},
-                         "mse_power": {"penalty": 1,
-                                       "power": 2},
-                         "pinball": {"tho": 0.85},
-                         "pinball_proportional": {"tho": 0.6},
-                         "pinball_weight": {"tho": 0.95}}
+config["loss"] = "n/a"                                                  # Str. Default=mse. Used for gradient descent
+config["args_loss"] = ["n/a"]
+config["kwargs_loss"] = {"n/a": {"n/a": "n/a"}}
 
 # todo assert station validation not in station test
 # todo assert kwargs split strategy are defined
 # todo assert a seed is given for any random input
+# todo extract DEVINE predictions
 
 
 # Do not modify: assert inputs are correct
-config = assert_input_for_skip_connection(config)
-config = sort_input_variables(config)
+# config = assert_input_for_skip_connection(config)
+# config = sort_input_variables(config)
 config = adapt_distribution_strategy_to_available_devices(config)
-config = init_learning_rate_adapted(config)
+# config = init_learning_rate_adapted(config)
 config["nb_input_variables"] = len(config["input_variables"])
 config = detect_variable(config)
 
 list_variables = ['name', 'date', 'lon', 'lat', 'alti', 'T2m(degC)', 'vw10m(m/s)',
-                  'winddir(deg)', 'HTN(cm)', 'Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
+                  'winddir(deg)', 'HTN(cm)','Tair', 'T1', 'ts', 'Tmin', 'Tmax', 'Qair',
                   'Q1', 'RH2m', 'Wind_Gust', 'PSurf', 'ZS', 'BLH', 'Rainf', 'Snowf',
                   'LWdown', 'LWnet', 'DIR_SWdown', 'SCA_SWdown', 'SWnet', 'SWD', 'SWU',
                   'LHF', 'SHF', 'CC_cumul', 'CC_cumul_low', 'CC_cumul_middle',

@@ -103,7 +103,6 @@ class CustomEvaluation(VizualizationResults):
         for model_str in models:
 
             assert hasattr(self.data, f"predicted{model_str}")
-            self.data.get_predictions(model_str)
             results = []
 
             self.df_results[self.current_variable+model_str] = np.nan
