@@ -51,7 +51,7 @@ class Batcher:
         return dataset\
             .batch(batch_size=self.config["global_batch_size"]) \
             .cache() \
-            .prefetch(self._get_prefetch(self.config))
+            .prefetch(self._get_prefetch())
 
     def batch_test(self, dataset):
         raise NotImplementedError("Test data are not batched")
@@ -724,43 +724,3 @@ class CustomDataHandler(SplitTrainTestVal):
             predictions = predictions.rename(columns={"Wind": "UV_A"})
 
         setattr(self, f"predicted{model}", predictions)
-
-
-"""
-# second option
-titanic_slices = tf.data.Dataset.from_tensor_slices(dict(df))
-
-for feature_batch in titanic_slices.take(1):
-  for key, value in feature_batch.items():
-    print("  {!r:20s}: {}".format(key, value))
-
-
-#topos
-def count(stop):
-  i = 0
-  while i<stop:
-    yield i
-    i += 1
-ds_counter = tf.data.Dataset.from_generator(count, args=[25], output_types=tf.int32, output_shapes = (), )
-
-# use batch before repeat
-.shuffle(buffer_size=100)
-.prefetch(tf.data.AUTOTUNE)
-
-# Filter
-negative_ds = (
-  creditcard_ds
-    .unbatch()
-    .filter(lambda features, label: label==0)
-    .repeat())
-positive_ds = (
-  creditcard_ds
-    .unbatch()
-    .filter(lambda features, label: label==1)
-    .repeat())
-    .cache(
-        )
-balanced_ds = tf.data.Dataset.sample_from_datasets(
-    [negative_ds, positive_ds], [0.5, 0.5]).batch(10)
-"""
-

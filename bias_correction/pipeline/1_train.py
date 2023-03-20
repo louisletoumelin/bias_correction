@@ -41,7 +41,7 @@ data_loader.prepare_train_test_data()
 if not config["restore_experience"]:
     with tf.device('/GPU:0'), timer_context("fit"):
         _ = cm.fit_with_strategy(data_loader.get_batched_inputs_labels(mode="train"),
-                                 validation_data=data_loader.get_tf_zipped_inputs_labels(mode="val"),
+                                 validation_data=data_loader.get_batched_inputs_labels(mode="val"),
                                  dataloader=data_loader,
                                  mode_callback="test")
 exp.save_all(data_loader, cm)
