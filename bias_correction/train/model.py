@@ -528,8 +528,8 @@ class CustomModel(StrategyInitializer):
     def get_callbacks(self, data_loader=None, mode_callback=None):
         return load_callback_with_custom_model(self, data_loader=data_loader, mode_callback=mode_callback)
 
-    def get_dense_network(self, str_name="", nb_units=[]):
-        return self.ann.get_func_dense_network(self.config, str_name, nb_units)
+    def get_dense_network(self, str_name="", nb_units=[], activation_dense=None):
+        return self.ann.get_func_dense_network(self.config, str_name, nb_units, activation_dense=activation_dense)
 
     def cnn_and_concatenate(self, topos, inputs_nwp, inputs_nwp_norm, use_standardize, name_conv_layer=""):
         if ("aspect" in self.config["map_variables"]) and ("tan_slope" in self.config["map_variables"]):
@@ -614,8 +614,12 @@ class CustomModel(StrategyInitializer):
         # Dense network
         if use_double_ann:
 
-            d0 = self.get_dense_network(str_name="speed_ann", nb_units=self.config["nb_units_speed"])
-            d1 = self.get_dense_network(str_name="dir_ann", nb_units=self.config["nb_units_dir"])
+            d0 = self.get_dense_network(str_name="speed_ann",
+                                        nb_units=self.config["nb_units_speed"],
+                                        activation_dense=self.config["activation_dense_speed'"])
+            d1 = self.get_dense_network(str_name="dir_ann",
+                                        nb_units=self.config["nb_units_dir"],
+                                        activation_dense=self.config["activation_dense_dir'"])
 
             if use_standardize:
 
