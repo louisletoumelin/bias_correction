@@ -154,21 +154,10 @@ config["country_to_reject_during_training"] = ["pyr", "corse"]
 config["metric_split"] = "rmse"
 
 # Space split
-config["stations_test"] = ['MMMES', 'EGH', 'LA MURE-ARGENS', 'BLA', 'EVO', 'TGAMR', 'TIT',
-                           'MILLEFONTS-NIVOSE', 'COY', 'ULR', 'AGUIL. DU MIDI', 'SIA', 'PLF',
-                           'BIN', 'ZER', 'MMMUE', 'EGO', 'LUZ', 'DIGNE LES BAINS', 'TGILL',
-                           'CIM', 'Col du Lac Blanc', 'TICAM', 'CHB', 'LE PLENAY',
-                           'MONT DU CHAT', 'VAD', 'ARH', 'MTR', 'EMBRUN', 'MMKSB', 'MOB',
-                           'MMIBG', 'MMSAF', 'MMSAX', 'BIZ', 'BER', 'TALLARD', 'GRO',
-                           'INNEBI', 'MLS', 'PEONE', 'SRS', 'FLU', 'GVE', 'BIA', 'MMRIC',
-                           'PIL', 'MMSAS', 'La Muzelle Lac Blanc', 'TGDIE', 'TIAIR', 'MMNOI',
-                           'ALBERTVILLE JO']
+config["stations_test"] = ['Col du Lac Blanc', 'MMLAF', 'WAE', 'AGAAR', 'DIS', 'MMDAS', 'EMBRUN', 'ZER', 'LE TOUR', 'GRH', 'SRS', 'MMSRL', 'BER', 'GIH', 'VAD', 'TAE', 'EGO', 'TGAMR', 'JUN', 'DEM', 'BRZ', 'MMHIW', 'COL-DES-SAISIES', 'LE PLENAY', 'BONNEVAL-NIVOSE', 'MMCPY', 'Col de Porte', 'DIA', 'TGNOL', 'INNESF', 'LA MEIJE-NIVOSE', 'LEI', 'STK', 'SIO', 'ST-PIERRE-LES EGAUX', 'MAS', 'Argentiere', 'MEYTHET', 'BELLECOTE-NIVOSE', 'ASCROS', 'MMZWE', 'ROB', 'MFOFKP', 'WYN', 'MMBIR', 'TGEGN', 'CDM', "VILLAR D'ARENE", 'PARPAILLON-NIVOSE', 'INNRED', 'HLL', 'ULR', 'TGUSH', 'TGNUS', 'SIA']
 
+config["stations_val"] = ['SBO', 'CEV', 'MMBOY', 'THU', 'AND', 'MMTIT', 'ROE', 'RESTEFOND-NIVOSE', 'La Muzelle Lac Blanc', 'BARCELONNETTE', 'GRANDE PAREI NIVOSE', 'GALIBIER-NIVOSE', 'ALBERTVILLE JO', 'MER', 'ARH', 'SPF', 'PLF', 'AIGLETON-NIVOSE']
 
-config["stations_val"] = ['LA MASSE', 'LE GRAND-BORNAND', 'MER', 'TGRIC', 'ARVIEUX',
-                          'BONNEVAL-NIVOSE', 'MMERZ', 'INNESF', 'TGLAN', 'MMLAF', 'SHA',
-                          'AND', 'Argentiere', 'BEH', 'TGNOL', 'GOS', 'PARPAILLON-NIVOSE',
-                          'MOA']
 
 config["stations_to_reject"] = ["Vallot", "Dome Lac Blanc", "MFOKFP"]
 

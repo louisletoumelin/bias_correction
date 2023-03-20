@@ -198,6 +198,14 @@ class CustomDataHandler(SplitTrainTestVal):
 
         return time_series, stations
 
+    def reject_country(self, time_series, stations):
+        """Reject stations from inputs files as defined by the user"""
+        countries_to_reject = self.config["country_to_reject_during_training"]
+        names_country_to_reject = stations["name"][stations["country"].isin(countries_to_reject)].values
+        time_series = time_series[~time_series["name"].isin(names_country_to_reject)]
+        stations = stations[~stations["name"].isin(names_country_to_reject)]
+        return time_series, stations
+
     def _get_stations_test_and_val(self):
         if "space" in self.config["split_strategy_test"] and "space" in self.config["split_strategy_val"]:
             return self.config["stations_test"] + self.config["stations_val"]
@@ -251,8 +259,14 @@ class CustomDataHandler(SplitTrainTestVal):
         i = 0
         while i < patience:
             station_name = np.random.choice(station["name"].values)
-            station_already_selected = (station_name in list_stations) or (station_name in stations_to_exclude)
+            _is_aiguille_du_midi = station_name == "AGUIL. DU MIDI"
+            station_already_selected = (station_name in list_stations) or (station_name in stations_to_exclude) or _is_aiguille_du_midi
+            print(station_name)
+            print(station_name in list_stations)
+            print(station_name in stations_to_exclude)
+            print(_is_aiguille_du_midi)
             if station_already_selected:
+                print(station_name, patience)
                 i += 1
             else:
                 list_stations.append(station_name)
@@ -318,12 +332,13 @@ class CustomDataHandler(SplitTrainTestVal):
         metric = self.config["metric_split"]
 
         stations = self.add_nwp_stats_to_stations(stations, time_series, [metric])
-        list_stations = []
 
         if mode == "test":
             list_parameters = self.config["parameters_split_test"]
+            list_stations = ["Col du Lac Blanc"]
         else:
             list_parameters = self.config["parameters_split_val"]
+            list_stations = []
 
         for parameter in list_parameters:
             print(f"Parameter: {parameter}")
@@ -356,10 +371,28 @@ class CustomDataHandler(SplitTrainTestVal):
 
     def define_test_and_val_stations(self, time_series, stations):
         i = 0
-        while "Col du Lac Blanc" not in self.config["stations_test"]:
+
+        time_series, stations = self.reject_country(time_series, stations)
+
+        self.config["stations_test"] = []
+        self.config["stations_val"] = []
+        col_du_lac_blanc_not_in_test = "Col du Lac Blanc" not in self.config["stations_test"]
+        aiguille_du_midi_in_test = "AGUIL. DU MIDI" in self.config["stations_test"]
+        aiguille_du_midi_in_val = "AGUIL. DU MIDI" in self.config["stations_val"]
+        aiguille_du_midi_not_in_train = aiguille_du_midi_in_test or aiguille_du_midi_in_val
+        print("debug")
+        print("col_du_lac_blanc_not_in_test")
+        print(col_du_lac_blanc_not_in_test)
+        print("aiguille_du_midi_not_in_train")
+        print(aiguille_du_midi_not_in_train)
+        while col_du_lac_blanc_not_in_test or aiguille_du_midi_not_in_train:
             i += 1
             print("Try:")
             print(i)
+            print("col_du_lac_blanc_not_in_test")
+            print(col_du_lac_blanc_not_in_test)
+            print("aiguille_du_midi_not_in_train")
+            print(aiguille_du_midi_not_in_train)
             self.config["stations_test"] = self._select_randomly_test_val_stations(time_series,
                                                                                    stations,
                                                                                    mode="test")
@@ -367,6 +400,14 @@ class CustomDataHandler(SplitTrainTestVal):
                                                                                   stations,
                                                                                   mode="val",
                                                                                   stations_to_exclude=self.config["stations_test"])
+            print("debug")
+            print(self.config["stations_test"])
+            print(self.config["stations_val"])
+
+            col_du_lac_blanc_not_in_test = "Col du Lac Blanc" not in self.config["stations_test"]
+            aiguille_du_midi_in_test = "AGUIL. DU MIDI" in self.config["stations_test"]
+            aiguille_du_midi_in_val = "AGUIL. DU MIDI" in self.config["stations_val"]
+            aiguille_du_midi_not_in_train = aiguille_du_midi_in_test | aiguille_du_midi_in_val
 
     def _apply_quick_test(self, time_series):
         return time_series[time_series["name"].isin(self.config["quick_test_stations"])]
@@ -397,12 +438,18 @@ class CustomDataHandler(SplitTrainTestVal):
         # Add topo characteristics
         time_series = self.add_topo_carac_time_series(time_series, stations)
 
+        # Add country
+        time_series = self.add_country_to_time_series(time_series, stations)
+
         # Select variables
         time_series = self._select_all_variables_needed(time_series, variables_needed)
 
         # Define test/train/val stations if random
+        print("debug")
         if self.config["stations_test"] == "random" and self.config["stations_val"] == "random":
+            print("before define_test_and_val_stations")
             self.define_test_and_val_stations(time_series, stations)
+            print("after define_test_and_val_stations")
 
         # Dropna
         time_series = time_series.dropna()
@@ -661,15 +708,14 @@ class CustomDataHandler(SplitTrainTestVal):
     def _set_is_prepared(self):
         self.is_prepared = True
 
-    def add_other_model(self, model, mode="test"):
+    def add_model(self, model, mode="test"):
         if model == "_D":
-            path_to_file = self.config["path_to_devine"] + f"devine_{mode}.pkl"
+            path_to_file = self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl"
             predictions = pd.read_pickle(path_to_file)
         if model == "_A":
             path_to_file = self.config["path_to_analysis"] + "time_series_bc_a.pkl"
             predictions = pd.read_pickle(path_to_file)
             predictions = predictions.rename(columns={"Wind": "UV_A"})
-            predictions = predictions.dropna()
         setattr(self, f"predicted{model}", predictions)
 
 

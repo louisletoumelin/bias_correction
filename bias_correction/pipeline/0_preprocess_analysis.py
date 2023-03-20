@@ -80,8 +80,6 @@ if config["pre_process_time_series"]:
 
     stations = pd.read_pickle(config["path_stations_pre_processed"] + "stations_bc_a.pkl")
     time_series = pd.read_pickle(config["path_time_series_pre_processed"] + "time_series_bc_qc.pkl")
-    print("debug")
-    print(stations)
 
     for interpolated in [False]:
 
