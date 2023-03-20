@@ -81,6 +81,7 @@ for model in ["last", "best"]:
     c_eval.print_stats()
     exp.save_results(c_eval)
 
+    break
     """
     # Predict
     with tf.device('/GPU:0'), timer_context("Predict Pyrénées and Corsica"):

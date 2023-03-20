@@ -17,6 +17,13 @@ try:
 except ModuleNotFoundError:
     _sns = False
 
+NEW_NAMES = {"_AROME": "$AROME_{forecast}$",
+             "_D": "DEVINE",
+             "_nn": "Neural Network + DEVINE",
+             "_int": "Neural Network",
+             "_A": "$AROME_{analysis}$",
+             }
+
 
 def check_if_subfolder_in_filename(name_figure: str) -> bool:
     if "/" in name_figure:
@@ -387,7 +394,6 @@ def plot_evolution(df: pd.DataFrame,
                    groupby: str = "month",
                    color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4")
                    ) -> None:
-
     if hasattr(df.index, groupby):
         index_groupby = getattr(df.index, groupby)
     else:
@@ -395,7 +401,8 @@ def plot_evolution(df: pd.DataFrame,
 
     plt.figure(figsize=figsize)
     ax = plt.gca()
-    df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=list(color), ax=ax)
+    dict_color = {key: value for key, value in zip(list(hue_names_to_plot), list(color))}
+    df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=dict_color, ax=ax)
     plt.xlabel(groupby.capitalize(), fontsize=fontsize)
     plt.ylabel(y_label_name.capitalize(), fontsize=fontsize)
 
@@ -419,30 +426,27 @@ class SeasonalEvolution:
                                 ) -> None:
         keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
-            dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                              f"{metric}_D": "DEVINE",
-                              f"{metric}_nn": "Neural Network + DEVINE",
-                              f"{metric}_int": "Neural Network",
-                              f"{metric}_A": "$AROME_{analysis}$",
+            dict_new_names = {"_AROME": f"{metric}_AROME",
+                              "_D": f"{metric}_D",
+                              "_nn": f"{metric}_nn",
+                              "_int": f"{metric}_int",
+                              "_A": f"{metric}_A",
                               }
 
-            df = df.rename(columns=dict_new_names)
-            olds: List[str, ...] = list(dict_new_names.keys())
-            news: List[str, ...] = list(dict_new_names.values())
-            models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if key in name]
-            print("debug")
-            print(models_to_plot)
+            old2new_names = {dict_new_names[key]: NEW_NAMES[key] for key in keys}
+            df = df.rename(columns=old2new_names)
+            new_names: List[str, ...] = list(old2new_names.values())
+
             plot_evolution(df,
-                           hue_names_to_plot=tuple(models_to_plot),
+                           hue_names_to_plot=tuple(new_names),
                            y_label_name=metric,
                            fontsize=fontsize,
                            figsize=figsize,
                            groupby=groupby,
                            color=color)
 
-            df = df.drop(columns=models_to_plot)
-
             save_figure(f"Seasonal_evolution/{name}", exp=self.exp)
+            df = df.drop(columns=list(set(new_names)))
 
     def plot_seasonal_evolution_by_station(self,
                                            df: pd.DataFrame,
@@ -458,19 +462,19 @@ class SeasonalEvolution:
         for station in df["name"].unique():
             df_copy = df.copy(deep=True)
             for idx_metric, metric in enumerate(metrics):
-                dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                                  f"{metric}_D": "DEVINE",
-                                  f"{metric}_nn": "Neural Network + DEVINE",
-                                  f"{metric}_int": "Neural Network",
-                                  f"{metric}_A": "$AROME_{analysis}$",
+                dict_new_names = {"_AROME": f"{metric}_AROME",
+                                  "_D": f"{metric}_D",
+                                  "_nn": f"{metric}_nn",
+                                  "_int": f"{metric}_int",
+                                  "_A": f"{metric}_A",
                                   }
-                df_copy = df_copy.rename(columns=dict_new_names)
-                olds: List[str, ...] = list(dict_new_names.keys())
-                news: List[str, ...] = list(dict_new_names.values())
-                models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if
-                                                  key in name]
+
+                old2new_names = {dict_new_names[key]: NEW_NAMES[key] for key in keys}
+                df_copy = df_copy.rename(columns=old2new_names)
+                new_names: List[str, ...] = list(old2new_names.values())
+
                 plot_evolution(df_copy[df_copy["name"] == station],
-                               hue_names_to_plot=tuple(models_to_plot),
+                               hue_names_to_plot=tuple(set(new_names)),
                                y_label_name=metric,
                                fontsize=fontsize,
                                figsize=figsize,
@@ -478,7 +482,7 @@ class SeasonalEvolution:
                                color=color)
                 plt.title(station)
                 save_figure(f"Seasonal_evolution_by_station/Seasonal_evolution_{station}_{name}", exp=self.exp)
-                df_copy = df_copy.drop(columns=models_to_plot)
+                df_copy = df_copy.drop(columns=list(set(new_names)))
 
 
 class Leadtime:
@@ -500,25 +504,26 @@ class Leadtime:
                        ) -> None:
         keys = ['_' + key.split('_')[1] for key in keys]
         for metric in metrics:
-            dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                              f"{metric}_D": "DEVINE",
-                              f"{metric}_nn": "Neural Network + DEVINE",
-                              f"{metric}_int": "Neural Network",
-                              f"{metric}_A": "$AROME_{analysis}$",
+            dict_new_names = {"_AROME": f"{metric}_AROME",
+                              "_D": f"{metric}_D",
+                              "_nn": f"{metric}_nn",
+                              "_int": f"{metric}_int",
+                              "_A": f"{metric}_A",
                               }
-            df = df.rename(columns=dict_new_names)
-            olds: List[str, ...] = list(dict_new_names.keys())
-            news: List[str, ...] = list(dict_new_names.values())
-            models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if key in name]
+
+            old2new_names = {dict_new_names[key]: NEW_NAMES[key] for key in keys}
+            df = df.rename(columns=old2new_names)
+            new_names: List[str, ...] = list(old2new_names.values())
+
             plot_evolution(df,
-                           hue_names_to_plot=tuple(models_to_plot),
+                           hue_names_to_plot=tuple(set(new_names)),
                            y_label_name=metric,
                            fontsize=fontsize,
                            figsize=figsize,
                            groupby=groupby,
                            color=color)
             save_figure(f"Lead_time/{name}", exp=self.exp)
-            df = df.drop(columns=models_to_plot)
+            df = df.drop(columns=list(set(new_names)))
 
     def plot_lead_time_by_station(self,
                                   df: pd.DataFrame,
@@ -533,19 +538,19 @@ class Leadtime:
         for station in df["name"].unique():
             df_copy = df.copy(deep=True)
             for metric in metrics:
-                dict_new_names = {f"{metric}_AROME": "$AROME_{forecast}$",
-                                  f"{metric}_D": "DEVINE",
-                                  f"{metric}_nn": "Neural Network + DEVINE",
-                                  f"{metric}_int": "Neural Network",
-                                  f"{metric}_A": "$AROME_{analysis}$",
+                dict_new_names = {"_AROME": f"{metric}_AROME",
+                                  "_D": f"{metric}_D",
+                                  "_nn": f"{metric}_nn",
+                                  "_int": f"{metric}_int",
+                                  "_A": f"{metric}_A",
                                   }
-                df_copy = df_copy.rename(columns=dict_new_names)
-                olds: List[str, ...] = list(dict_new_names.keys())
-                news: List[str, ...] = list(dict_new_names.values())
-                models_to_plot: List[str, ...] = [news[idx] for idx, name in enumerate(olds) for key in keys if
-                                                  key in name]
+
+                old2new_names = {dict_new_names[key]: NEW_NAMES[key] for key in keys}
+                df = df.rename(columns=old2new_names)
+                new_names: List[str, ...] = list(old2new_names.values())
+
                 plot_evolution(df_copy[df_copy["name"] == station],
-                               hue_names_to_plot=tuple(models_to_plot),
+                               hue_names_to_plot=tuple(set(new_names)),
                                y_label_name=metric,
                                fontsize=fontsize,
                                figsize=figsize,
@@ -553,7 +558,7 @@ class Leadtime:
                                color=color)
 
                 save_figure(f"Lead_time/Lead_time_{station}", exp=self.exp)
-                df_copy = df_copy.drop(columns=models_to_plot)
+                df_copy = df_copy.drop(columns=list(set(new_names)))
 
 
 def plot_boxplot_models(df: pd.DataFrame,
@@ -569,7 +574,6 @@ def plot_boxplot_models(df: pd.DataFrame,
                                                               "Neural Network + DEVINE", "$AROME_{analysis}$"),
                         palette: Union[Tuple[str], None] = ("C1", "C0", "C2", "C3")
                         ) -> None:
-
     df_melted = df.melt(id_vars=["name", carac],
                         value_vars=models_names,
                         var_name='Model',
