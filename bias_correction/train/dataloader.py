@@ -1,18 +1,23 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.python.data.ops.dataset_ops import DatasetV2
+
 from copy import copy
 import pickle
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from typing import Optional, Tuple, Union, Any
+from typing import Optional, Tuple, Union, Any, List, MutableSequence, Generator
 
 from bias_correction.train.metrics import get_metric
 
 
 class TopoGenerator:
 
-    def __init__(self, dict_topos, names):
+    def __init__(self,
+                 dict_topos: dict,
+                 names: MutableSequence[str]
+                 ) -> None:
 
         try:
             self.names = names.values
@@ -28,7 +33,10 @@ class TopoGenerator:
 
 class MeanGenerator:
 
-    def __init__(self, mean, length):
+    def __init__(self,
+                 mean: MutableSequence[float],
+                 length: Union[float, int]
+                 ) -> None:
         self.mean = mean
         self.length = length
 
@@ -39,7 +47,9 @@ class MeanGenerator:
 
 class Batcher:
 
-    def __init__(self, config):
+    def __init__(self,
+                 config: dict
+                 ) -> None:
         self.config = config
 
     def _get_prefetch(self):
@@ -48,22 +58,28 @@ class Batcher:
         else:
             return self.config["prefetch"]
 
-    def batch_train(self, dataset):
+    def batch_train(self,
+                    dataset: tf.data.Dataset
+                    ) -> DatasetV2:
         return dataset \
             .batch(batch_size=self.config["global_batch_size"]) \
             .cache() \
             .prefetch(self._get_prefetch())
 
-    def batch_test(self, dataset):
+    def batch_test(self,
+                   dataset: tf.data.Dataset
+                   ) -> DatasetV2:
         raise NotImplementedError("Test data are not batched")
 
-    def batch_val(self, dataset):
+    def batch_val(self,
+                  dataset: tf.data.Dataset
+                  ) -> DatasetV2:
         return dataset.batch(batch_size=self.config["global_batch_size"])
 
 
 class Splitter:
 
-    def __init__(self, config):
+    def __init__(self, config: dict) -> None:
         self.config = config
 
     def _split_by_time(self,
@@ -204,10 +220,10 @@ class Splitter:
 
 class Loader:
 
-    def __init__(self, config):
+    def __init__(self, config: dict) -> None:
         self.config = config
 
-    def load_dict_topo(self):
+    def load_dict_topo(self) -> dict:
         with open(self.config["topos_near_station"], 'rb') as f:
             dict_topos = pickle.load(f)
 
@@ -220,22 +236,28 @@ class Loader:
 
         return dict_topos
 
-    def load_time_series_pkl(self):
+    def load_time_series_pkl(self) -> pd.DataFrame:
         return pd.read_pickle(self.config["time_series"])
 
-    def load_stations_pkl(self):
+    def load_stations_pkl(self) -> pd.DataFrame:
         return pd.read_pickle(self.config["stations"])
 
 
 class ResultsSetter:
 
-    def __init__(self, config):
+    def __init__(self, config: dict) -> None:
         self.config = config
 
-    def has_intermediate_outputs(self, results):
+    def has_intermediate_outputs(self,
+                                 results: MutableSequence[float]
+                                 ) -> bool:
         return isinstance(results, tuple) and len(results) > 1 and self.config["get_intermediate_output"]
 
-    def _nn_output2df(self, result, names, name_uv="UV_nn"):
+    def _nn_output2df(self,
+                      result: MutableSequence[float],
+                      names: MutableSequence[str],
+                      name_uv: str = "UV_nn"
+                      ) -> pd.DataFrame:
 
         df = pd.DataFrame()
         df["name"] = names
@@ -249,7 +271,9 @@ class ResultsSetter:
 
         return df[["name", name_uv]]
 
-    def _prepare_intermediate_outputs(self, results):
+    def _prepare_intermediate_outputs(self,
+                                      results: MutableSequence[float]
+                                      ) -> Tuple[MutableSequence[float], str, str]:
 
         assert self.has_intermediate_outputs(results)
 
@@ -259,12 +283,19 @@ class ResultsSetter:
 
         return results, str_model, mode_str
 
-    def _prepare_final_outputs(self, results):
+    def _prepare_final_outputs(self,
+                               results: MutableSequence[float]
+                               ) -> MutableSequence[float]:
         if self.has_intermediate_outputs(results):
             results = results[0]
         return results
 
-    def prepare_df_results(self, results, names, mode="test", str_model="_nn"):
+    def prepare_df_results(self,
+                           results: MutableSequence[float],
+                           names: MutableSequence[str],
+                           mode: str = "test",
+                           str_model: str = "_nn"
+                           ) -> Tuple[pd.DataFrame, str]:
 
         if str_model == "_int":
             results, str_model, mode_str = self._prepare_intermediate_outputs(results)
@@ -279,7 +310,9 @@ class ResultsSetter:
 
 class CustomDataHandler:
 
-    def __init__(self, config, load_dict_topo=True):
+    def __init__(self,
+                 config: dict,
+                 load_dict_topo: bool = True) -> None:
 
         self.config = config
         self.variables_needed = copy(['name'] + self.config["input_variables"] + self.config["labels"])
@@ -317,11 +350,18 @@ class CustomDataHandler:
         self.predicted_val = None
         self.predicted_other_countries = None
 
-    def _select_all_variables_needed(self, df, variables_needed=None):
+    def _select_all_variables_needed(self,
+                                     df: pd.DataFrame,
+                                     variables_needed: Union[bool, None] = None
+                                     ) -> Union[pd.Series, pd.DataFrame]:
         variables_needed = self.variables_needed if variables_needed is None else variables_needed
         return df[variables_needed]
 
-    def add_topo_carac_time_series(self, time_series, stations):
+    def add_topo_carac_time_series(self,
+                                   time_series: pd.DataFrame,
+                                   stations: pd.DataFrame
+                                   ) -> pd.DataFrame:
+
         for topo_carac in ["tpi_500", "curvature", "laplacian", "mu"]:
             if topo_carac in self.config["input_variables"]:
                 time_series.loc[:, topo_carac] = np.nan
@@ -330,14 +370,20 @@ class CustomDataHandler:
                     time_series.loc[time_series["name"] == station, topo_carac] = value_topo_carac
         return time_series
 
-    def reject_stations(self, time_series, stations):
+    def reject_stations(self,
+                        time_series: pd.DataFrame,
+                        stations: pd.DataFrame
+                        ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Reject stations from inputs files as defined by the user"""
         time_series = time_series[~time_series["name"].isin(self.config["stations_to_reject"])]
         stations = stations[~stations["name"].isin(self.config["stations_to_reject"])]
 
         return time_series, stations
 
-    def reject_country(self, time_series, stations):
+    def reject_country(self,
+                       time_series: pd.DataFrame,
+                       stations: pd.DataFrame
+                       ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Reject stations from inputs files as defined by the user"""
         countries_to_reject = self.config["country_to_reject_during_training"]
         names_country_to_reject = stations["name"][stations["country"].isin(countries_to_reject)].values
@@ -345,7 +391,7 @@ class CustomDataHandler:
         stations = stations[~stations["name"].isin(names_country_to_reject)]
         return time_series, stations
 
-    def _get_stations_test_and_val(self):
+    def _get_stations_test_and_val(self) -> MutableSequence:
         if "space" in self.config["split_strategy_test"] and "space" in self.config["split_strategy_val"]:
             return self.config["stations_test"] + self.config["stations_val"]
         elif "space" in self.config["split_strategy_test"]:
@@ -355,13 +401,15 @@ class CustomDataHandler:
         else:
             return []
 
-    def _get_train_stations(self, df):
+    def _get_train_stations(self,
+                            df: pd.DataFrame
+                            ) -> List:
         assert "name" in df, "DataFrame must contain a name column"
         all_stations = df["name"].unique()
         stations_test_val = self._get_stations_test_and_val()
         return [s for s in all_stations if s not in set(stations_test_val)]
 
-    def unbalance_training_dataset(self):
+    def unbalance_training_dataset(self) -> None:
         if self.config["current_variable"] == "T2m":
             raise NotImplementedError("Unbalanced dataset is not implemented for temperature")
 
@@ -394,7 +442,11 @@ class CustomDataHandler:
         self.length_train = len(self.inputs_train)
 
     @staticmethod
-    def _try_random_choice(list_stations, station, patience=10, stations_to_exclude=[]):
+    def _try_random_choice(list_stations: MutableSequence[str],
+                           station: pd.DataFrame,
+                           patience: int = 10,
+                           stations_to_exclude: MutableSequence = []
+                           ) -> MutableSequence[str]:
         i = 0
         while i < patience:
             station_name = np.random.choice(station["name"].values)
@@ -414,7 +466,10 @@ class CustomDataHandler:
         return list_stations
 
     @staticmethod
-    def add_nwp_stats_to_stations(stations, time_series, metrics=["rmse"]):
+    def add_nwp_stats_to_stations(stations: pd.DataFrame,
+                                  time_series: pd.DataFrame,
+                                  metrics: List[str] = ["rmse"]
+                                  ) -> pd.DataFrame:
 
         for metric in metrics:
             stations[metric] = np.nan
@@ -431,7 +486,9 @@ class CustomDataHandler:
 
         return stations
 
-    def add_mode_to_df(self, df):
+    def add_mode_to_df(self,
+                       df: pd.DataFrame
+                       ) -> pd.DataFrame:
 
         assert self.is_prepared
 
@@ -454,7 +511,9 @@ class CustomDataHandler:
         return df
 
     @staticmethod
-    def add_country_to_time_series(time_series, stations):
+    def add_country_to_time_series(time_series: pd.DataFrame,
+                                   stations: pd.DataFrame
+                                   ) -> pd.DataFrame:
         time_series["country"] = np.nan
         for station in time_series["name"].unique():
             filter_s = stations["name"] == station
@@ -463,14 +522,21 @@ class CustomDataHandler:
         return time_series
 
     @staticmethod
-    def add_elevation_category_to_df(df, list_min=[0, 1000, 2000, 3000], list_max=[1000, 2000, 3000, 5000]):
+    def add_elevation_category_to_df(df: pd.DataFrame,
+                                     list_min: List[int] = [0, 1000, 2000, 3000],
+                                     list_max: List[int] = [1000, 2000, 3000, 5000]
+                                     ) -> pd.DataFrame:
         df["cat_zs"] = np.nan
         for z_min, z_max in zip(list_min, list_max):
             filter_alti = (z_min <= df["alti"]) & (df["alti"] < z_max)
             df.loc[filter_alti, ["cat_zs"]] = f"{int(z_min)}m $\leq$ Station elevation $<$ {int(z_max)}m"
         return df
 
-    def _select_randomly_test_val_stations(self, time_series, stations, mode, stations_to_exclude=[]):
+    def _select_randomly_test_val_stations(self,
+                                           time_series: pd.DataFrame,
+                                           stations: pd.DataFrame,
+                                           mode: str,
+                                           stations_to_exclude: MutableSequence = []):
         metric = self.config["metric_split"]
 
         stations = self.add_nwp_stats_to_stations(stations, time_series, [metric])
@@ -511,7 +577,10 @@ class CustomDataHandler:
 
         return list_stations
 
-    def define_test_and_val_stations(self, time_series, stations):
+    def define_test_and_val_stations(self,
+                                     time_series: pd.DataFrame,
+                                     stations: pd.DataFrame
+                                     ) -> None:
         i = 0
 
         time_series, stations = self.reject_country(time_series, stations)
@@ -538,10 +607,14 @@ class CustomDataHandler:
             aiguille_du_midi_in_val = "AGUIL. DU MIDI" in self.config["stations_val"]
             aiguille_du_midi_not_in_train = aiguille_du_midi_in_test | aiguille_du_midi_in_val
 
-    def _apply_quick_test(self, time_series):
+    def _apply_quick_test(self,
+                          time_series: pd.DataFrame
+                          ) -> pd.DataFrame:
         return time_series[time_series["name"].isin(self.config["quick_test_stations"])]
 
-    def prepare_train_test_data(self, _shuffle=True, variables_needed=None):
+    def prepare_train_test_data(self,
+                                _shuffle: bool = True,
+                                variables_needed: bool = None):
 
         # Pre-processing time_series
         time_series = self.loader.load_time_series_pkl()
@@ -630,16 +703,25 @@ class CustomDataHandler:
 
         self._set_is_prepared()
 
-    def get_inputs(self, mode):
+    def get_inputs(self,
+                   mode: str
+                   ) -> Union[pd.Series, pd.DataFrame]:
         return getattr(self, f"inputs_{mode}")
 
-    def get_length(self, mode):
+    def get_length(self,
+                   mode: str
+                   ) -> float:
         return getattr(self, f"length_{mode}")
 
-    def get_labels(self, mode):
+    def get_labels(self,
+                   mode: str
+                   ) -> MutableSequence:
         return getattr(self, f"labels_{mode}")
 
-    def get_names(self, mode, unique=False):
+    def get_names(self,
+                  mode: str,
+                  unique: bool = False
+                  ) -> MutableSequence:
         names = getattr(self, f"names_{mode}")
 
         if unique:
@@ -647,13 +729,16 @@ class CustomDataHandler:
         else:
             return names
 
-    def get_mean(self):
+    def get_mean(self) -> MutableSequence[float]:
         return self.mean_standardize
 
-    def get_std(self):
+    def get_std(self) -> MutableSequence[float]:
         return self.std_standardize
 
-    def get_tf_topos(self, mode, names=None):
+    def get_tf_topos(self,
+                     mode: str,
+                     names: Union[MutableSequence[str], None] = None
+                     ) -> tf.data.Dataset:
 
         if names is None:
             names = self.get_names(mode)
@@ -662,7 +747,9 @@ class CustomDataHandler:
 
         return tf.data.Dataset.from_generator(topos_generator, output_types=tf.float32, output_shapes=(140, 140, 1))
 
-    def get_tf_mean_std(self, mode):
+    def get_tf_mean_std(self,
+                        mode: str
+                        ) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
         length = self.get_length(mode)
         mean = self.get_mean()
         std = self.get_std()
@@ -677,7 +764,11 @@ class CustomDataHandler:
                                              output_shapes=(self.config["nb_input_variables"],))
         return mean, std
 
-    def get_tf_zipped_inputs(self, mode="test", inputs=None, names=None):
+    def get_tf_zipped_inputs(self,
+                             mode: str = "test",
+                             inputs: Union[pd.Series, pd.DataFrame] = None,
+                             names: MutableSequence["str"] = None
+                             ) -> tf.data.Dataset:
 
         if inputs is None:
             inputs = self.get_inputs(mode)
@@ -693,7 +784,9 @@ class CustomDataHandler:
         else:
             return tf.data.Dataset.zip((self.get_tf_topos(mode=mode, names=names), inputs))
 
-    def get_tf_zipped_inputs_labels(self, mode):
+    def get_tf_zipped_inputs_labels(self,
+                                    mode: str
+                                    ) -> tf.data.Dataset:
         labels = self.get_labels(mode)
 
         if hasattr(labels, "values"):
@@ -705,8 +798,9 @@ class CustomDataHandler:
         return tf.data.Dataset.zip((inputs, labels))
 
     def get_time_series(self,
-                        prepared=False,
-                        mode=True):
+                        prepared: bool = False,
+                        mode: bool = True
+                        ) -> pd.DataFrame:
         time_series = self.loader.load_time_series_pkl()
         if prepared:
 
@@ -737,12 +831,14 @@ class CustomDataHandler:
             return time_series
 
     def get_stations(self,
-                     add_mode: Optional[bool] = False):
+                     add_mode: Optional[bool] = False
+                     ) -> pd.DataFrame:
         stations = self.loader.load_stations_pkl()
         if add_mode:
             stations = self.add_mode_to_df(stations)
         return stations
 
+    # todo complete typing
     def get_predictions(self,
                         mode: str):
         try:
@@ -754,8 +850,9 @@ class CustomDataHandler:
                 raise NotImplementedError("We only support modes train/test/val/other_countries/devine")
 
     def get_topos(self,
-                  mode=None,
-                  names=None):
+                  mode: Union[str, None] = None,
+                  names: Union[MutableSequence[str], None] = None
+                  ) -> Generator:
         if names is None:
             names = self.get_names(mode)
 
@@ -767,7 +864,8 @@ class CustomDataHandler:
         return topos_generator()
 
     def get_batched_inputs_labels(self,
-                                  mode: str):
+                                  mode: str
+                                  ) -> DatasetV2:
         dataset = self.get_tf_zipped_inputs_labels(mode)
 
         batch_func = {"train": self.batcher.batch_train,
@@ -776,7 +874,11 @@ class CustomDataHandler:
 
         return batch_func[mode](dataset)
 
-    def set_predictions(self, results, mode="test", str_model="_nn"):
+    def set_predictions(self,
+                        results: MutableSequence[float],
+                        mode: str = "test",
+                        str_model: str = "_nn"
+                        ) -> None:
         names = self.get_names(mode)
         df, mode_str = self.results_setter.prepare_df_results(results, names, mode=mode, str_model=str_model)
         setattr(self, f"predicted_{mode_str}", df)
@@ -785,10 +887,13 @@ class CustomDataHandler:
             self.results_setter.prepare_df_results(results, names, mode=mode, str_model="_int")
             setattr(self, f"predicted_{mode_str}", df)
 
-    def _set_is_prepared(self):
+    def _set_is_prepared(self) -> None:
         self.is_prepared = True
 
-    def add_model(self, model, mode="test"):
+    def add_model(self,
+                  model: str,
+                  mode: str = "test"
+                  ) -> None:
         path_to_files = {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}.pkl",
                          "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
 

@@ -118,7 +118,9 @@ class StrategyInitializer:
 
 class DevineBuilder(StrategyInitializer):
 
-    def __init__(self, config):
+    def __init__(self,
+                 config: dict
+                 ) -> None:
         super().__init__(config)
 
         # Get norm
@@ -132,7 +134,7 @@ class DevineBuilder(StrategyInitializer):
             self.cnn_devine = self.disable_training(self.cnn_devine)
 
     @staticmethod
-    def load_cnn(model_path):
+    def load_cnn(model_path: str):
         def root_mse(y_true, y_pred):
             return K.sqrt(K.mean(K.square(y_true - y_pred)))
 
