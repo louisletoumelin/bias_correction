@@ -127,6 +127,7 @@ class ExperienceManager(AllExperiences):
             self.path_to_figures = None
             self.path_to_feature_importance = None
             self.path_to_predictions = None
+            self.path_debug = None
 
             # Paths
             path_to_current_experience = self._get_path_to_current_experience()
@@ -139,7 +140,9 @@ class ExperienceManager(AllExperiences):
                                "path_to_tensorboard_logs": path_to_current_experience + "tensorboard_logs/",
                                "path_to_figures": path_to_current_experience + "figures/",
                                "path_to_feature_importance": path_to_current_experience + "feature_importance/",
-                               "path_to_predictions": path_to_current_experience + "predictions/"}
+                               "path_to_predictions": path_to_current_experience + "predictions/",
+                               "path_debug": path_to_current_experience + "debug/"
+                               }
 
             # Attributes and create folders
             for key in self.dict_paths:

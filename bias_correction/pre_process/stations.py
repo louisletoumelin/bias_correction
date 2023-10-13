@@ -107,9 +107,9 @@ class Stations(TopoCaracteristics):
             self.stations[f'Y_index_{self.name_nwp}_NN_{neighbor}{interp_str}_ref_{self.name_nwp}{interp_str}'] = np.nan
             self.stations[f'ZS_{self.name_nwp}_NN_{neighbor}{interp_str}'] = np.nan
 
-        nwps = [self.nwp_france, self.nwp_swiss, self.nwp_pyr, self.nwp_corse]
-        countries = ["france", "swiss", "pyr", "corse"]
-        for nwp, country in zip(nwps, countries):
+        nwps = {"france": self.nwp_france, "swiss": self.nwp_swiss, "pyr": self.nwp_pyr, "corse": self.nwp_corse}
+        for country in self.stations["country"].unique():
+            nwp = nwps[country]
             print(country)
             stations_i = self.stations[self.stations["country"] == country]
 
@@ -170,7 +170,8 @@ class Stations(TopoCaracteristics):
         Add columns to stations: 'X_L93_AROME_NN_0', 'Y_L93_AROME_NN_0', 'delta_x_AROME_NN_0'
         :return: pandas DataFrame
         """
-        for idx, country in enumerate(["france", "swiss", "pyr", "corse"]):
+        for idx, country in enumerate(self.stations["country"].unique()):
+            print(country)
             filter_country = self.stations["country"] == country
             x_country = self.stations.loc[filter_country, 'X']
             y_country = self.stations.loc[filter_country, 'Y']
@@ -205,7 +206,7 @@ class Stations(TopoCaracteristics):
                                                              interpolated=False):
 
         interp_str = "_interpolated" if interpolated else ""
-        for idx, country in enumerate(["france", "swiss", "pyr", "corse"]):
+        for idx, country in enumerate(self.stations["country"].unique()):
             print("idx")
             print(idx)
             filter_country = self.stations["country"] == country
@@ -399,6 +400,11 @@ class Stations(TopoCaracteristics):
         :return stations: DataFrame
         """
         # Where X or Y is not nan (typically in France), we don't reproject
+        if 'X' not in self.stations:
+            self.stations['X'] = np.nan
+        if 'Y' not in self.stations:
+            self.stations['Y'] = np.nan
+
         filter_nan = np.logical_and(np.isnan(self.stations["X"]), np.isnan(self.stations["Y"]))
 
         x_list = []
@@ -587,7 +593,7 @@ class Stations(TopoCaracteristics):
     def save_to_pickle(self, name=None):
         if name is None:
             name = ""
-        self.stations.to_pickle(self.config["path_stations_pre_processed"] + f"stations_bc{name}.pkl")
+        self.stations.to_pickle(self.config["path_stations_pre_processed"] + f"stations_bc{name}.pkl", protocol=4)
 
     def save_to_csv(self, name=None):
         if name is None:

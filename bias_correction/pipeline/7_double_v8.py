@@ -37,7 +37,7 @@ from bias_correction.train.visu import save_figure
 
 ALE = False
 ALE_TWO_VARIABLES = False
-ALE_DELTA = True  # Delta_ALE_2022_13_01_dir_bias_speed_local_effects_true_v1
+ALE_DELTA = True  # Delta_ALE_2022_01_18_dir_bias_speed_local_effects_true_v0
 STATS_OTHER_COUNTRIES = False
 ONE_PLOTS = False
 WINDROSE = False
@@ -517,7 +517,7 @@ for type_of_output, metrics, label in zip(["output_direction"],
                             rugplot_lim=1000,  # 1000
                             cmap="plasma",
                             marker='x',
-                            folder_name="Delta_ALE_2022_13_01_dir_bias_speed_local_effects_true_v0",
+                            folder_name="Delta_ALE_2022_01_19_dir_bias_speed_local_effects_true_v0",
                             exp=exp,
                             ylim=None,
                             markersize=1,

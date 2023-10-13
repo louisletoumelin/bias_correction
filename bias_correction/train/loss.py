@@ -20,6 +20,16 @@ class PenalizedMSE(tf.keras.losses.Loss):
         return result
 
 
+class MSESmall(tf.keras.losses.Loss):
+
+    def __init__(self):
+        super().__init__()
+
+    def call(self, y_true, y_pred):
+        result = mse(y_true, y_pred) / 100
+        return result
+
+
 class Pinball(tf.keras.losses.Loss):
 
     def __init__(self, tho=0.85):
@@ -144,6 +154,7 @@ class MixedLoss(tf.keras.losses.Loss):
 
 
 dict_loss = {"mse": "mse",
+             "mae": "mean_absolute_error",
              "penalized_mse": PenalizedMSE,
              "mse_proportional": MSEProportionalInput,
              "mse_power": MSEpower,
@@ -151,7 +162,8 @@ dict_loss = {"mse": "mse",
              "pinball_proportional": PinballProportional,
              "pinball_weight": PinballWeight,
              "cosine_distance": CosineDistance,
-             "mixed": [PinballProportional(), CosineDistance()]}
+             "mixed": [PinballProportional(), CosineDistance()],
+             "msesmall": MSESmall}
 
 
 def load_loss(name_loss: str, *args, **kwargs) -> Union[str, Callable]:

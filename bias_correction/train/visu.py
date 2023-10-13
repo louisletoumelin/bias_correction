@@ -28,6 +28,7 @@ KEY2NEW_NAMES = {"_AROME": "$AROME_{forecast}$",
                  "_nn": "Neural Network + DEVINE",
                  "_int": "Neural Network",
                  "_A": "$AROME_{analysis}$",
+                 "_DA": "$AROME_{analysis}$ + DEVINE",
                  }
 
 METRICS2NAMES = {"bias": "Wind speed bias [$m\:s^{-1}$]",
@@ -38,6 +39,7 @@ METRICS2NAMES = {"bias": "Wind speed bias [$m\:s^{-1}$]",
                  "abs_bias_direction": "Wind direction \nabsolute error [°]"}
 
 CARAC2NAME = {"lead_time": "Forecast lead time [hour]",
+              "month": "Month",
               'class_mu': "Slope category of the observation stations",
               'class_curvature': "Curvature category of the observation stations",
               'class_tpi_500': "$TPI_{500m}$ category of the observation stations",
@@ -423,7 +425,8 @@ class ModelVersusObsPlots:
         for idx, key in enumerate(keys):
             if _sns:
                 sns.set_style("ticks", {'axes.grid': True})
-
+            print("debug plot_1_1_all")
+            print(list(df.columns))
             fig = plot_single_1_1(df, key, key_obs, current_variable,
                                   s=s,
                                   figsize=figsize,
@@ -472,8 +475,12 @@ def plot_evolution(df: pd.DataFrame,
                    color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
                    print_: bool = False,
                    yerr: Union[bool, None] = None,
+                   errorbar: Union[str, None] = None,
                    alpha: float = 0.15
                    ) -> None:
+    if isinstance(groupby, list):
+        groupby = groupby[0]
+
     if hasattr(df.index, groupby):
         index_groupby = getattr(df.index, groupby)
     else:
@@ -490,7 +497,9 @@ def plot_evolution(df: pd.DataFrame,
     dict_color = {key: value for key, value in zip(list(hue_names_to_plot), list(color))}
 
     if yerr:
-        sns.lineplot(data=df, x=groupby, y="year", hue=hue_names_to_plot)
+        if groupby not in df:
+            df[groupby] = getattr(df.index, groupby)
+        sns.lineplot(data=df, x=groupby, y="year", hue=hue_names_to_plot, errorbar=errorbar)
     else:
         alpha = None
         df.groupby(index_groupby).mean()[list(hue_names_to_plot)].plot(color=dict_color,
@@ -526,6 +535,8 @@ class SeasonalEvolution:
                                 groupby: str = "month",
                                 name: str = "Seasonal_evolution",
                                 color: Tuple[str] = ("C1", "C0", "C2", "C3", "C4"),
+                                errorbar: Union[str, None] = None,
+                                yerr: Union[bool, None] = False,
                                 print_: bool = False
                                 ) -> None:
 
@@ -547,6 +558,8 @@ class SeasonalEvolution:
                            figsize=figsize,
                            groupby=groupby,
                            color=color,
+                           errorbar=errorbar,
+                           yerr=yerr,
                            print_=print_)
             if _sns:
                 sns.set_style("ticks", {'axes.grid': True})
@@ -622,6 +635,7 @@ class Leadtime:
                             "_nn": f"{metric}_nn",
                             "_int": f"{metric}_int",
                             "_A": f"{metric}_A",
+                            "_DA": f"{metric}_DA",
                             }
 
             df, new_names = _old_names2new_names(df, keys, key2old_name)
@@ -688,18 +702,23 @@ class Leadtime:
                                                                          "$AROME_{analysis}$"),
                               palette: Union[Tuple[str, ...], None] = ("C1", "C0", "C2", "C4"),
                               print_: bool = False,
+                              errorbar: Union[str, Tuple[str, float], None] = None,
                               fontsize: float = 15
                               ) -> None:
-
+        print("debug plot_lead_time_shadow")
         for idx, metric in enumerate(metrics):
+            print(metric)
             old_names = list(dict_keys.keys())
             new_names = list(dict_keys.values())
             if idx > 0:
                 df.drop(columns=new_names, inplace=True)
             new_columns = {f"{metric}{old_name}": new_name for (old_name, new_name) in zip(old_names, new_names)}
             df = df.rename(columns=new_columns)
-            for x in list_x:
 
+            for x in list_x:
+                print(x)
+                if x not in df:
+                    df[x] = getattr(df.index, x)
                 df_to_plot = df[["name"] + [x] + new_names]
 
                 if print_:
@@ -711,11 +730,20 @@ class Leadtime:
                 plt.figure(figsize=figsize)
                 ax = plt.gca()
                 sns.set_style("ticks", {'axes.grid': True})
-                sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue="Model", errorbar="ci")
+                print("debug")
+                print(errorbar)
+                try:
+                    sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue="Model", errorbar=errorbar)
+                    print("debug executed")
+                    print("sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue='Model', errorbar=errorbar)")
+                except:
+                    sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue="Model")
+                    print("debug executed")
+                    print("sns.lineplot(data=df_melted, x=x, y=metric.capitalize(), hue='Model')")
                 plt.xlabel(CARAC2NAME[x], fontsize=fontsize)
                 plt.ylabel(METRICS2NAMES[metric], fontsize=fontsize)
                 ax.tick_params(axis='both', which='major', labelsize=fontsize)
-                save_figure(f"LeadTimes/{name}", exp=self.exp, svg=True)
+                save_figure(f"LeadTimes/{metric}_{name}", exp=self.exp, svg=True)
 
 
 def plot_boxplot_models(df: pd.DataFrame,
@@ -819,7 +847,19 @@ class Boxplots:
                                     fontsize=fontsize
                                     )
 
-                save_figure(f"Boxplots/{name}", exp=self.exp)
+                save_figure(f"Boxplots/{name}", exp=self.exp, svg=True)
+                try:
+                    print("debug")
+                    print(df_to_plot.groupby([f"class_{carac}"])["name"].nunique())
+                except Exception as e1:
+                    print("e1")
+                    print(e1)
+                    try:
+                        print(df_to_plot.groupby([f"class_{carac}"])["name"].unique())
+                    except Exception as e2:
+                        print("e2")
+                        print(e2)
+                    pass
 
 
 class WindRoses:
@@ -833,12 +873,14 @@ class WindRoses:
                                                          'UV_DIR_D',
                                                          'UV_DIR_nn',
                                                          'UV_DIR_int',
-                                                         'UV_DIR_A'),
+                                                         'UV_DIR_A',
+                                                         "UV_DIR_DA"),
                                 metrics: Tuple[str, ...] = ("abs_bias_direction",),
                                 name: str = "wind_direction_all",
                                 cmap: matplotlib.colors.ListedColormap = cm_plt.viridis,
                                 kind="bar",
-                                print_: bool = True
+                                print_: bool = True,
+                                rmax: int = 13
                                 ):
 
         keys = ['_' + key.split('_')[-1] for key in keys]
@@ -851,16 +893,80 @@ class WindRoses:
             for key in keys:
                 if print_:
                     print(f"metric: {metric}, key: {key}, nb of obs {len(df)}")
+                df[f'UV_DIR{key}'] = np.mod(df[f'UV_DIR{key}'], 360)
                 plot_windrose(df,
                               var_name=f"{metric}{key}",
                               direction_name=f"UV_DIR{key}",
                               normed=True,
-                              rmax=12,
+                              rmax=rmax,
                               kind=kind,
                               bins=bins,
                               cmap=cmap)
                 plt.title(key)
-                save_figure(f"Wind_direction/{name}_{metric}_{key}", exp=self.exp, svg=True)
+                save_figure(f"{name}/wind_direction_all_{metric}_{key}", exp=self.exp, svg=True)
+
+    def plot_wind_rose_for_observation(self, df_results, name="Wind_direction", cmap=cm_plt.get_cmap("plasma"), plot_by_station=False):
+        # Plot wind rose for observations
+        speed_df = pd.read_pickle(os.path.join(self.exp.path_to_current_experience, f"df_results_UV.pkl"))
+
+        # Select speed
+        df_results_speed = []
+        for station in df_results["name"].unique():
+            index_intersection = df_results[df_results["name"] == station].index.intersection(
+                speed_df[speed_df["name"] == station].index)
+            df_results_speed.append(
+                speed_df[(speed_df["name"] == station) & (speed_df.index.isin(index_intersection))])
+        df_results_speed = pd.concat(df_results_speed)
+
+        # Plot windrose
+        plot_windrose(df_results["UV_DIR_obs"].values,
+                      var=df_results_speed["UV_obs"].values,
+                      bins=np.array([1, 4, 6, 9, 12]),
+                      normed=True,
+                      rmax=13,
+                      kind="bar",
+                      cmap=cmap)
+        if plot_by_station:
+            save_figure(f"{name}/UV_obs_{station}", exp=self.exp, svg=True)
+        else:
+            save_figure(f"{name}/UV_obs", exp=self.exp, svg=True)
+
+    def plot_wind_direction_by_station(self,
+                                df: pd.DataFrame,
+                                keys: Tuple[str, ...] = ('UV_DIR_AROME',
+                                                         'UV_DIR_D',
+                                                         'UV_DIR_nn',
+                                                         'UV_DIR_int',
+                                                         'UV_DIR_A'),
+                                metrics: Tuple[str, ...] = ("abs_bias_direction",),
+                                name: str = "wind_direction_all",
+                                cmap: matplotlib.colors.ListedColormap = cm_plt.viridis,
+                                kind="bar",
+                                print_: bool = True,
+                                ):
+
+        for station in df["name"].unique():
+            keys = ['_' + key.split('_')[-1] for key in keys]
+
+            for metric in metrics:
+                if metric == "bias_direction":
+                    bins = np.arange(-100, 120, 20)
+                else:
+                    bins = np.arange(0, 150, 30)
+
+                for key in keys:
+                    if print_:
+                        print(f"metric: {metric}, key: {key}, nb of obs {len(df)}")
+
+                    plot_windrose(df[df["name"] == station],
+                                  var_name=f"{metric}{key}",
+                                  direction_name=f"UV_DIR{key}",
+                                  normed=True,
+                                  kind=kind,
+                                  bins=bins,
+                                  cmap=cmap)
+                    plt.title(key)
+                    save_figure(f"{name}/{station}_{metric}_{key}", exp=self.exp, svg=True)
 
 
 class ALEPlot:
@@ -885,11 +991,15 @@ class ALEPlot:
                  use_std=True,
                  type_of_output="speed",
                  only_local_effects=False,
+                 colors=None,
                  fontsize=25):
 
         df_inputs = data_loader.get_inputs(mode="test")
-        cmap = plt.get_cmap(cmap, 4)
-        colors = cmap(np.linspace(0, 1, len(features)))
+        cmap = plt.get_cmap(cmap, 3)
+
+        if colors is None:
+            colors = cmap(np.linspace(0, 1, 3))
+
         predictor = partial(cm.predict_multiple_batches,
                             model_version="last",
                             batch_size=128,
@@ -897,8 +1007,16 @@ class ALEPlot:
                             output_shape=(data_loader.get_length("test"),),
                             force_build=False)
 
-        for feature, color in zip(features, colors):
+        for feature in features:
             print(f"Feature: {feature}")
+
+            if feature in ["alti", "ZS", "tpi_500", "curvature", "mu", "laplacian"]:
+                color = cmap(0)
+            elif feature in ["Tair", "LWnet", "SWnet", "CC_cumul", "BLH"]:
+                color = cmap(1)
+            else:
+                color = cmap(2)
+
             ale_plot(cm.model,
                      df_inputs,
                      [feature],

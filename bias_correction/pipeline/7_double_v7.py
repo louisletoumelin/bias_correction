@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import cm as cm_plt
 from tensorflow.keras.models import Model
 
 try:
@@ -35,18 +36,19 @@ from bias_correction.utils_bc.context_manager import timer_context
 from bias_correction.utils_bc.print_functions import print_intro, print_headline
 from bias_correction.train.visu import save_figure
 
-ALE = False
+ALE = False  # ALE_speed_2023_01_27
 ALE_TWO_VARIABLES = False
-ALE_DELTA = True  # Delta_ALE_2022_13_01_dir_bias_speed_local_effects_false_v1
+ALE_DELTA = False
 STATS_OTHER_COUNTRIES = False
-ONE_PLOTS = False
-WINDROSE = False
-SEASONAL_EVOLUTION = False
-LEAD_TIME = False
-BOXPLOTS = False
+ONE_PLOTS = True
+WINDROSE = True
+SEASONAL_EVOLUTION = True
+LEAD_TIME = True
+BOXPLOTS = True
 QQ_DOUBLE = False
 FEATURE_IMPORTANCE = False
 PARTIAL_DEPENDENCE = False
+PARTIAL_DEPENDENCE_DELTA = False
 HEATMAP = False
 
 # Initialization
@@ -66,6 +68,8 @@ print(exp.path_to_current_experience)
 
 print("\nConfig", flush=True)
 print(pprint(config), flush=True)
+
+print_headline("Launch training direction", "")
 
 if not config["restore_experience"]:
     #
@@ -133,6 +137,11 @@ if not config["restore_experience"]:
 else:
     print_headline("No training", "")
 
+    # Model
+    cm = CustomModel(exp, config)
+    cm.build_model_with_strategy()
+    cm.load_weights()
+
     with timer_context("Prepare data"):
         data_loader = CustomDataHandler(config)
         data_loader.prepare_train_test_data()
@@ -144,7 +153,7 @@ if config["get_intermediate_output"] and not cm.has_intermediate_outputs:
     cm.load_weights()
     cm.model_version = "last"
 
-    exp.save_all(data_loader, cm)
+    #exp.save_all(data_loader, cm)
 
 """
 for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
@@ -152,9 +161,9 @@ for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
                                           [['vw10m(m/s)'], ['winddir(deg)']]):
 """
 
-for type_of_output, metrics, label in zip(["output_direction"],
-                                          [("bias_direction", "abs_bias_direction")],
-                                          [['winddir(deg)']]):
+for type_of_output, metrics, label in zip(["output_speed", "output_direction"],
+                                          [("bias", "ae"), ("bias_direction", "abs_bias_direction")],
+                                          [['vw10m(m/s)'], ['winddir(deg)']]):
 
     print_headline("Type of output", type_of_output)
 
@@ -194,61 +203,51 @@ for type_of_output, metrics, label in zip(["output_direction"],
         # c_eval_train = CustomEvaluation(exp, data_loader, mode="train", keys=("_AROME", "_nn"))
         # c_eval_train.print_stats()
 
-        if not config["restore_experience"]:
+        # todo modification occur here
+        # Predict
+        with tf.device('/GPU:0'), timer_context("Predict test set"):
+            inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
+            results_test = cm.predict_single_bath(inputs_test, model_version=model)
+            del inputs_test
 
-            # Predict
-            with tf.device('/GPU:0'), timer_context("Predict test set"):
-                inputs_test = data_loader.get_tf_zipped_inputs(mode="test").batch(data_loader.length_test)
-                results_test = cm.predict_single_bath(inputs_test, model_version=model)
-                del inputs_test
+        # Test
+        print_headline("Test statistics", model)
 
-            # Test
-            print_headline("Test statistics", model)
+        with timer_context("set_predictions"):
+            data_loader.set_predictions(results_test, mode="test")
+        del results_test
 
-            with timer_context("set_predictions"):
-                data_loader.set_predictions(results_test, mode="test")
-            del results_test
+        with timer_context("add_model"):
+            data_loader.add_model("_D", mode="test")
+            data_loader.add_model("_A")
+            data_loader.add_model("_DA", mode="test")
 
-            with timer_context("add_model"):
-                data_loader.add_model("_D", mode="test")
-                data_loader.add_model("_A")
-
-            with timer_context("CustomEvaluation"):
-                c_eval = CustomEvaluation(exp,
-                                          data_loader,
-                                          mode="test",
-                                          keys=("_AROME", "_nn"),
-                                          other_models=("_D", "_A"),
-                                          metrics=metrics)
-                print(os.path.join(exp.path_to_current_experience))
-                c_eval.df_results.to_pickle(os.path.join(exp.path_to_current_experience, f"df_results_{cv}.pkl"))
-        else:
-
-            with timer_context("add_model"):
-                data_loader.add_model("_D", mode="test")
-                data_loader.add_model("_A")
-
+        with timer_context("CustomEvaluation"):
             c_eval = CustomEvaluation(exp,
                                       data_loader,
                                       mode="test",
                                       keys=("_AROME", "_nn"),
-                                      other_models=("_D", "_A"),
-                                      key_df_results=cv,
+                                      other_models=("_D", "_A", "_DA"),
                                       metrics=metrics)
+            print(os.path.join(exp.path_to_current_experience))
+            c_eval.df_results.to_pickle(os.path.join(exp.path_to_current_experience, f"df_results_DA_{cv}.pkl"))
 
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):
-                c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'))
+                c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'))
                 mae, rmse, mbe, corr = c_eval.print_stats()
-            exp.save_results(c_eval, mae, rmse, mbe, corr)
-            exp.save_metrics_current_experience((mae, rmse, mbe, corr),
-                                                ("mae", "rmse", "mbe", "corr"),
-                                                keys=tuple(['_' + key.split('_')[-1] for key in c_eval.keys]))
+            #exp.save_results(c_eval, mae, rmse, mbe, corr)
+            #exp.save_metrics_current_experience((mae, rmse, mbe, corr),
+            #                                    ("mae", "rmse", "mbe", "corr"),
+            #                                    keys=tuple(['_' + key.split('_')[-1] for key in c_eval.keys]))
         else:
             c_eval.df2ae_dir(print_=True)
-    c_eval.set_df_results(cv)
+
+    # todo maybe modify
+    #c_eval.set_df_results(cv)
 
     if STATS_OTHER_COUNTRIES:
+
         # Predict
         with tf.device('/GPU:0'), timer_context("Predict Pyrénées and Corsica"):
             inputs_other_countries = data_loader.get_tf_zipped_inputs(mode="other_countries") \
@@ -261,20 +260,24 @@ for type_of_output, metrics, label in zip(["output_direction"],
         data_loader.set_predictions(results_other_countries, mode="other_countries")
         del results_other_countries
         data_loader.add_model("_D", mode="other_countries")
+        data_loader.add_model("_A")
         c_eval_other_countries = CustomEvaluation(exp,
                                                   data_loader,
                                                   mode="other_countries",
                                                   keys=("_AROME", "_nn"),
                                                   other_models=("_D", "_A"))
-        c_eval_other_countries.print_stats()
+        if cv == "UV":
+            c_eval_other_countries.print_stats()
+        else:
+            c_eval_other_countries.df2ae_dir(print_=True)
 
     if ONE_PLOTS:
         if type_of_output == "output_speed":
             try:
                 with timer_context("1-1 plots"):
                     c_eval.plot_1_1_all(c_eval.df_results,
-                                        keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                                        color=("C1", "C0", "C2", "C3", "C4"),
+                                        keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'),
+                                        color=("C1", "C0", "C2", "C3", "C4", "C5"),
                                         name=f"1_1_all_{model}_{cv}",
                                         plot_text=False,
                                         fontsize=20,
@@ -282,83 +285,86 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                         xlabel="Observed wind speed \n[$m\:s^{-1}$]",
                                         ylabel="Modeled wind speed \n[$m\:s^{-1}$]",
                                         print_=True)
-
-                    c_eval.plot_1_1_by_station(c_eval.df_results,
-                                               keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                                               color=("C1", "C0", "C2", "C3", "C4"),
-                                               name=f"{cv}_{model}",
-                                               print_=True)
-
             except Exception as e:
                 print(f"\nWARNING Exception for 1-1 plots: {e}", flush=True)
+
+            #try:
+            #        c_eval.plot_1_1_by_station(c_eval.df_results,
+            #                                   keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'),
+            #                                   color=("C1", "C0", "C2", "C3", "C4", "C5"),
+            #                                   name=f"{cv}_{model}",
+            #                                   print_=True)
+            #except Exception as e:
+            #    print(f"\nWARNING Exception for 1-1 plots at station: {e}", flush=True)
 
     if WINDROSE:
         if type_of_output == "output_direction":
             try:
                 with timer_context("plot_wind_direction_all"):
+                    # Plot windrose for observations
+                    c_eval.plot_wind_rose_for_observation(c_eval.df_results,
+                                                          cmap=cm_plt.get_cmap("plasma"),
+                                                          name="wind_direction_all_2023_01_30_v0")
 
-                    speed_df = pd.read_pickle(os.path.join(exp.path_to_current_experience, f"df_results_UV.pkl"))
-                    df_results = []
-                    for station in c_eval.df_results["name"].unique():
-                        index_intersection = c_eval.df_results[c_eval.df_results["name"] == station].index.intersection(
-                            speed_df[speed_df["name"] == station].index)
-                        df_results.append(
-                            speed_df[(speed_df["name"] == station) & (speed_df.index.isin(index_intersection))])
-                    df_results = pd.concat(df_results)
-                    plot_windrose(c_eval.df_results["UV_DIR_obs"].values,
-                                  var=df_results["UV_obs"].values,
-                                  bins=np.array([1, 2.5, 5, 7.5, 10]),
-                                  normed=True,
-                                  rmax=12,
-                                  kind="bar")
-                    save_figure(f"Wind_direction/UV_obs", exp=exp, svg=True)
-
+                    # Plot models
                     c_eval.plot_wind_direction_all(c_eval.df_results,
-                                                   keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                                   keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'),
                                                    metrics=("abs_bias_direction",),
-                                                   name=f"wind_direction_all",
+                                                   name=f"wind_direction_all_2023_01_30_v0",
                                                    print_=True)
             except Exception as e:
                 print(f"\nWARNING Exception for plot_wind_direction_all: {e}", flush=True)
-
+            """
             try:
-                with timer_context("plot_wind_direction_all"):
-                    c_eval.plot_1_1_by_station(c_eval.df_results,
-                                               keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                                               name=f"{cv}_{model}",
-                                               print_=True)
+                with timer_context("plot_wind_direction_by_station"):
+                    for station in c_eval.df_results["name"].unique():
+                        filter_name = c_eval.df_results["name"] == station
+                        c_eval.plot_wind_rose_for_observation(c_eval.df_results[filter_name],
+                                                              name="Wind_direction_by_station_2023_01_30_v0",
+                                                              plot_by_station=True)
+
+                    c_eval.plot_wind_direction_by_station(c_eval.df_results,
+                                                          keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
+                                                          metrics=("abs_bias_direction",),
+                                                          name=f"Wind_direction_by_station_2023_01_30_v0",
+                                                          print_=False)
             except Exception as e:
-                print(f"\nWARNING Exception for plot_wind_direction_all: {e}", flush=True)
+                print(f"\nWARNING Exception for plot_wind_direction_by_station: {e}", flush=True)
+            """
 
     if SEASONAL_EVOLUTION:
         try:
-            with timer_context("Seasonal evolution"):
-                c_eval.plot_seasonal_evolution(c_eval.df_results,
-                                               keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                                               metrics=metrics,
-                                               name=f"Seasonal_evolution_{model}_{cv}",
-                                               print_=True)
-                # c_eval.plot_seasonal_evolution_by_station(c_eval.df_results,
-                #                                          keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                #                                          metrics=metrics,
-                #                                          name=f"{cv}_{model}",
-                #                                          print_=True)
-
+            c_eval.plot_lead_time_shadow(c_eval.df_results,
+                                         metrics=metrics,
+                                         list_x=('month',),
+                                         dict_keys={"_D": "DEVINE",
+                                                    "_AROME": "$AROME_{forecast}$",
+                                                    "_nn": "Neural Network + DEVINE",
+                                                    "_int": "Neural Network",
+                                                    "_A": "$AROME_{analysis}$",
+                                                    "_DA": "$AROME_{analysis}$ + DEVINE",
+                                                    },
+                                         figsize=(15, 10),
+                                         name="SeasonalEvolution_no_errorbar",
+                                         errorbar=None,
+                                         print_=False,
+                                         fontsize=20)
         except Exception as e:
-            print(f"\nWARNING Exception for Seasonal: {e}", flush=True)
+            print(f"\nWARNING Exception for seasonal evolution similar to lead time sd: {e}", flush=True)
 
     if LEAD_TIME:
         try:
             with timer_context("Lead time"):
                 c_eval.plot_lead_time(c_eval.df_results,
-                                      keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'),
-                                      color=("C1", "C0", "C2", "C3", "C4"),
+                                      keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'),
+                                      color=("C1", "C0", "C2", "C3", "C4", "C5"),
                                       metrics=metrics,
                                       name=f"Lead_time_{model}_{cv}",
                                       print_=True,
                                       yerr=True)
         except Exception as e:
             print(f"\nWARNING Exception for Lead time: {e}", flush=True)
+
         try:
             c_eval.plot_lead_time_shadow(c_eval.df_results,
                                          metrics=metrics,
@@ -368,19 +374,15 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                                     "_nn": "Neural Network + DEVINE",
                                                     "_int": "Neural Network",
                                                     "_A": "$AROME_{analysis}$",
+                                                    "_DA": "$AROME_{analysis}$ + DEVINE",
                                                     },
                                          figsize=(15, 10),
-                                         name="LeadTimeCI",
-                                         hue_order=("$AROME_{forecast}$",
-                                                    "DEVINE",
-                                                    "Neural Network + DEVINE",
-                                                    'Neural Network',
-                                                    "$AROME_{analysis}$"),
-                                         palette=("C1", "C0", "C2", "C3", "C4"),
+                                         name="LeadTime_no_errorbar",
+                                         errorbar=None,
                                          print_=False,
                                          fontsize=20)
         except Exception as e:
-            print(f"\nWARNING Exception for Lead time: {e}", flush=True)
+            print(f"\nWARNING Exception for Lead time sd: {e}", flush=True)
 
     if BOXPLOTS:
         try:
@@ -390,7 +392,16 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                                dict_keys={"_nn": "Neural Network + DEVINE",
                                                           "_AROME": "$AROME_{forecast}$",
                                                           "_D": "DEVINE",
-                                                          "_A": "$AROME_{analysis}$"},
+                                                          "_int": "Neural Network",
+                                                          "_A": "$AROME_{analysis}$",
+                                                          "_DA": "$AROME_{analysis}$ + DEVINE"},
+                                               hue_order=("$AROME_{forecast}$",
+                                                          "DEVINE",
+                                                          "Neural Network",
+                                                          "Neural Network + DEVINE",
+                                                          "$AROME_{analysis}$",
+                                                          "$AROME_{analysis}$ + DEVINE"),
+                                               palette=("C1", "C0", "C3", "C2", "C4", "C5"),
                                                metrics=metrics,
                                                print_=True)
 
@@ -422,16 +433,17 @@ for type_of_output, metrics, label in zip(["output_direction"],
 
                 c_eval.plot_ale(cm,
                                 data_loader,
-                                config["input_speed"],
+                                ["Wind"],
                                 50,
                                 monte_carlo=False,
                                 rugplot_lim=1000,  # 1000
                                 cmap="viridis",
                                 marker='x',
                                 markersize=1,
-                                folder_name="ALE_speed_2022_13_01_std",
+                                folder_name="ALE_speed_2023_01_30",
                                 exp=exp,
-                                ylim=(-5, 5),
+                                ylim=None,
+                                use_std=True,
                                 type_of_output="speed",
                                 only_local_effects=False,
                                 linewidth=1)
@@ -459,6 +471,7 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                 exp=exp,
                                 ylim=None,
                                 markersize=1,
+                                use_std=True,
                                 type_of_output="dir",
                                 only_local_effects=True,
                                 linewidth=1)
@@ -491,6 +504,7 @@ for type_of_output, metrics, label in zip(["output_direction"],
                             folder_name="DELTA_ALE_2022_13_01_std",
                             exp=exp,
                             ylim=(-5, 5),
+                            use_std=True,
                             type_of_output="speed",
                             only_local_effects=False,
                             linewidth=1)
@@ -517,12 +531,13 @@ for type_of_output, metrics, label in zip(["output_direction"],
                             rugplot_lim=1000,  # 1000
                             cmap="plasma",
                             marker='x',
-                            folder_name="Delta_ALE_2022_13_01_dir_bias_speed_local_effects_false_v0",
+                            folder_name="Delta_local_effect_1",
                             exp=exp,
                             ylim=None,
                             markersize=1,
-                            type_of_output="speed",
-                            only_local_effects=False,
+                            use_std=True,
+                            type_of_output="dir",
+                            only_local_effects=True,
                             linewidth=1)
 
     if ALE_TWO_VARIABLES:
@@ -573,6 +588,7 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                               type_of_output="speed",
                                               exp=exp,
                                               ylim=(-5, 5),
+                                              use_std=True,
                                               linewidth=1)
         else:
             with timer_context("ALE plot direction"):
@@ -597,10 +613,11 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                               cmap="viridis",
                                               marker='x',
                                               markersize=1,
-                                              folder_name="ALE_two_variables_dir_2022_13_01",
+                                              folder_name="ALE_two_variables_dir_03",
                                               type_of_output="dir",
                                               exp=exp,
                                               ylim=(-5, 5),
+                                              use_std=True,
                                               linewidth=1)
 
     if STATS_OTHER_COUNTRIES:
@@ -637,7 +654,10 @@ for type_of_output, metrics, label in zip(["output_direction"],
 
             i = Interpretability(data_loader, cm, exp)
             with timer_context("partial_dependence_plot"):
-                i.plot_partial_dependence("test", features=["mu", "CC_cumul", "alti", "ZS", "Wind90", "Wind"], nb_points=5, name="Partial_dependence_plot")
+                i.plot_partial_dependence("test",
+                                          features=["mu", "CC_cumul", "alti", "ZS", "Wind90", "Wind"],
+                                          nb_points=5,
+                                          name="Partial_dependence_plot")
         else:
             config_predict_speed = persistent_config.config_predict_parser("output_direction", config)
             config_predict_speed["get_intermediate_output"] = False
@@ -651,7 +671,30 @@ for type_of_output, metrics, label in zip(["output_direction"],
 
             i = Interpretability(data_loader, cm, exp)
             with timer_context("partial_dependence_plot"):
-                i.plot_partial_dependence("test", features=config["input_dir"], nb_points=5, name="Partial_dependence_plot")
+                i.plot_partial_dependence("test", features=config["input_dir"], nb_points=5,
+                                          name="Partial_dependence_plot")
+
+    if PARTIAL_DEPENDENCE_DELTA:
+        if cv == "UV_DIR":
+            config_predict_speed = persistent_config.config_predict_parser("output_direction", config)
+            config_predict_speed["get_intermediate_output"] = False
+
+            # Model
+            cm = CustomModel(exp, config_predict_speed)
+            cm.build_model_with_strategy(print_=False)
+            cm.model.load_weights(cm.exp.path_to_last_model)
+
+            new_model = Model(inputs=cm.model.input, outputs=(cm.model.get_layer("D_output_dir_ann").output,))
+            new_model.compile(loss=cm.get_loss(), optimizer=cm.get_optimizer(), metrics=cm.get_training_metrics())
+            cm.model = new_model
+
+            i = Interpretability(data_loader, cm, exp)
+            with timer_context("delta_partial_dependence_plot"):
+                i.plot_partial_dependence("test",
+                                          features=config["input_dir"],
+                                          nb_points=10,
+                                          ylim=(-180, 110),
+                                          name="Delta_partial_dependence_plot_2022_01_19_v0")
 
     if HEATMAP:
         if cv == "UV":

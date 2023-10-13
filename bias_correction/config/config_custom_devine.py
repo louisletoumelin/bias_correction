@@ -9,6 +9,7 @@ config["global_architecture"] = "devine_only"                                # S
 config["restore_experience"] = False
 config["type_of_output"] = "map_u_v_w"                               # Str. "output_speed" or "output_components", "map", "map_components", "map_u_v_w"
 config["custom_unet"] = True
+config["custom_dataloader"] = True
 config["custom_input_shape"] = (90, 88, 1)
 config["disable_training_cnn"] = True
 config["sliding_mean"] = True
@@ -33,6 +34,7 @@ config["optimizer"] = "Adam"
 config["learning_rate"] = 0.01
 config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
+config["map_variables"] = ["topos"]
 
 # Do not modify: assert inputs are correct
 config = adapt_distribution_strategy_to_available_devices(config)

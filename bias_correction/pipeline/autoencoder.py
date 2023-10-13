@@ -27,8 +27,6 @@ class RandomTopoGenerator:
                  nb_topos=100
                  ) -> None:
         self.topos = np.expand_dims(xr.open_dataset(path).isel(band=0).__xarray_dataarray_variable__.values, axis=-1)
-        print("debug")
-        print(self.topos.shape)
         self.min_y = min_y
         self.max_y = max_y
         self.min_x = min_x
@@ -59,8 +57,6 @@ class DataGenerator(tf.keras.utils.Sequence):
         except (ValueError, AttributeError):
             self.topos = np.expand_dims(xr.open_dataset(path).alti.values, axis=-1)
 
-        print("debug")
-        print(self.topos.shape)
         self.min_y = min_y
         self.max_y = max_y
         self.min_x = min_x

@@ -1,13 +1,14 @@
 import tensorflow as tf
 from tensorflow.keras.callbacks import TensorBoard, \
-    ReduceLROnPlateau,\
-    EarlyStopping,\
-    CSVLogger,\
-    ModelCheckpoint,\
+    ReduceLROnPlateau, \
+    EarlyStopping, \
+    CSVLogger, \
+    ModelCheckpoint, \
     LearningRateScheduler
 
 try:
     import horovod.tensorflow as hvd
+
     _horovod = True
 except ModuleNotFoundError:
     _horovod = False
@@ -24,8 +25,19 @@ epochs = 100
 decay = initial_learning_rate / epochs
 
 
+# def learning_rate_time_decay(epoch, lr):
+#    return lr * 1 / (1 + decay * epoch)
+
+
 def learning_rate_time_decay(epoch, lr):
-    return lr * 1 / (1 + decay * epoch)
+    if epoch < 6:  #6
+        return 1e-5  #1e-5
+    elif epoch < 8:  #8
+        return 1e-8  #1e-7
+    elif epoch < 10:  #10
+        return 1e-9  #1e-8
+    else:
+        return 1e-10  #1e-9
 
 
 class FeatureImportanceCallback(tf.keras.callbacks.Callback):
@@ -48,6 +60,7 @@ class FeatureImportanceCallback(tf.keras.callbacks.Callback):
 
 
 callbacks_dict = {"TensorBoard": TensorBoard,
+                  "TensorBoard_v1": tf.compat.v1.keras.callbacks.TensorBoard,
                   "ReduceLROnPlateau": ReduceLROnPlateau,
                   "EarlyStopping": EarlyStopping,
                   "CSVLogger": CSVLogger,
@@ -81,8 +94,11 @@ def load_callbacks(callbacks_str: List[str], args_callbacks: dict, kwargs_callba
     for callback_str in callbacks_str:
         args = args_callbacks[callback_str]
         kwargs = kwargs_callbacks[callback_str]
-        callback = callbacks_dict[callback_str](*args, **kwargs)
-        callbacks.append(callback)
+        callback = callbacks_dict[callback_str]
+        if callable(callback):
+            callbacks.append(callback(*args, **kwargs))
+        else:
+            callbacks.append(callback)
 
     return callbacks
 
@@ -110,6 +126,7 @@ def load_callback_with_custom_model(cm, data_loader=None, mode_callback=None):
                            }
 
     _tmp_kwargs_callbacks = {"TensorBoard": {"log_dir": cm.exp.path_to_tensorboard_logs},
+                             "TensorBoard_v1": {"log_dir": cm.exp.path_to_tensorboard_logs},
                              "ModelCheckpoint": {"filepath": cm.exp.path_to_best_model}
                              }
 

@@ -77,12 +77,12 @@ class DictTopo:
 
         return np.float32(dem_data), np.float32(dem_x), np.float32(dem_y)
 
-    def store_topo_in_dict(self):
+    def store_topo_in_dict(self, name=""):
         dict_0 = defaultdict(dict)
         dict_1 = defaultdict(dict)
         dict_2 = defaultdict(dict)
 
-        for country in ["france", "swiss", "pyr", "corse"]:
+        for country in self.stations["country"].unique():
             filter_country = self.stations["country"] == country
             for station in self.stations.loc[filter_country, "name"]:
                 print(f"Extracting topo around {station}")
@@ -94,12 +94,12 @@ class DictTopo:
                 dict_1[station]["name"] = station
                 dict_2[station]["name"] = station
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_station_2022_10_26.pickle', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+f'dict_topo_near_station_2022_10_26{name}.pickle', 'wb') as handle:
             pickle.dump(dict_0, handle)
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp.pickle_2022_10_26', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+f'dict_topo_near_nwp{name}.pickle_2022_10_26', 'wb') as handle:
             pickle.dump(dict_1, handle)
 
-        with open(self.config["path_topos_pre_processed"]+'dict_topo_near_nwp_inter_2022_10_26.pickle', 'wb') as handle:
+        with open(self.config["path_topos_pre_processed"]+f'dict_topo_near_nwp_inter_2022_10_26{name}.pickle', 'wb') as handle:
             pickle.dump(dict_2, handle)
 

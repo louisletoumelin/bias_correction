@@ -9,16 +9,16 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "batch_size_256_archi_25_10_50_epoch_15"  # Str. Some details about the experiment
+config["details"] = "retrain_without_group_topo"  # Str. Some details about the experiment
 config[
     "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = "2022_12_7_labia_v8"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10, 50]  # 25, 10
-config["nb_units_speed"] = [25, 10, 50]  # 25, 10
+config["nb_units"] = [50, 10]  # 25, 10
+config["nb_units_speed"] = [50, 10]  # 25, 10
 config["nb_units_dir"] = [50, 10]  # 25, 10 or 1024, 256, 32
 config["use_bias"] = True
 
@@ -39,10 +39,10 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["batch_size_speed"] = 256  # Int.
+config["batch_size_speed"] = 128  # Int.
 config["batch_size_dir"] = 128  # Int.
 config["epochs"] = 10  # Int.
-config["epochs_speed"] = 15  # Int.
+config["epochs_speed"] = 10  # Int.
 config["epochs_dir"] = 5  # Int.
 config["learning_rate"] = 0.001
 config["learning_rate_speed"] = 0.001
@@ -54,7 +54,7 @@ config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
 # Initializer
-config["initializer"] = "GlorotNormal"  # Str. Default = "GlorotUniform"
+config["initializer"] = "GlorotUniform"  # Str. Default = "GlorotUniform"
 config["args_initializer"] = []  # List.
 config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
@@ -80,17 +80,11 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 #                             "LWnet", "SWnet", 'CC_cumul', 'BLH',
 #                             'Wind90', 'Wind87', 'Wind84', 'Wind75',
 #                             "tpi_500", "curvature", "mu", "laplacian", 'aspect', 'tan(slope)']
-config["input_speed"] = ["alti",
-                         "ZS",
-                         "Tair",
+config["input_speed"] = ["Tair",
                          "LWnet",
                          "SWnet",
                          "CC_cumul",
                          "BLH",
-                         "tpi_500",
-                         "curvature",
-                         "mu",
-                         "laplacian",
                          'Wind90',
                          'Wind87',
                          'Wind84',
@@ -99,7 +93,7 @@ config["input_speed"] = ["alti",
                          "Wind_DIR"]
 config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
 # todo write a test that checks that topos, aspect and tan_slope are in the correct order
-config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
+config["map_variables"] = ["topos"]
 config["compute_product_with_wind_direction"] = True
 
 # ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",

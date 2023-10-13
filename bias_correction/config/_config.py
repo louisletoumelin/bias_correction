@@ -35,12 +35,15 @@ config["path_to_topographic_parameters"] = config["path_root"] + "Data/1_Raw/top
 
 # Input data
 # Filename
-config["time_series"] = config["path_time_series_pre_processed"] + "time_series_bc.pkl"
+# todo change time_series_with_clb.pkl to time_series_bc.pkl
+config["time_series"] = config["path_time_series_pre_processed"] + "time_series_with_clb.pkl"  # "time_series_bc.pkl"
 config["time_series_int"] = config["path_time_series_pre_processed"] + "time_series_bc_interpolated.pkl"
-config["stations"] = config["path_stations_pre_processed"] + "stations_bc.pkl"
-config["topos_near_station"] = config["path_topos_pre_processed"] + "dict_topo_near_station_2022_10_26.pickle"
-config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp.pickle"
-config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_inter.pickle"
+# todo change stations_bcflowcapt.pkl to stations_bc.pkl
+config["stations"] = config["path_stations_pre_processed"] + "stations_bcflowcapt.pkl"
+# todo remove flowcapt here
+config["topos_near_station"] = config["path_topos_pre_processed"] + "dict_topo_near_station_2022_10_26flowcapt.pickle"
+config["topos_near_nwp"] = config["path_topos_pre_processed"] + "dict_topo_near_nwpflowcapt.pickle"
+config["topos_near_nwp_int"] = config["path_topos_pre_processed"] + "dict_topo_near_nwp_interflowcapt.pickle"
 
 config["aspect_near_station"] = config["path_topos_pre_processed"] + "dict_aspect_near_station_2022_10_26.pickle"
 config["tan_slope_near_station"] = config["path_topos_pre_processed"] + "dict_tan_slope_near_station_2022_10_26.pickle"

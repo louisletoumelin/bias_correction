@@ -43,7 +43,7 @@ class TopoCaracteristics(DwnscHelbig, MicroMet, Rotation, Interpolation, Generat
                 self.update_stations_with_tpi(country, radius=2000)
                 self.update_stations_with_tpi(country, radius=500)
                 self.update_stations_with_mu(country)
-                self.update_stations_with_curvature(country)
+                #self.update_stations_with_curvature(country)
 
     def get_alti(self, country):
         if country in ["france", "swiss"]:

@@ -9,16 +9,16 @@ from bias_correction.utils_bc.utils_config import assert_input_for_skip_connecti
 from bias_correction.config._config import config
 
 # Architecture
-config["details"] = "batch_size_256_archi_25_10_50_epoch_15"  # Str. Some details about the experiment
+config["details"] = "train_switzerland"  # Str. Some details about the experiment
 config[
     "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = "2022_12_7_labia_v8"
+config["restore_experience"] = False
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True
 config["type_of_output"] = "output_speed"  # Str. "output_speed" or "output_components"
-config["nb_units"] = [25, 10, 50]  # 25, 10
-config["nb_units_speed"] = [25, 10, 50]  # 25, 10
+config["nb_units"] = [50, 10]  # 25, 10
+config["nb_units_speed"] = [50, 10]  # 25, 10
 config["nb_units_dir"] = [50, 10]  # 25, 10 or 1024, 256, 32
 config["use_bias"] = True
 
@@ -39,10 +39,10 @@ config["dense_with_skip_connection"] = False
 
 # Hyperparameters
 config["batch_size"] = 128  # Int.
-config["batch_size_speed"] = 256  # Int.
+config["batch_size_speed"] = 128  # Int.
 config["batch_size_dir"] = 128  # Int.
 config["epochs"] = 10  # Int.
-config["epochs_speed"] = 15  # Int.
+config["epochs_speed"] = 10  # Int.
 config["epochs_dir"] = 5  # Int.
 config["learning_rate"] = 0.001
 config["learning_rate_speed"] = 0.001
@@ -54,7 +54,7 @@ config["args_optimizer"] = [config["learning_rate"]]  # List.
 config["kwargs_optimizer"] = {}  # Dict.
 
 # Initializer
-config["initializer"] = "GlorotNormal"  # Str. Default = "GlorotUniform"
+config["initializer"] = "GlorotUniform"  # Str. Default = "GlorotUniform"
 config["args_initializer"] = []  # List.
 config["kwargs_initializer"] = {"seed": 42}  # Dict.
 
@@ -71,7 +71,7 @@ config["standardize"] = True  # Bool. Apply standardization
 config["shuffle"] = True  # Bool. Shuffle inputs
 
 # Quick test
-config["quick_test"] = False  # Bool. Quicktest case (fast training)
+config["quick_test"] = True  # Bool. Quicktest case (fast training)
 config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 # config["quick_test_stations"] = ["ALPE-D'HUEZ", 'Col du Lac Blanc', 'SOUM COUY-NIVOSE', 'SPONDE-NIVOSE']
 
@@ -82,11 +82,6 @@ config["quick_test_stations"] = ["ALPE-D'HUEZ"]
 #                             "tpi_500", "curvature", "mu", "laplacian", 'aspect', 'tan(slope)']
 config["input_speed"] = ["alti",
                          "ZS",
-                         "Tair",
-                         "LWnet",
-                         "SWnet",
-                         "CC_cumul",
-                         "BLH",
                          "tpi_500",
                          "curvature",
                          "mu",
@@ -99,7 +94,7 @@ config["input_speed"] = ["alti",
                          "Wind_DIR"]
 config["input_dir"] = ['aspect', 'tan(slope)', 'Wind', 'Wind_DIR']
 # todo write a test that checks that topos, aspect and tan_slope are in the correct order
-config["map_variables"] = ["topos", "aspect", "tan_slope", "tpi_300", "tpi_600"]
+config["map_variables"] = ["topos"]
 config["compute_product_with_wind_direction"] = True
 
 # ['alti', 'ZS', 'Wind', 'Wind_DIR', "Tair",
@@ -212,11 +207,25 @@ config["metric_split"] = "rmse"
 # Space split
 # 2022_08_04 v4
 # Warning: not the same as usual v2
-config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
-                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
-                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
-                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
-                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+config["stations_test"] = ['BARCELONNETTE', 'DIGNE LES BAINS', 'RESTEFOND-NIVOSE',
+                           'LA MURE-ARGENS', 'ARVIEUX', 'PARPAILLON-NIVOSE', 'EMBRUN',
+                           'LA FAURIE', 'GAP', 'LA MEIJE-NIVOSE', 'COL AGNEL-NIVOSE',
+                           'GALIBIER-NIVOSE', 'ORCIERES-NIVOSE', 'RISTOLAS',
+                           'ST JEAN-ST-NICOLAS', 'TALLARD', "VILLAR D'ARENE",
+                           'VILLAR ST PANCRACE', 'ASCROS', 'PEIRA CAVA', 'PEONE',
+                           'MILLEFONTS-NIVOSE', 'CHAPELLE-EN-VER', 'LUS L CROIX HTE',
+                           'ST ROMAN-DIOIS', 'AIGLETON-NIVOSE', 'CREYS-MALVILLE',
+                           'LE GUA-NIVOSE', "ALPE-D'HUEZ", 'LA MURE- RADOME',
+                           'LES ECRINS-NIVOSE', 'GRENOBLE-ST GEOIRS', 'ST HILAIRE-NIVOSE',
+                           'ST-PIERRE-LES EGAUX', 'GRENOBLE - LVD', 'VILLARD-DE-LANS',
+                           'CHAMROUSSE', 'ALBERTVILLE JO', 'BONNEVAL-NIVOSE', 'MONT DU CHAT',
+                           'BELLECOTE-NIVOSE', 'GRANDE PAREI NIVOSE', 'COL-DES-SAISIES',
+                           'ALLANT-NIVOSE', 'LA MASSE', 'LE CHEVRIL-NIVOSE',
+                           'LES ROCHILLES-NIVOSE', 'LE TOUR', 'AGUIL. DU MIDI',
+                           'AIGUILLES ROUGES-NIVOSE', 'LE GRAND-BORNAND', 'MEYTHET',
+                           'LE PLENAY', 'Vallot', 'Saint-Sorlin', 'Argentiere',
+                           'Dome Lac Blanc', 'Col du Lac Blanc', 'La Muzelle Lac Blanc',
+                           'Col de Porte', 'Col du Lautaret']
 # usual
 """
 ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',

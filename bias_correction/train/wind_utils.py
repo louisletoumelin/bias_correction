@@ -34,7 +34,7 @@ def alpha2dir(wind_dir, alpha, unit_direction ="degree", unit_alpha="radian", un
     return dir
 
 
-def wind2comp(uv, dir, unit_direction="radian"):
+def wind2comp(uv, dir, unit_direction):
 
     if unit_direction == "degree":
         dir = np.deg2rad(dir)

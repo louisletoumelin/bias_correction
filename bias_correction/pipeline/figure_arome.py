@@ -57,12 +57,20 @@ def classify_topo_carac(stations: pd.DataFrame,
 
     return df
 
+
 print_headline("Restore experience", "")
 exp, config = ExperienceManager.from_previous_experience(config["restore_experience"])
 cm = CustomModel.from_previous_experience(exp, config, "last")
 
 arome = pd.read_pickle(config["time_series"])
 stations = pd.read_pickle(config["stations"])
+stations = stations[~stations["country"].isin(config["country_to_reject_during_training"]) & ~stations["name"].isin(config["stations_to_reject"])]
+print("len(stations['name'].unique())")
+print(len(stations['name'].unique()))
+
+arome = arome[arome["name"].isin(stations["name"].unique())]
+print("len(arome['name'].unique())")
+print(len(arome['name'].unique()))
 
 arome = arome[["name", "alti", "vw10m(m/s)", "Wind"]].dropna()
 arome["bias"] = bias(arome["vw10m(m/s)"].values, arome["Wind"].values)

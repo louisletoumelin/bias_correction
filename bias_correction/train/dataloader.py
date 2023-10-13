@@ -11,6 +11,37 @@ from typing import Optional, Tuple, Union, Any, List, MutableSequence, Generator
 from dataclasses import dataclass
 
 from bias_correction.train.metrics import get_metric
+from bias_correction.train.wind_utils import wind2comp
+
+
+class MapGeneratorUncentered:
+
+    def __init__(self,
+                 names: MutableSequence[str],
+                 idx_x: np.ndarray,
+                 idx_y: np.ndarray,
+                 config: dict
+                 ) -> None:
+
+        loader = Loader(config)
+
+        try:
+            self.names = names.values
+        except AttributeError:
+            self.names = names
+
+        self.idx_x = idx_x
+        self.idx_y = idx_y
+        self.idx_center = 140
+        self.list_dict_topos = loader.load_large_topos()
+
+    def __call__(self):
+        for name, ix, iy in zip(self.names, self.idx_x, self.idx_y):
+            y_l = (self.idx_center + iy) - 70
+            y_r = (self.idx_center + iy) + 70
+            x_l = (self.idx_center + ix) - 70
+            x_r = (self.idx_center + ix) + 70
+            yield self.list_dict_topos[name]["data"][y_l:y_r, x_l:x_r, :]
 
 
 class MapGenerator:
@@ -37,7 +68,26 @@ class MapGenerator:
         else:
             for name in self.names:
                 yield np.concatenate([self.list_dict_topos[i][name]["data"] for i in range(len(self.list_dict_topos))],
-                                        axis=-1)
+                                     axis=-1)
+
+
+class MapGeneratorCustom:
+
+    def __init__(self,
+                 names: MutableSequence[str],
+                 dict_topo: dict
+                 ) -> None:
+
+        try:
+            self.names = names.values
+        except AttributeError:
+            self.names = names
+
+        self.dict_topo = dict_topo
+
+    def __call__(self):
+        for name in self.names:
+                yield self.dict_topo[name]["data"]
 
 
 class MeanGenerator:
@@ -238,7 +288,9 @@ class Loader:
         self.config = config
 
     def load_dict(self,
-                  name_map: str):
+                  name_map: str,
+                  get_x_y: bool = False):
+
         dict_path = {"topos": self.config["topos_near_station"],
                      "aspect": self.config["aspect_near_station"],
                      "tan_slope": self.config["tan_slope_near_station"],
@@ -255,6 +307,26 @@ class Loader:
         x_r = 140 + 70
         for station in dict_topos:
             dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"][y_l:y_r, x_l:x_r], (140, 140, 1))
+
+        if get_x_y:
+            for station in dict_topos:
+                dict_topos[station]["x"] = dict_topos[station]["x"][x_l:x_r]
+                dict_topos[station]["y"] = dict_topos[station]["y"][y_l:y_r]
+
+        return dict_topos
+
+    def load_large_topos(self, get_x_y: bool = False):
+
+        with open(self.config["topos_near_station"], 'rb') as f:
+            dict_topos = pickle.load(f)
+
+        for station in dict_topos:
+            dict_topos[station]["data"] = np.reshape(dict_topos[station]["data"], (280, 280, 1))
+
+        if get_x_y:
+            for station in dict_topos:
+                dict_topos[station]["x"] = dict_topos[station]["x"]
+                dict_topos[station]["y"] = dict_topos[station]["y"]
 
         return dict_topos
 
@@ -359,6 +431,7 @@ class CustomDataHandler:
         self.results_setter = ResultsSetter(config)
 
         # Attributes defined later
+        self.dict_topos = None
         self.inputs_train = None
         self.inputs_test = None
         self.inputs_val = None
@@ -386,6 +459,14 @@ class CustomDataHandler:
         self.inputs_custom = None
         self.length_custom = None
         self.names_custom = None
+        self.idx_x_train = None
+        self.idx_y_train = None
+        self.idx_x_test = None
+        self.idx_y_test = None
+        self.idx_x_val = None
+        self.idx_y_val = None
+        self.idx_x_other_countries = None
+        self.idx_y_other_countries = None
 
     def _select_all_variables_needed(self,
                                      df: pd.DataFrame,
@@ -450,8 +531,9 @@ class CustomDataHandler:
 
             if 'tan(slope)' in self.config["input_variables"]:
                 print("Transform tan(slope) into E.")
+                # use a proper method to make the difference between directions would be better
                 cos_delta = np.cos(np.deg2rad(time_series["winddir(deg)"] - time_series["aspect"]))
-                time_series['tan(slope)'] = np.rad2deg(np.arctan(time_series['tan(slope)']*cos_delta))
+                time_series['tan(slope)'] = np.rad2deg(np.arctan(time_series['tan(slope)'] * cos_delta))
 
         return time_series
 
@@ -723,9 +805,16 @@ class CustomDataHandler:
         filter_obs = time_series['vw10m(m/s)'] > threshold
         return time_series[filter_model & filter_obs]
 
+    @staticmethod
+    def generate_random_idx(time_series: pd.DataFrame, min_: int = -25, max_: int = 25) -> pd.DataFrame:
+        time_series["idx_x"] = np.random.randint(min_, max_ + 1, size=len(time_series))
+        time_series["idx_y"] = np.random.randint(min_, max_ + 1, size=len(time_series))
+        return time_series
+
     def prepare_train_test_data(self,
                                 _shuffle: bool = True,
-                                variables_needed: bool = None):
+                                variables_needed: bool = None,
+                                add_topo_carac: bool = True):
 
         # Pre-processing time_series
         time_series = self.loader.load_time_series_pkl()
@@ -734,7 +823,6 @@ class CustomDataHandler:
         # Remove null wind speed (to fit direction, which is not defined for null speeds)
         if self.config.get("remove_null_speeds", False):
             print("\nRemoved null speeds.\n")
-
             time_series = self.remove_null_speeds_time_series(time_series)
 
         # Reject stations
@@ -745,8 +833,9 @@ class CustomDataHandler:
             time_series = self._apply_quick_test(time_series)
 
         # Add topo characteristics
-        time_series = self.add_topo_carac_time_series(time_series, stations)
-        time_series = self.add_topographic_parameters_llt(time_series)
+        if add_topo_carac:
+            time_series = self.add_topo_carac_time_series(time_series, stations)
+            time_series = self.add_topographic_parameters_llt(time_series)
 
         # Add country
         time_series = self.add_country_to_time_series(time_series, stations)
@@ -754,6 +843,18 @@ class CustomDataHandler:
         # Add month and hour
         if "month" in self.variables_needed or "hour" in self.variables_needed:
             time_series = self.add_month_and_hour_to_time_series(time_series)
+
+        # Random idx for uncentered training
+        if self.config.get("random_idx", False):
+            time_series = self.generate_random_idx(time_series,
+                                                   min_=self.config["min_idx_uncentered"],
+                                                   max_=self.config["max_idx_uncentered"])
+
+        # Wind fields to wind components
+        if (['U_obs'] in self.config["labels"]) or ('V_obs' in self.config["labels"]):
+            time_series['U_obs'], time_series['V_obs'] = wind2comp(time_series['vw10m(m/s)'],
+                                                                   time_series['winddir(deg)'],
+                                                                   unit_direction="degree")
 
         # Select variables
         time_series = self._select_all_variables_needed(time_series, variables_needed)
@@ -820,6 +921,19 @@ class CustomDataHandler:
         if self.config.get("country_to_reject_during_training", False):
             self.names_other_countries = time_series_other_countries["name"]
 
+        # idx_x and idx_y
+        if self.config.get("random_idx", False):
+            self.idx_x_train = time_series_train["idx_x"]
+            self.idx_y_train = time_series_train["idx_y"]
+            self.idx_x_test = time_series_test["idx_x"]
+            self.idx_y_test = time_series_test["idx_y"]
+            if self.config["stations_val"]:
+                self.idx_x_val = time_series_val["idx_x"]
+                self.idx_y_val = time_series_val["idx_y"]
+            if self.config.get("country_to_reject_during_training", False):
+                self.idx_x_other_countries = time_series_other_countries["idx_x"]
+                self.idx_y_other_countries = time_series_other_countries["idx_y"]
+
         if self.config.get("standardize", True):
             self.mean_standardize = self.inputs_train.mean()
             self.std_standardize = self.inputs_train.std()
@@ -827,9 +941,6 @@ class CustomDataHandler:
         if self.config.get("unbalanced_dataset", False):
             self.unbalance_training_dataset()
 
-        print("debug")
-        print(time_series_train.columns)
-        print(time_series_test.columns)
         self._set_is_prepared()
 
     def get_inputs(self,
@@ -858,17 +969,48 @@ class CustomDataHandler:
         else:
             return names
 
+    def get_idx(self, mode: str):
+        return getattr(self, f"idx_x_{mode}"), getattr(self, f"idx_y_{mode}")
+
     def get_mean(self) -> MutableSequence[float]:
         return self.mean_standardize
 
     def get_std(self) -> MutableSequence[float]:
         return self.std_standardize
 
+    def get_tf_uncentered_topos(self,
+                                mode: Union[str, None] = None,
+                                names: Union[MutableSequence[str], None] = None,
+                                idx_x: Union[MutableSequence[str], None] = None,
+                                idx_y: Union[MutableSequence[str], None] = None,
+                                ) -> tf.data.Dataset:
+
+        output_shapes = (140, 140, 1)
+
+        if names is None:
+            names = self.get_names(mode)
+
+        if (idx_x is None) and (idx_y is None):
+            idx_x, idx_y = self.get_idx(mode)
+
+        if hasattr(names, "values"):
+            names = names.values
+
+        if hasattr(idx_x, "values"):
+            idx_x = idx_x.values
+
+        if hasattr(idx_y, "values"):
+            idx_y = idx_y.values
+
+        topos_generator = MapGeneratorUncentered(names, idx_x=idx_x, idx_y=idx_y, config=self.config)
+
+        return tf.data.Dataset.from_generator(topos_generator, output_types=tf.float32, output_shapes=output_shapes)
+
     def get_tf_map(self,
                    names_map: MutableSequence,
                    mode: str,
                    names: Union[MutableSequence[str], None] = None,
-                   output_shapes: MutableSequence = [140, 140, 1]
+                   output_shapes: MutableSequence = [140, 140, 1],
                    ) -> tf.data.Dataset:
 
         output_shapes[2] = len(self.config["map_variables"])
@@ -876,7 +1018,11 @@ class CustomDataHandler:
         if names is None:
             names = self.get_names(mode)
 
-        generator = MapGenerator(names_map, names, self.config)
+        if self.config.get("custom_dataloader", False):
+            generator = MapGeneratorCustom(names, self.dict_topos)
+        else:
+            generator = MapGenerator(names_map, names, self.config)
+
         return tf.data.Dataset.from_generator(generator, output_types=tf.float32, output_shapes=output_shapes)
 
     def get_tf_mean_std(self,
@@ -899,17 +1045,26 @@ class CustomDataHandler:
     def get_tf_map_inputs(self,
                           mode: str = "test",
                           names: MutableSequence["str"] = None,
-                          output_shapes: MutableSequence = [140, 140, 1]
+                          output_shapes: MutableSequence = [140, 140, 1],
+                          uncentered: bool = False,
+                          idx_x: MutableSequence[float] = None,
+                          idx_y: MutableSequence[float] = None
                           ):
-        output_shapes[2] = len(self.config["map_variables"])
-        return self.get_tf_map(names_map=self.config["map_variables"],
-                               mode=mode,
-                               names=names,
-                               output_shapes=output_shapes)
+        if uncentered:
+            return self.get_tf_uncentered_topos(mode=mode,
+                                                names=names,
+                                                idx_x=idx_x,
+                                                idx_y=idx_y)
+        else:
+            output_shapes[2] = len(self.config["map_variables"])
+            return self.get_tf_map(names_map=self.config["map_variables"],
+                                   mode=mode,
+                                   names=names,
+                                   output_shapes=output_shapes)
 
     def get_tf_zipped_inputs(self,
                              mode: str = "test",
-                             inputs: Union[pd.Series, pd.DataFrame] = None,
+                             inputs: Union[pd.Series, pd.DataFrame, None] = None,
                              names: MutableSequence["str"] = None,
                              output_shapes: MutableSequence = [140, 140, 1]
                              ) -> tf.data.Dataset:
@@ -924,14 +1079,25 @@ class CustomDataHandler:
 
         inputs = tf.data.Dataset.from_tensor_slices(inputs)
 
+        if self.config.get("random_idx", False):
+            uncentered = True
+        else:
+            uncentered = False
+
         if self.config["standardize"]:
             mean, std = self.get_tf_mean_std(mode)
-            return tf.data.Dataset.zip((self.get_tf_map_inputs(mode=mode, names=names, output_shapes=output_shapes),
+            return tf.data.Dataset.zip((self.get_tf_map_inputs(mode=mode,
+                                                               names=names,
+                                                               output_shapes=output_shapes,
+                                                               uncentered=uncentered),
                                         inputs,
                                         mean,
                                         std))
         else:
-            return tf.data.Dataset.zip((self.get_tf_map_inputs(mode=mode, names=names, output_shapes=output_shapes),
+            return tf.data.Dataset.zip((self.get_tf_map_inputs(mode=mode,
+                                                               names=names,
+                                                               output_shapes=output_shapes,
+                                                               uncentered=uncentered),
                                         inputs))
 
     def _get_all_zipped(self,
@@ -1055,6 +1221,7 @@ class CustomDataHandler:
                                   output_shapes: MutableSequence = [140, 140, 1],
                                   labels: Union[pd.Series, pd.DataFrame] = None
                                   ) -> DatasetV2:
+
         output_shapes[2] = len(self.config["map_variables"])
         dataset = self.get_tf_zipped_inputs_labels(mode,
                                                    inputs=inputs,
@@ -1090,10 +1257,16 @@ class CustomDataHandler:
 
         path_to_files = {"UV":
                              {"_D": self.config["path_to_devine"] + f"devine_2022_10_25_speed_{mode}.pkl",
-                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"},
+                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl",
+                              "_DA": self.config[
+                                         "path_to_devine"] + f"devine_arome_analysis_2023_03_16_output_speed_{mode}.pkl"
+                              },
                          "UV_DIR":
                              {"_D": self.config["path_to_devine"] + f"devine_2022_08_04_v4_{mode}_dir.pkl",
-                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl"}
+                              "_A": self.config["path_to_analysis"] + "time_series_bc_a.pkl",
+                              "_DA": self.config[
+                                         "path_to_devine"] + f"devine_arome_analysis_2023_03_16_output_direction_{mode}.pkl"
+                              }
                          }
 
         predictions = pd.read_pickle(path_to_files[self.config["current_variable"]][model])
@@ -1101,5 +1274,9 @@ class CustomDataHandler:
         if model == "_A":
             predictions = predictions.rename(columns={"Wind": "UV_A"})
             predictions = predictions.rename(columns={"Wind_DIR": "UV_DIR_A"})
+
+        if model == "_DA":
+            predictions = predictions.rename(columns={"UV_D": "UV_DA"})
+            predictions = predictions.rename(columns={"UV_DIR_D": "UV_DIR_DA"})
 
         setattr(self, f"predicted{model}", predictions)

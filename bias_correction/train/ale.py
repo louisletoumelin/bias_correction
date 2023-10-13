@@ -259,7 +259,7 @@ def _ax_quantiles(ax, quantiles, twin="x"):
     )
 
 
-def _first_order_quant_plot(ax, quantiles, ale, exp=None, feature="", folder_name="", ale_std=None, color="C0", **kwargs):
+def _first_order_quant_plot(ax, quantiles, ale, exp=None, feature="", folder_name="", ale_std=None, ale_std_upper=None, ale_std_lower=None, color="C0", **kwargs):
     """First order ALE plot.
     Parameters
     ----------
@@ -272,15 +272,16 @@ def _first_order_quant_plot(ax, quantiles, ale, exp=None, feature="", folder_nam
     **kwargs : plot properties, optional
         Additional keyword parameters are passed to `ax.plot`.
     """
-    if (ale_std is not None) and (np.array(ale_std).size > 0):
+    if (ale_std_upper is not None) and (np.array(ale_std_upper).size > 0):
         print("debug _first_order_quant_plot")
-        print("ale_std")
-        print(ale_std)
+        print("ale_std_upper")
+        print(ale_std_upper)
         print("ale")
         print(ale)
-        ale_std = ale_std.astype(np.float32)
+        ale_std_upper = ale_std_upper.astype(np.float32)
+        ale_std_lower = ale_std_lower.astype(np.float32)
         ale = ale.astype(np.float32)
-        ax.fill_between(_get_centres(quantiles), ale-ale_std, ale+ale_std, alpha=0.2, color=color)
+        ax.fill_between(_get_centres(quantiles), ale_std_lower, ale_std_upper, alpha=0.2, color=color)
 
     ax.plot(_get_centres(quantiles), ale, color=color, **kwargs)
 
@@ -449,6 +450,7 @@ def _first_order_ale_quant(predictor, train_set, feature, bins,
 
     mean_effects = index_groupby.mean().to_numpy().flatten()
 
+    """
     if use_std:
         mean_effects_std = index_groupby.std().to_numpy().flatten()
         if not only_local_effects:
@@ -458,26 +460,57 @@ def _first_order_ale_quant(predictor, train_set, feature, bins,
         ale_std = _get_centres(ale_std)
         if not only_local_effects:
             ale_std -= np.sum(ale_std * index_groupby.size() / train_set.shape[0])
+    """
+
+    if use_std:
+        mean_effects_std = index_groupby.std().to_numpy().flatten()
+        mean_effects_lower = mean_effects - mean_effects_std
+        mean_effects_upper = mean_effects + mean_effects_std
+
+        if not only_local_effects:
+            ale_std = np.array([0, *np.cumsum(mean_effects_std)])  # updated
+            ale_std_lower = np.array([0, *np.cumsum(mean_effects_lower)])
+            ale_std_upper = np.array([0, *np.cumsum(mean_effects_upper)])
+        else:
+            ale_std = np.array([0, *mean_effects_std])
+
+        if not only_local_effects:
+            ale_std = _get_centres(ale_std)
+            ale_std_lower = _get_centres(ale_std_lower)
+            ale_std_upper = _get_centres(ale_std_upper)
 
     if not only_local_effects:
         ale = np.array([0, *np.cumsum(mean_effects)])
     else:
-        ale = np.array([0, *mean_effects])
+        #ale = np.array([0, *mean_effects])
+        ale = mean_effects
 
     # The uncentred mean main effects at the bin centres.
-    ale = _get_centres(ale)
+    if not only_local_effects:
+        ale = _get_centres(ale)
 
     # Centre the effects by subtracting the mean (the mean of the individual
     # `effects`, which is equivalently calculated using `mean_effects` and the number
     # of samples in each bin).
+
+    if use_std:
+        if not only_local_effects:
+            ale_std -= np.sum(ale_std * index_groupby.size() / train_set.shape[0])
+            ale_std_lower -= np.sum(ale * index_groupby.size() / train_set.shape[0])
+            ale_std_upper -= np.sum(ale * index_groupby.size() / train_set.shape[0])
+
     if not only_local_effects:
         ale -= np.sum(ale * index_groupby.size() / train_set.shape[0])
 
     if use_std:
-        print("debug _first_order_ale_quant")
-        print("ale_std")
-        print(ale_std)
-        return ale, quantiles, ale_std
+        if not only_local_effects:
+            print("debug _first_order_ale_quant")
+            print("ale_std")
+            print(ale_std_lower)
+            print(ale_std_upper)
+            return ale, quantiles, ale_std_lower, ale_std_upper
+        else:
+            return ale, quantiles, None, None
     else:
         return ale, quantiles
 
@@ -819,6 +852,8 @@ def ale_plot(
     exp=None,
     use_std=True,
     ale_std=None,
+    ale_std_lower=None,
+    ale_std_upper=None,
     folder_name="",
     type_of_output="speed",
     only_local_effects=False,
@@ -916,8 +951,8 @@ def ale_plot(
                 """
                 raise NotImplementedError
 
-            if use_std:
-                ale, quantiles, ale_std = _first_order_ale_quant(
+            if use_std and not only_local_effects:
+                ale, quantiles, ale_std_lower, ale_std_upper = _first_order_ale_quant(
                     model.predict if predictor is None else predictor,
                     train_set,
                     features[0],
@@ -925,8 +960,7 @@ def ale_plot(
                     use_std=True,
                     data_loader=data_loader,
                     type_of_output=type_of_output,
-                    only_local_effects=only_local_effects
-                )
+                    only_local_effects=only_local_effects)
             else:
                 ale, quantiles = _first_order_ale_quant(
                     model.predict if predictor is None else predictor,
@@ -949,7 +983,8 @@ def ale_plot(
                 sns.rugplot(train_set[features[0]], ax=ax, alpha=0.2)
 
             _first_order_quant_plot(ax, quantiles, ale,
-                                    exp=exp, feature=features[0], folder_name=folder_name, ale_std=ale_std,
+                                    exp=exp, feature=features[0], folder_name=folder_name,
+                                    ale_std_lower=ale_std_lower, ale_std_upper=ale_std_upper,
                                     color=color, marker=marker, markersize=markersize, linewidth=linewidth)
             _ax_quantiles(ax, quantiles)
 
@@ -961,7 +996,10 @@ def ale_plot(
                 np.save(exp.path_to_figures + folder_name + f'/{features[0]}_quantiles_{uuid_str}.npy', quantiles)
                 np.save(exp.path_to_figures + folder_name + f'/{features[0]}_ale_{uuid_str}.npy', ale)
                 if use_std:
-                    np.save(exp.path_to_figures + folder_name + f'/{features[0]}_ale_std_{uuid_str}.npy', ale_std)
+                    np.save(exp.path_to_figures + folder_name + f'/{features[0]}_ale_std_lower_{uuid_str}.npy',
+                            ale_std_lower)
+                    np.save(exp.path_to_figures + folder_name + f'/{features[0]}_ale_std_upper_{uuid_str}.npy',
+                            ale_std_upper)
 
     elif len(features) == 2:
         if features_classes is None:

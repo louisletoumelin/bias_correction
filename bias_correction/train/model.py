@@ -33,8 +33,9 @@ from bias_correction.train.layers import RotationLayer, \
     SlidingMean, \
     EParam, \
     DispatchTrainingVariables, \
-    ReluActivationDoubleANN,\
-    ReluActivationSimpleANN
+    ReluActivationDoubleANN, \
+    ReluActivationSimpleANN, \
+    SelectStationUncentered
 from bias_correction.train.optimizer import load_optimizer
 from bias_correction.train.initializers import load_initializer
 from bias_correction.train.loss import load_loss
@@ -171,7 +172,6 @@ class DevineBuilder(StrategyInitializer):
             return K.sqrt(K.mean(K.square(y_true - y_pred)))
 
         dependencies = {'root_mse': root_mse}
-
         return load_model(model_path,
                           custom_objects=dependencies,
                           options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost'))
@@ -187,12 +187,28 @@ class DevineBuilder(StrategyInitializer):
         unet.load_weights(model_path)
         return unet
 
+    @staticmethod
+    def modified_unet(y, x_nn, unet):
+
+        previous_layer_name = None
+        for layer in unet.layers():
+            if previous_layer_name == "drop4":
+                y = y + x_nn
+                y = layer(y)
+            else:
+                y = layer(y)
+            previous_layer_name = layer.name
+        return y
+
     def devine(self,
                topos,
                x,
                inputs,
                use_crop=True,
-               fill_value=-1):
+               fill_value=-1,
+               idx_x=None,
+               idx_y=None,
+               x_nn=None):
         #  x[:, 0] is nwp wind speed.
         #  x[:, 1] is wind direction.
         y = RotationLayer(clockwise=False, unit_input="degree", fill_value=fill_value)(topos, x[:, 1])
@@ -229,7 +245,12 @@ class DevineBuilder(StrategyInitializer):
         if self.config.get("disable_training_cnn", True):
             unet = self.disable_training(unet)
 
-        y = unet(y)
+        if self.config.get("modified_latent", False):
+            # todo write modified_unet
+            y = modified_unet(y, x_nn, unet)
+            pass
+        else:
+            y = unet(y)
 
         if self.config["type_of_output"] == "map_u_v_w":
             w = y[:, :, :, 2]
@@ -246,13 +267,20 @@ class DevineBuilder(StrategyInitializer):
                                              "map_speed_direction",
                                              "map_u_v_w",
                                              "output_speed_and_direction",
-                                             "output_direction"]:
+                                             "output_direction",
+                                             "uncentered_u_v"]:
             # Direction
 
             alpha_or_direction = Components2Alpha()(y)
 
             alpha_or_direction = Alpha2Direction("degree", "radian")(x[:, 1], alpha_or_direction)
 
+            alpha_or_direction = RotationLayer(clockwise=True,
+                                               unit_input="degree",
+                                               fill_value=fill_value)(alpha_or_direction, x[:, 1])
+
+        if self.config["type_of_output"] in ["map_speed_alpha", "map_speed_acceleration"]:
+            alpha_or_direction = Components2Alpha()(y)
             alpha_or_direction = RotationLayer(clockwise=True,
                                                unit_input="degree",
                                                fill_value=fill_value)(alpha_or_direction, x[:, 1])
@@ -296,8 +324,24 @@ class DevineBuilder(StrategyInitializer):
             x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
             bc_model = Model(inputs=inputs, outputs=(x, y, w), name="bias_correction")
 
-        elif self.config["type_of_output"] == "map":
+        elif self.config["type_of_output"] in ["map", "map_speed_alpha"]:
             bc_model = Model(inputs=inputs, outputs=(y, alpha_or_direction), name="bias_correction")
+
+        elif self.config["type_of_output"] in ["map_speed_acceleration"]:
+            bc_model = Model(inputs=inputs, outputs=(y/3, alpha_or_direction), name="bias_correction")
+
+        elif self.config["type_of_output"] == "uncentered_u_v":
+            x, y = SpeedDirection2Components("degree")(y, alpha_or_direction)
+            idx = tf.cast(tf.stack(((79 // 2 - idx_y), (69 // 2 - idx_x)), 1), dtype=tf.int32)
+            x = tf.gather_nd(x, idx, batch_dims=1)
+            y = tf.gather_nd(y, idx, batch_dims=1)
+            # tf.debugging.Assert(tf.math.reduce_sum(tf.where(tf.math.is_nan(x), 1, 0)) == 0, [x])
+            # tf.debugging.Assert(tf.math.reduce_sum(tf.where(tf.math.is_nan(y), 1, 0)) == 0, [y])
+            tf.compat.v1.verify_tensor_all_finite(x, msg="nan in x")
+            tf.compat.v1.verify_tensor_all_finite(y, msg="nan in y")
+            # x = tf.squeeze(x)
+            # y = tf.squeeze(y)
+            bc_model = Model(inputs=inputs, outputs=tf.stack((x, y), axis=-1)[:, 0, :], name="bias_correction")
 
         return bc_model
 
@@ -505,9 +549,9 @@ class CustomModel(StrategyInitializer):
         print("Launch load_weights")
         if path is None:
             path = self.exp.path_to_last_weights
-        #self.model.load_weights(self.exp.path_to_last_model)
+        # self.model.load_weights(self.exp.path_to_last_model)
         self.model.load_weights(path + 'model_weights.h5')
-        print(f"Restore weights from {self.exp.path_to_last_model}")
+        print(f"Restore weights from {path}")
 
     def get_optimizer(self):
         name_optimizer = self.config.get("optimizer")
@@ -792,6 +836,65 @@ class CustomModel(StrategyInitializer):
             print(bc_model.summary())
         self.model = bc_model
 
+    def add_regularization_devine(self, rate=1e-4):
+        l2 = tf.keras.regularizers.l2(rate)
+        for layer in self.model.get_layer("model").layers:
+            if "conv" in layer.name:
+                print(f"Adding regularization to {layer.name}")
+                self.model.get_layer("model").get_layer(layer.name).kernel_regularizer = l2
+
+    def _build_uncentered_devine(self, print_=True):
+
+        input_shape = (140, 140, 1)
+
+        # Inputs
+        topos = Input(shape=input_shape, name="input_topos")
+        if self.config["type_of_output"] == "uncentered_u_v":
+            x = Input(shape=(4,), name="input_wind_field_and_idx")
+            inputs = (topos, x)
+            bc_model = self.devine_builder.devine(topos, x[:, 2:], inputs, idx_x=x[:, 0], idx_y=x[:, 1])
+        else:
+            x = Input(shape=(2,), name="input_wind_field")
+            inputs = (topos, x)
+            bc_model = self.devine_builder.devine(topos, x, inputs)
+
+        if print_:
+            print(bc_model.summary())
+
+        self.model = bc_model
+
+        if self.config.get("add_regularization_devine", False):
+            self.add_regularization_devine(rate=self.config.get("rate_devine_regularization", 1e-4))
+
+    def _build_uncentered_devine_modified(self, print_=True):
+
+        input_shape = (140, 140, 1)
+
+        # Inputs
+        topos = Input(shape=input_shape, name="input_topos")
+        x = Input(shape=(4,), name="input_wind_field_and_idx")
+        x_nn = Input(shape=(self.config["nb_input_variables"]), name="input_neural_network")
+
+        # todo complete neural network function
+        # output size of neural network must be 10*8*256=20_480
+        x_nn = self.ann._dense_network(x_nn,
+                                       nb_outputs=20_480,
+                                       nb_units=[320, 2560],
+                                       activation_dense=self.config["activation_dense_modified"],
+                                       initializer=self.config["initializer_modified"],
+                                       batch_normalization=False,
+                                       dropout_rate=self.config["dropout_rate_modified"],
+                                       str_name="modified",
+                                       use_bias=True,
+                                       )
+
+        inputs = (topos, x)
+        bc_model = self.devine_builder.devine(topos, x[:, 2:], inputs, idx_x=x[:, 0], idx_y=x[:, 1], x_nn=x_nn)
+
+        if print_:
+            print(bc_model.summary())
+        self.model = bc_model
+
     def _build_ann_v0(self, print_=True):
         self._build_model_architecture(
             nb_input_variables=self.config["nb_input_variables"],
@@ -826,13 +929,13 @@ class CustomModel(StrategyInitializer):
         )
 
     def _build_model(self, print_=True):
-        """Supported architectures: ann_v0, dense_only, dense_temperature, devine_only"""
         model_architecture = self.config["global_architecture"]
         methods_build = {"ann_v0": self._build_ann_v0,
                          "dense_only": self._build_dense_only,
                          "dense_temperature": self._build_dense_temperature,
                          "devine_only": self._build_devine_only,
-                         "double_ann": self._build_double_ann}
+                         "double_ann": self._build_double_ann,
+                         "uncentered_devine": self._build_uncentered_devine}
         methods_build[model_architecture](print_=print_)
         self.model_is_built = True
         if print_:
@@ -861,7 +964,7 @@ class CustomModel(StrategyInitializer):
 
         self._build_compiled_model(print_=print_)
 
-        if self.config.get("get_intermediate_output", False):
+        if self.config.get("get_intermediate_output", False) and (self.config["global_architecture"] != "devine_only"):
             self.add_intermediate_output()
 
     def build_model_with_strategy(self, print_=True):
@@ -870,7 +973,7 @@ class CustomModel(StrategyInitializer):
         else:
             self._build_classic_strategy(print_=print_)
 
-    def select_model(self, force_build=False, model_version="last"):
+    def select_model(self, force_build=False, model_version="last", print_=True):
 
         has_model_version = {"ann_v0": True,
                              "dense_only": True,
@@ -879,7 +982,7 @@ class CustomModel(StrategyInitializer):
                              "double_ann": False}
 
         if force_build:
-            self.build_model_with_strategy()
+            self.build_model_with_strategy(print_=print_)
 
         assert self.model_is_built
 
@@ -903,10 +1006,10 @@ class CustomModel(StrategyInitializer):
             self.model_version = "best"
             print("best model weights loaded")
 
-    def predict_single_bath(self, inputs, model_version="last", force_build=False):
+    def predict_single_bath(self, inputs, model_version="last", force_build=False, print_=True):
 
         if model_version:
-            self.select_model(force_build=force_build, model_version=model_version)
+            self.select_model(force_build=force_build, model_version=model_version, print_=print_)
 
         for index, i in enumerate(inputs):
             results_test = self.model.predict(i)
@@ -918,7 +1021,7 @@ class CustomModel(StrategyInitializer):
                                  inputs,
                                  model_version="last",
                                  batch_size=1,
-                                 output_shape=(2, 360, 2761, 2761),
+                                 output_shape=(2, 360, 2761, 2761),  #(2, 360, 2761, 2761)
                                  index_max=360,
                                  force_build=False):
 
@@ -932,8 +1035,10 @@ class CustomModel(StrategyInitializer):
                 print(f"Batch: {batch_index}")
             result = self.model.predict(i)
             index_end = np.min([index + batch_size, index_max])
-            #results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
-            results_test[index:index_end] = np.squeeze(result)
+            try:
+                results_test[index:index_end] = np.squeeze(result)
+            except ValueError:
+                results_test[:, index:index_end, :, :] = np.array(result)[:, :, :, :, 0]
             index += batch_size
         return np.squeeze(results_test)
 
@@ -981,11 +1086,11 @@ class CustomModel(StrategyInitializer):
     def freeze_layers_speed(self):
         self.freeze_layers(layers_to_freeze=["speed_ann", "speed_cnn"],
                            layers_to_train=["dir_ann", "dir_cnn"])
-    
+
     def load_external_model(self, path, custom_objects=None):
         print(custom_objects)
         return load_model(path, custom_objects=custom_objects, compile=False)
-    
+
     def load_previous_weights(self, loaded_model, type_="speed"):
         if type_ == "speed" or type_ == "dir":
             for layer in loaded_model.layers:

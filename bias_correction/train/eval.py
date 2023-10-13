@@ -6,6 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm as cm_plt
 from typing import Union, List, MutableSequence, Tuple
+import uuid
 
 try:
     import seaborn as sns
@@ -82,7 +83,9 @@ class CustomEvaluation(VizualizationResults):
                 self.df_results = computer.add_topo_carac_from_stations_to_df(self.df_results,
                                                                               self.data.get_stations(),
                                                                               topo_carac=topo_carac)
-                self.df_results = computer.classify_topo_carac(self.data.get_stations(), self.df_results)
+                self.df_results = computer.classify_topo_carac(self.data.get_stations(),
+                                                               self.df_results,
+                                                               config=self.exp.config)
                 self.df_results = computer.classify_alti(self.df_results)
                 self.df_results = computer.classify_forecast_term(self.df_results)
         else:
@@ -372,8 +375,6 @@ class Interpretability(VizualizationResults):
 
         # Get inputs and length
         inputs = self.data.get_inputs(mode)
-        print("debug")
-        print(inputs)
         length_batch = self.data.get_length(mode)
 
         # Batch input
@@ -459,9 +460,11 @@ class Interpretability(VizualizationResults):
 
         save_figure(f"Feature_Importance/{name}", exp=self.exp, svg=True)
 
-    def plot_partial_dependence(self, mode, features=["mu"], nb_points=5, name="Partial_dependence_plot"):
+    def plot_partial_dependence(self, mode, features=["mu"], nb_points=5, ylim=None, name="Partial_dependence_plot"):
         inputs = self.data.get_inputs(mode)
-        c = cm_plt.viridis(np.linspace(0, 1, len(inputs.keys())))
+        c = cm_plt.viridis(np.linspace(0, 1, len(features)))
+
+        sns.set_style("ticks", {'axes.grid': True})
 
         if features is None:
             features = list(inputs.columns)
@@ -505,11 +508,18 @@ class Interpretability(VizualizationResults):
                 list_results.append({'Fixed value': fixed_value, "mean": mean, "std": std})
 
             df = pd.DataFrame(list_results)
+
             plt.figure()
-            plt.plot(df["Fixed value"], df["mean"], label='mean_1', color=c[idx_pred])
+            plt.plot(df["Fixed value"], df["mean"], label='mean_1', marker='x', color=c[idx_pred])
             plt.fill_between(df["Fixed value"], df["mean"] - df["std"], df["mean"] + df["std"],
                              color=c[idx_pred],
                              alpha=0.1)
 
+            if ylim is not None:
+                plt.ylim(ylim)
             plt.title(predictor)
-            save_figure(f"Partial_dependence_plot/{name}_{predictor}", svg=True, exp=self.exp)
+            save_figure(f"{name}/{name}_{predictor}", svg=True, exp=self.exp)
+            uuid_str = str(uuid.uuid4())[:4]
+            np.save(f"x_dependence_plot_{predictor}_{uuid_str}", df["Fixed value"].values)
+            np.save(f"mean_dependence_plot_{predictor}_{uuid_str}", df["mean"].values)
+            np.save(f"std_dependence_plot_{predictor}_{uuid_str}", df["std"].values)

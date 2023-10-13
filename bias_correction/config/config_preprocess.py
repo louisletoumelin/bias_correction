@@ -57,7 +57,7 @@ config["variables_time_series"] = ['date', 'name', 'lon', 'lat', 'alti', 'T2m(de
                                    'HTN(cm)'] + config["variables_nwp"] + ["U_obs", "V_obs", "U_AROME", "V_AROME"]
 
 # Preprocess
-config["pre_process_stations"] = False
+config["pre_process_stations"] = True
 config["pre_process_nwp"] = False
 config["pre_process_time_series"] = False
-config["pre_process_topos"] = True
+config["pre_process_topos"] = False

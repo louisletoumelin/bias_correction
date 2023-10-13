@@ -103,6 +103,64 @@ class SelectCenter(Layer):
             return inputs[:, self.len_y//2, self.len_x//2, :]
 
 
+class SelectStationUncentered(Layer):
+    def __init__(self,
+                 len_y=79,
+                 len_x=69,
+                 idx_x=None,
+                 idx_y=None
+                 ):
+
+        super(SelectStationUncentered, self).__init__()
+        self.len_x = tf.cast(len_x, dtype=tf.int32)
+        self.len_y = tf.cast(len_y, dtype=tf.int32)
+        self.idx_x = tf.cast(idx_x, dtype=tf.int32)
+        self.idx_y = tf.cast(idx_y, dtype=tf.int32)
+        self.idx_x = tf.cast(len_x - idx_x, dtype=tf.int32)
+        self.idx_y = tf.cast(len_y - idx_y, dtype=tf.int32)
+        print("\nself.idx_x")
+        print(self.idx_x)
+        #self.idx_x = tf.cast(self.idx_x, dtype=tf.int32)
+        #self.idx_y = tf.cast(self.idx_y, dtype=tf.int32)
+        self.idx = tf.cast(tf.stack((idx_y, idx_x), 1), dtype=tf.int32)
+        print("\nself.idx")
+        print(self.idx)
+
+    @staticmethod
+    def extract_pixels(img, coords):
+        # Number of images and pixels
+        s = tf.shape(coords, out_type=coords.dtype)
+        print("coords")
+        print(coords)
+        n = s[0]
+        p = s[1]
+        # Make gather index
+        i = tf.range(n)
+        ii = tf.tile(i[:, tf.newaxis, tf.newaxis], [1, p, 1])
+        print("ii")
+        print(ii)
+        print("coords")
+        print(coords)
+        idx = tf.concat([ii, coords], axis=-1)
+        print("idx")
+        print(idx)
+        # Gather pixel values
+        pixels = tf.gather_nd(tf.squeeze(img, axis=-1), idx)
+        return pixels
+
+    def build(self, input_shape):
+        super(SelectStationUncentered, self).build(input_shape)
+
+    def call(self, inputs):
+        #if len(inputs.shape) == 3:
+        #    return inputs[:, (self.len_y//2) - self.idx_y, (self.len_x//2) - self.idx_x]
+        #elif len(inputs.shape) == 4:
+        #    return inputs[:, (self.len_y//2) - self.idx_y, (self.len_x//2) - self.idx_x, :]
+        print(tf.gather(inputs, self.idx_x, batch_dims=1))
+
+        return tf.gather(inputs, self.idx_x, batch_dims=1)
+
+
 class DispatchTrainingVariables(Layer):
     def __init__(self,
                  indices_speed,
@@ -392,25 +450,26 @@ class SpeedDirection2Components(Layer):
 
         U_zonal = self.reshape_as_inputs(speed, U_zonal)
         V_meridional = self.reshape_as_inputs(speed, V_meridional)
-        print("\nU_zonal")
-        print(V_meridional)
-        print("\nV_meridional")
-        print(V_meridional)
+        #print("\nU_zonal")
+        #print(V_meridional)
+        #print("\nV_meridional")
+        #print(V_meridional)
         if len(U_zonal.shape) == 3:
             U_zonal = tf.expand_dims(U_zonal, -1)
         if len(U_zonal.shape) == 3:
             V_meridional = tf.expand_dims(V_meridional, -1)
-        print("\nU_zonal")
-        print(V_meridional)
-        print("\nV_meridional")
-        print(V_meridional)
+        #print("\nU_zonal")
+        #print(V_meridional)
+        #print("\nV_meridional")
+        #print(V_meridional)
         return U_zonal, V_meridional
 
 
 class Components2Alpha(Layer):
 
-    def __init__(self):
+    def __init__(self, min_value=1e-5):
         self.unit_output = "radian"
+        self.min_value = tf.convert_to_tensor(min_value)
         super(Components2Alpha, self).__init__()
 
     def build(self, input_shape):
@@ -434,9 +493,9 @@ class Components2Alpha(Layer):
             return tf.expand_dims(output, -1)
 
     def call(self, inputs):
-
-        result = tf.where(inputs[:, :, :, 0] == 0.,
-                          tf.where(inputs[:, :, :, 1] == 0.,
+        # modified 17/05/2023 to take into account min_value
+        result = tf.where(tf.abs(inputs[:, :, :, 0]) <= self.min_value,
+                          tf.where(tf.abs(inputs[:, :, :, 1]) <= self.min_value,
                                    0.,
                                    tf.sign(inputs[:, :, :, 1]) * tf.cast(3.14159 / 2., dtype=tf.float32)),
                           tf.math.atan(inputs[:, :, :, 1] / inputs[:, :, :, 0]))

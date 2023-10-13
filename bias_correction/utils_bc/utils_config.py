@@ -69,9 +69,6 @@ def detect_variable(config):
 
 def define_input_variables(config):
     config["input_variables"] = np.unique(list(config["input_speed"]) + list(config["input_dir"])).tolist()
-    print("debug")
-    print("config['input_variables']")
-    print(config["input_variables"])
     return config
 
 
@@ -79,11 +76,4 @@ def get_idx_speed_and_dir_variables(config):
     input_var = list(config["input_variables"])
     config["idx_speed_var"] = np.sort([input_var.index(i) for i in config["input_speed"]])
     config["idx_dir_var"] = np.sort([input_var.index(i) for i in config["input_dir"]])
-    print("debug")
-    print("input_var")
-    print(input_var)
-    print("config['idx_speed_var']")
-    print(config["idx_speed_var"])
-    print("config['idx_dir_var']")
-    print(config["idx_dir_var"])
     return config

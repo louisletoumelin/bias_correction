@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 
 from bias_correction.train.metrics import get_metric
@@ -10,8 +10,17 @@ from bias_correction.train.dataloader import CustomDataHandler
 
 def classify_topo_carac(stations: pd.DataFrame,
                         df: pd.DataFrame,
-                        topo_carac: list = ['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti']
+                        topo_carac: list = ['mu', 'curvature', 'tpi_500', 'tpi_2000', 'laplacian', 'alti'],
+                        config: Union[dict, None] = None
                         ) -> pd.DataFrame:
+    if config is not None:
+        stations = stations[~stations["country"].isin(config["country_to_reject_during_training"]) & ~stations["name"].isin(
+            config["stations_to_reject"])]
+        df = df[df["name"].isin(stations["name"].unique())]
+
+    print("\ndebug")
+    print(df["name"].unique())
+
     for carac in topo_carac:
 
         if not hasattr(df, f"class_{carac}"):
