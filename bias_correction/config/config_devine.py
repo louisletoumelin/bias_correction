@@ -196,13 +196,15 @@ config["metric_split"] = "rmse"
 # Space split
 # 2022_08_04 v4
 # Warning: not the same as usual v2
-config["stations_test"] = ['fhue1', 'farc1', 'fcmb1', 'fber1', 'fmon1', 'fpra1', 'fgie1',
-       'fcel1', 'fsal1', 'fbon1', 'fche1', 'fmor1', 'col du lac blanc']
-config["stations_test"] = ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',
-                           'SCM', 'MMMEL', 'INNRED', 'MMBIR', 'MMHIW', 'MMLOP', 'TGALL', 'GAP', 'BAS', 'STK', 'PLF',
-                           'MVE', 'SAG', 'MLS', 'MAR', 'MTE', 'MTR', 'CHZ', 'SIA', 'COV', 'MMSTA', 'BIV', 'ANT',
-                           'TGDIE', 'CHM', 'TGARE', 'TALLARD', 'LE CHEVRIL-NIVOSE', 'GOR', 'MMMUE', 'INT', 'BIE', 'EIN',
-                           'RUE', 'QUI', 'NEU', 'MMNOI', 'LE GUA-NIVOSE', 'GIH', 'AEG', 'MOE', 'LUG', 'TGNUS', 'BEH']
+#config["stations_test"] = ['fhue1', 'farc1', 'fcmb1', 'fber1', 'fmon1', 'fpra1', 'fgie1',
+#       'fcel1', 'fsal1', 'fbon1', 'fche1', 'fmor1', 'col du lac blanc']
+# todo WARNING I replaced with splitv2 here
+config["stations_test"] = ['Col du Lac Blanc', 'GIH', 'LEI', 'QUI', 'VIT', 'MMCPY', 'CHM', 'SMM', 'RISTOLAS', 'JUN', 'MMSAS', 'MMSRL',
+ 'La Muzelle Lac Blanc', 'TGLAN', 'MMPRV', 'SIA', 'FRE', 'ALLANT-NIVOSE', 'LA MASSE', 'HAI', "VILLAR D'ARENE", 'MAG', 'FAH',
+ 'TGNUS', 'GUE', 'BUF', 'LE CHEVRIL-NIVOSE', 'HOE', 'MMLOP', 'MMTIT', 'AIGUILLES ROUGES-NIVOSE', 'SRS', 'MMDAS',
+ 'LA MURE- RADOME', 'MMLIN', 'SPF', 'GAP', 'CREYS-MALVILLE', 'PEIRA CAVA', 'GSB', 'ARO', 'BOL', 'BIE', 'KLO', 'EGO',
+ 'AGAAR', 'PAY', 'GRANDE PAREI NIVOSE', 'AIGLETON-NIVOSE', 'INNRED', 'GES', 'MOE', 'MMFRS', 'TGILL', 'DAV']
+
 # usual
 """
 ['Col du Lac Blanc', 'GOE', 'WAE', 'TGKAL', 'LAG', 'AND', 'CHU', 'SMM', 'ULR', 'WFJ', 'TICAM',

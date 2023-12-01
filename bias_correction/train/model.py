@@ -184,7 +184,11 @@ class DevineBuilder(StrategyInitializer):
     @staticmethod
     def load_custom_unet(input_shape, model_path):
         unet = create_unet(input_shape)
-        unet.load_weights(model_path)
+        # before a bug fix I had
+        #unet.load_weights(model_path)
+        print("\ndebug before load weights")
+        unet.load_weights(model_path+"weights.h5")
+        print("\ndebug after load weights")
         return unet
 
     @staticmethod
@@ -1033,7 +1037,11 @@ class CustomModel(StrategyInitializer):
         for batch_index, i in enumerate(inputs):
             if batch_index % 10 == 0:
                 print(f"Batch: {batch_index}")
+            print("\ndebug before model.predict")
+            print("debug i")
+            print(i)
             result = self.model.predict(i)
+            print("\ndebug after model.predict")
             index_end = np.min([index + batch_size, index_max])
             try:
                 results_test[index:index_end] = np.squeeze(result)

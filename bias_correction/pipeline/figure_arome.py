@@ -78,6 +78,9 @@ arome = add_topo_carac_time_series(arome, stations, "tpi_500")
 arome = classify_topo_carac(stations, arome, ["tpi_500"])
 arome = classify_topo_carac(stations, arome, ["alti"])
 
+print("Compute correlation for the review")
+print(arome.groupby(["name"])[["tpi_500", "alti"]].mean().corr().iloc[0, 1])
+
 nb_stations = arome[["class_alti", "class_tpi_500", "bias", "name"]].groupby(["class_alti", "class_tpi_500"]).nunique().reset_index().pivot(index='class_alti', columns='class_tpi_500', values='name')
 df_pivot = arome[["class_alti", "class_tpi_500", "bias"]].groupby(["class_alti", "class_tpi_500"]).mean().reset_index().pivot(index='class_alti', columns='class_tpi_500', values='bias')
 vcenter = 0

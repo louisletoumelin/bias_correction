@@ -243,11 +243,16 @@ for type_of_output, metrics, label in zip(["output_direction"],
                                       metrics=metrics)
 
             # Load predictions
-            c_eval.set_df_results("DA_" + cv)
+            try:
+                c_eval.set_df_results("DA_" + cv)
+            except FileNotFoundError:
+                print("File not found for DEVINE analysis")
 
         if type_of_output == "output_speed":
             with timer_context("Print statistics"):
-                c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'))
+                # c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A', f'{cv}_DA'))
+
+                c_eval.print_means(keys=(f'{cv}_AROME', f'{cv}_D', f'{cv}_nn', f'{cv}_int', f'{cv}_A'))
                 mae, rmse, mbe, corr = c_eval.print_stats()
             exp.save_results(c_eval, mae, rmse, mbe, corr)
             exp.save_metrics_current_experience((mae, rmse, mbe, corr),

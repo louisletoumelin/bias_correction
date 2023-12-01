@@ -38,8 +38,8 @@ with tf.device('/GPU:0'):
     # Predict
     with timer_context("Predict test set"):
         inputs_test = data_loader.get_tf_zipped_inputs(mode="train").batch(data_loader.length_train)  #data_loader.length_train
-        #results_test = [cm.model.predict(i) for i in inputs_test]
-        results_test = cm.predict_single_bath(inputs_test, force_build=True)
+        results_test = [cm.model.predict(i) for i in inputs_test]
+        #results_test = cm.predict_single_bath(inputs_test, force_build=True)
 
         #results_test = cm.predict_single_bath(inputs_test, force_build=True)
 
@@ -55,7 +55,7 @@ for mode, result in zip(["train"], [results_test]):
     df = data_loader.get_predictions(mode)
     print("exp.path_to_predictions")
     print(exp.path_to_predictions)
-    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_flowcapts.pkl")
+    df.to_pickle(exp.path_to_predictions+f"devine_{mode}_split_v2.pkl")
 
 
 #for mode, result in zip(["other_countries"], [results_other_countries]):

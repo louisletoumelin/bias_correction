@@ -12,7 +12,7 @@ from bias_correction.config._config import config
 config["details"] = "batch_size_256_archi_25_10_50_epoch_15"  # Str. Some details about the experiment
 config[
     "global_architecture"] = "double_ann"  # Str. Default="ann_v0", "dense_only", "dense_temperature", "devine_only", "double_ann"
-config["restore_experience"] = "2022_12_7_labia_v13"  #"2022_12_7_labia_v8"
+config["restore_experience"] = "2022_12_7_labia_v14"  #"2022_12_7_labia_v8"
 
 # ann_v0
 config["disable_training_cnn"] = True  # Bool. Default=True

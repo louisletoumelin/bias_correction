@@ -129,9 +129,11 @@ def create_unet(input_shape):
     # In the Grandes Rousses domain, Sept. 2023:
     # up4 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up4)
     # In himalaya v2
-    # up4 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up4)
+    #up4 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up4)
     # Here:
-    up4 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up4)
+    #up4 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up4)
+    # Himalaya v3
+    up4 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up4)
     print("\ndebug")
     print("up4")
     print(up4)
@@ -143,12 +145,18 @@ def create_unet(input_shape):
     # Nothing
     # In the Grandes rousses domain, first test:
     # conv3 = Cropping2D(cropping=((0, 1), (0, 1)))(conv3)
+    # in himalaya v3
+    # Nothing
+    # in small test
+    conv3 = Cropping2D(cropping=((0, 1), (0, 1)))(conv3)
+
     # Here:
     print("\ndebug")
     print("conv3")
     print(conv3)
     print("up4")
     print(up4)
+
     merge3 = concatenate([conv3, up4],
                          axis=3,
                          name='concat_3')
@@ -183,7 +191,10 @@ def create_unet(input_shape):
     #up3 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up3)  # in the test in grandes rousses domain and himalaya v2
     # In the Grandes Rousses Sept. 2023
     # Nothing
+    # Himalaya v3
+    up3 = ZeroPadding2D(padding=((0, 0), (0, 0)))(up3)
     # Here:
+
     print("\ndebug")
     print("up3")
     print(up3)
@@ -198,7 +209,12 @@ def create_unet(input_shape):
     # Nothing
     # In the grandes rousses domain, first version (maybe)
     #conv2 = Cropping2D(cropping=((0, 1), (0, 1)))(conv2)
+    # In himalaya v3
+    #conv2 = Cropping2D(cropping=((0, 1), (0, 1)))(conv2)
     # Here:
+    # small test
+    conv2 = Cropping2D(cropping=((1, 1), (1, 1)))(conv2)
+
 
     print("\ndebug")
     print("conv2")
@@ -238,6 +254,12 @@ def create_unet(input_shape):
     # Nothing in the original architecture
     # In the Grandes Rousses domain, first version:
     # conv1 = Cropping2D(cropping=((0, 1), (0, 1)))(conv1)
+    # In himalaya v3
+    #conv1 = Cropping2D(cropping=((1, 1), (1, 1)))(conv1)
+    # In small test
+    conv1 = Cropping2D(cropping=((1, 1), (1, 1)))(conv1)
+    conv1 = Cropping2D(cropping=((1, 1), (1, 1)))(conv1)
+
     # Here:
     print("\ndebug")
     print("up2")
@@ -247,6 +269,7 @@ def create_unet(input_shape):
     # In the Grandes Rousses domain, first version (maybe):
     # up2 = ZeroPadding2D(padding=((0, 1), (0, 1)))(up2)
     # Here:
+
     print("\ndebug")
     print("conv1")
     print(conv1)

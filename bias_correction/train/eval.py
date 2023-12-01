@@ -57,6 +57,7 @@ class CustomEvaluation(VizualizationResults):
         if self.exp.config.get("get_intermediate_output", False):
             keys.append("_int")
 
+        keys = keys + other_models
         self._set_key_attributes(keys)
         self._set_key_list(keys)
 
@@ -68,7 +69,6 @@ class CustomEvaluation(VizualizationResults):
                                                             other_models,
                                                             self.current_variable,
                                                             self.data)
-                keys = keys + other_models
                 self._set_key_attributes(keys)
                 self._set_key_list(keys)
 

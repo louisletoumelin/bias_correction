@@ -316,6 +316,7 @@ class VisuMap:
         uv, dir, u, v = self.get_arome_wind()
         print("debug uv")
         print(uv)
+
         if norm is None:
             norm = MidPointNorm(midpoint=uv, vmin=0, vmax=10)
 
@@ -327,6 +328,7 @@ class VisuMap:
         uv = np.where(uv < 0, np.nan, uv)
         normalized_u = u/uv
         normalized_v = v/uv
+
         fig = plot_quiver(x[::nb_a, ::nb_a],
                           y[::nb_a, ::nb_a],
                           normalized_u[::nb_a, ::nb_a],
@@ -339,6 +341,20 @@ class VisuMap:
                           axis_equal=axis_equal,
                           edgecolor=edgecolor,
                           width=width)
+        """
+        fig = plot_quiver(x[::nb_a, ::nb_a],
+                          y[::nb_a, ::nb_a],
+                          normalized_u[::nb_a, ::nb_a],
+                          normalized_v[::nb_a, ::nb_a],
+                          uv[::nb_a, ::nb_a],
+                          cmap=cmap,
+                          clim=(0, 7),
+                          linewidths=linewidths/3,
+                          scale=scale,
+                          axis_equal=axis_equal,
+                          edgecolor=edgecolor,
+                          width=width)
+        """
         cb = plt.colorbar(fig)
         cb.ax.tick_params(axis='both', which='major', labelsize=fontsize)
         print(f"{self.model}")
@@ -363,6 +379,20 @@ class VisuMap:
         x, y = self.get_arome_x_y()
         normalized_u = u/uv
         normalized_v = v/uv
+        """
+        plot_quiver(x,
+                    y,
+                    normalized_u,
+                    normalized_v,
+                    uv,
+                    cmap=cmap,
+                    clim=(0, 7),
+                    linewidths=linewidths*3,
+                    scale=scale/2,
+                    width=2*width,
+                    axis_equal=axis_equal,
+                    edgecolor=edgecolor_arome)
+        """
         plot_quiver(x,
                     y,
                     normalized_u,

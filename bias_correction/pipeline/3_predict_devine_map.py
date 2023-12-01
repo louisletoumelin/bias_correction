@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import LightSource
@@ -10,8 +12,11 @@ import logging
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 import tensorflow as tf
 from pprint import pprint
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+import glob
+import contextlib
+from PIL import Image
 
 import sys
 sys.path.append("/home/letoumelinl/bias_correction/src/")
@@ -58,7 +63,6 @@ data_loader.prepare_train_test_data()
 data_loader.add_model("_D", mode="test")
 data_loader.add_model("_A")
 
-
 #inputs_and_labels_train = data_loader.get_tf_zipped_inputs_labels(mode="train")
 #inputs_and_labels_val = data_loader.get_tf_zipped_inputs_labels(mode="val")
 
@@ -92,31 +96,70 @@ station = "COV"
 #BEH" et "MLS"
 #station = "Col du Lac Blanc"
 
-for model in ["devine_only", "double_ann"]:
-    config["global_architecture"] = model
-    data_loader.config["global_architecture"] = model
-    cm.config["global_architecture"] = model
-    if model == "devine_only":
-        config["standardize"] = False
-        data_loader.config["standardize"] = False
-        cm.config["standardize"] = False
-    else:
-        config["standardize"] = True
-        data_loader.config["standardize"] = True
-        cm.config["standardize"] = True
+from datetime import date, timedelta
 
-    vm = VisuMap(exp, d, station, data_loader, model, config)
-    vm.plot_quiver(cm,
-                   edgecolor="black",
-                   vert_exag=15_000,
-                   scale=1/0.04,
-                   nb_arrows_to_skip=3,
-                   levels=10,
-                   width=0.005,
-                   vmin=0.41,
-                   vmax=0.53,
-                   name="modified")
 
+def daterange(start_date, end_date):
+    for n in range(int((end_date - start_date).days)):
+        yield start_date + timedelta(hours=n)
+
+#for model in ["devine_only", "double_ann"]:
+
+"""
+for idx, n in enumerate(range(72)):
+
+    d = datetime(2019, 10, 8, 1) + timedelta(hours=n)
+    print(d)
+    for model in ["devine_only"]:
+
+        config["global_architecture"] = model
+        data_loader.config["global_architecture"] = model
+        cm.config["global_architecture"] = model
+        if model == "devine_only":
+            config["standardize"] = False
+            data_loader.config["standardize"] = False
+            cm.config["standardize"] = False
+        else:
+            config["standardize"] = True
+            data_loader.config["standardize"] = True
+            cm.config["standardize"] = True
+
+        vm = VisuMap(exp, d, station, data_loader, model, config)
+        vm.plot_quiver(cm,
+                       edgecolor="black",
+                       vert_exag=15_000,
+                       scale=1/0.04,
+                       nb_arrows_to_skip=3,
+                       levels=10,
+                       width=0.005,
+                       vmin=0.41,
+                       vmax=0.53,
+                       cmap="viridis",
+                       name=idx)
+"""
+"""
+fp_0 = "/home/letoumelinl/Images/gifpres/"
+fp_in = fp_0 + "*.png"
+fp_out = f"/home/letoumelinl/Images/cov_gif_{station}.gif"
+
+for file in glob.glob(fp_in):
+    print(file.split('_'))
+    os.rename(file, file.split('_')[0]+".png")
+"""
+"""    
+# use exit stack to automatically close opened images
+files = (fp_0+f"{i}.png" for i in range(35))
+with contextlib.ExitStack() as stack:
+    # lazily load images
+    imgs = (stack.enter_context(Image.open(f)) for f in files)
+
+    # extract  first image from iterator
+    img = next(imgs)
+
+    # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
+    img.save(fp=fp_out, format='GIF', append_images=imgs,
+             save_all=True, duration=450, loop=0)
+"""
 """
 time_series = data_loader.loader.load_time_series_pkl()
 time_series = time_series[time_series["name"] == station]
@@ -224,7 +267,7 @@ plt.fill_between(x, y1, y2, color="black", alpha=0.1)
 save_figure(f"Map_wind_fields/time_series_dir_error", exp=exp, svg=True)
 """
 # Modified DEVINE
-"""
+
 #cm.build_model_with_strategy(True)
 # cm.load_weights(os.getcwd()+"/last_weights/")
 model = "devine_only"
@@ -249,4 +292,3 @@ vm.plot_quiver(cm,
 plt.title("Modified_DEVINE")
 
 print_intro()
-"""
